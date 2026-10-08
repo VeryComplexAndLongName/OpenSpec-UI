@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { answerQuestion, appendQuestion, openQuestions, questionId, readQuestions } from "./decisions-file.js";
+import { answerQuestion, appendQuestion, nextQuestionId, openQuestions, questionId, readQuestions } from "./decisions-file.js";
 
 // every-varying-check-has-a-budget: a few small file writes.
 vi.setConfig({ testTimeout: 15_000 });
@@ -44,6 +44,30 @@ describe("decisions.md", () => {
     const text = await readFile(path.join(dir, "decisions.md"), "utf8");
     expect(text.startsWith("# Decisions")).toBe(true);
     expect(text).toContain(`## ${second}: Which database?\n\n- Asked: 2026-10-07T20:00:00.000Z by copilot-cli-acp, stage review, run run-bbbb-2222\n- Answer: (open)`);
+  });
+
+  // Live on 2026-10-08: a chain's verify stage asked under the same id as
+  // its apply stage, and the second question could not be answered.
+  it("numbers a run's questions on from those it already has, across stages", async () => {
+    const dir = await changeDir();
+    expect(await nextQuestionId(dir, "run-cccc-3333")).toBe(questionId("run-cccc-3333", 1));
+    await appendQuestion(dir, asked(questionId("run-cccc-3333", 1), "CSV or vCard?", "run-cccc-3333"));
+    await appendQuestion(dir, asked(questionId("run-dddd-4444", 1), "Which port?", "run-dddd-4444"));
+
+    expect(await nextQuestionId(dir, "run-cccc-3333")).toBe(questionId("run-cccc-3333", 2));
+    expect(await nextQuestionId(dir, "run-dddd-4444")).toBe(questionId("run-dddd-4444", 2));
+  });
+
+  it("answers the open one of two entries a file holds under one id", async () => {
+    const dir = await changeDir();
+    const id = questionId("run-eeee-5555", 1);
+    await appendQuestion(dir, asked(id, "CSV or vCard?", "run-eeee-5555"));
+    await answerQuestion(dir, id, { text: "CSV", by: "Alexander", at: "2026-10-08T09:07:17.000Z" });
+    await appendQuestion(dir, asked(id, "Is that the recorded answer?", "run-eeee-5555"));
+
+    expect(await answerQuestion(dir, id, { text: "Yes", by: "Alexander", at: "2026-10-08T09:10:00.000Z" })).toBe("answered");
+    expect((await readQuestions(dir)).map((question) => question.answer)).toEqual(["CSV", "Yes"]);
+    expect(await answerQuestion(dir, id, { text: "No", by: "Alexander", at: "2026-10-08T09:11:00.000Z" })).toBe("already-answered");
   });
 
   it("holds no question where there is no file", async () => {

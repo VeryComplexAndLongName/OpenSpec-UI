@@ -26,8 +26,11 @@ function answerFromDecisions(changeDir: string, runId: string, signal: AbortSign
     const wanted = question.replace(/\s+/gu, " ").trim();
     for (;;) {
       if (signal.aborted) throw new Error("The run was cancelled while waiting for the operator's answer.");
+      // The latest question of this run with this text: one asked again in a
+      // later stage is answered afresh, not by an earlier answer.
       const found = (await readQuestions(changeDir).catch(() => []))
-        .find((entry) => entry.runId === runId && entry.text === wanted && entry.answer !== undefined);
+        .filter((entry) => entry.runId === runId && entry.text === wanted)
+        .at(-1);
       if (found?.answer !== undefined) return found.answer;
       await new Promise<void>((resolve) => {
         const timer = setTimeout(resolve, ASK_OPERATOR_POLL_MS);

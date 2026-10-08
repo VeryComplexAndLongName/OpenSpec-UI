@@ -2055,4 +2055,32 @@ describe("PipelineView - a change with a question for the operator", () => {
     expect(onAnswerQuestion).toHaveBeenCalledWith(expect.objectContaining({ changeName: "alpha", questionId: "Q-run1-1", answer: "PostgreSQL" }));
     expect(screen.queryByTestId("pipeline-answer-form")).toBeNull();
   });
+
+  // Live on 2026-10-08: the open form kept the questions it opened with, so a
+  // new one never showed and one answered in the run panel stayed.
+  it("keeps the open form to the change's questions as they are now", async () => {
+    vi.useFakeTimers();
+    let questions = [{ questionId: "Q-run1-1", text: "Which database?" }];
+    const read = vi.fn(async () => survey(directory({
+      changes: [{ changeName: "alpha", tasksDone: 0, tasksTotal: 2, blockers: [], alsoIn: [], openQuestions: questions }],
+      runs: [],
+    })));
+    render(<PipelineView isActive load={async () => report(change("alpha"))} survey={read} liveRuns={async () => ({ runs: [] })} onStart={vi.fn()} onAnswerQuestion={vi.fn()} />);
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(100);
+    fireEvent.click(screen.getByTestId("pipeline-answer-alpha"));
+    expect(screen.getByTestId("pipeline-answer-Q-run1-1")).toBeInTheDocument();
+
+    // Answered in the run panel, and the agent asked again.
+    questions = [{ questionId: "Q-run1-2", text: "SQLite or PostgreSQL, exactly?" }];
+    await vi.advanceTimersByTimeAsync(SURVEY_POLL_INTERVAL_MS);
+    expect(screen.queryByTestId("pipeline-answer-Q-run1-1")).toBeNull();
+    expect(screen.getByTestId("pipeline-answer-Q-run1-2")).toBeInTheDocument();
+
+    // Answered elsewhere too: nothing is left to answer, and the form goes.
+    questions = [];
+    await vi.advanceTimersByTimeAsync(SURVEY_POLL_INTERVAL_MS);
+    expect(screen.queryByTestId("pipeline-answer-form")).toBeNull();
+    vi.useRealTimers();
+  });
 });

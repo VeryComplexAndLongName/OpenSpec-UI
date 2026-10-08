@@ -94,6 +94,17 @@ the-plan-is-updated-from-its-review.
   answer field once the run has ended. Tests:
   `operator-questions-runner.test.ts`, `AiPanel.test.tsx`,
   `operator-question-instruction.test.ts` (the tool instruction).
+  Third round: a chain runs every stage under one run id, and each stage
+  numbered its questions from 1, so the verify stage's question took the
+  apply stage's id; the wrapper took it for answered and the chain ended,
+  and the card offered an answer that could never be recorded. Ids now go
+  on from those the run already has in `decisions.md`, an answer to an id
+  the file holds twice goes to the open entry, and `ask_operator` waits on
+  the latest question of its text. The card's answer form kept the
+  questions it opened with; it now follows the card, adding a question
+  asked since and dropping one answered elsewhere, and closes when none is
+  left. Tests: `decisions-file.test.ts`, `operator-questions-runner.test.ts`,
+  `PipelineView.test.tsx`.
 
 ## 3. Documents
 

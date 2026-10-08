@@ -99,6 +99,22 @@ export function questionId(runId: string, n: number): string {
   return `Q-${runId.replace(/[^A-Za-z0-9]/gu, "").slice(0, 8)}-${n}`;
 }
 
+/** The id the run's next question gets: one past the highest its run already
+ * has in the file. A chain runs every stage under one run id, and a counter
+ * kept by each stage gave the verify stage's first question the same id as
+ * the apply stage's, so the second could never be answered (live,
+ * 2026-10-08). */
+export async function nextQuestionId(changeDir: string, runId: string): Promise<string> {
+  const prefix = questionId(runId, 0).replace(/0$/u, "");
+  let highest = 0;
+  for (const question of await readQuestions(changeDir).catch((): OperatorQuestion[] => [])) {
+    if (!question.id.startsWith(prefix)) continue;
+    const n = Number(question.id.slice(prefix.length));
+    if (Number.isInteger(n) && n > highest) highest = n;
+  }
+  return questionId(runId, highest + 1);
+}
+
 /** Appends a question to the change's `decisions.md`, making the file where
  * it is not there. The text is kept on one line. */
 export async function appendQuestion(changeDir: string, question: Omit<OperatorQuestion, "answer" | "answeredAt" | "answeredBy">): Promise<void> {
@@ -132,13 +148,20 @@ export async function answerQuestion(
   if (existing === undefined) return "not-found";
   const newline = existing.includes("\r\n") ? "\r\n" : "\n";
   const lines = existing.split(/\r?\n/u);
-  const start = lines.findIndex((line) => ENTRY_RE.exec(line)?.[1] === id);
-  if (start === -1) return "not-found";
-  let end = lines.findIndex((line, index) => index > start && ENTRY_RE.test(line));
-  if (end === -1) end = lines.length;
-  const answerAt = lines.findIndex((line, index) => index > start && index < end && ANSWER_RE.test(line));
-  if (answerAt === -1) return "not-found";
-  if (ANSWER_RE.exec(lines[answerAt]!)![1]!.trim() !== OPEN) return "already-answered";
+  // Each entry with this id, and its answer line. A file written before ids
+  // were unique within a run can hold the id twice: the open one is the one
+  // an answer is for.
+  const entries: number[] = [];
+  for (const [index, line] of lines.entries()) {
+    if (ENTRY_RE.exec(line)?.[1] !== id) continue;
+    let end = lines.findIndex((other, at) => at > index && ENTRY_RE.test(other));
+    if (end === -1) end = lines.length;
+    const answerAt = lines.findIndex((other, at) => at > index && at < end && ANSWER_RE.test(other));
+    if (answerAt !== -1) entries.push(answerAt);
+  }
+  if (entries.length === 0) return "not-found";
+  const answerAt = entries.find((at) => ANSWER_RE.exec(lines[at]!)![1]!.trim() === OPEN);
+  if (answerAt === undefined) return "already-answered";
   const text = answer.text.replace(/\s+/gu, " ").trim();
   lines.splice(answerAt, 1, `- Answer: ${text}`, `- Answered: ${answer.at} by ${answer.by}`);
   await writeFile(file, lines.join(newline), "utf8");

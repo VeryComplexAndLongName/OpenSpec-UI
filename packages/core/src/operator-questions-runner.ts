@@ -17,7 +17,7 @@ import {
   answerQuestion,
   appendQuestion,
   openQuestions,
-  questionId as makeQuestionId,
+  nextQuestionId,
   readQuestions,
 } from "./decisions-file.js";
 import path from "node:path";
@@ -172,7 +172,6 @@ export function withOperatorQuestions(runner: AgentRunner, options: OperatorQues
     const changeDir = command.context.changeDir;
     let pass = command;
     let first = true;
-    let asked = 0;
     const answers: Array<{ question: string; answer: string }> = [];
     /** The questions of this run already said to be answered in its stream. */
     const announced = new Set<string>();
@@ -187,8 +186,7 @@ export function withOperatorQuestions(runner: AgentRunner, options: OperatorQues
           const text = readOperatorQuestion(line);
           if (text === undefined || seen.has(text)) continue;
           seen.add(text);
-          asked += 1;
-          const id = makeQuestionId(command.runId, asked);
+          const id = await nextQuestionId(changeDir, command.runId);
           await appendQuestion(changeDir, {
             id,
             text,

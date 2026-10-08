@@ -599,6 +599,20 @@ export function PipelineView({
     now,
   });
   const cards = new Map(cardList.map((card) => [card.changeName, card]));
+  // The open form follows its card: a question asked after it opened is
+  // added, and one answered anywhere leaves it (live, 2026-10-08: the form
+  // kept the questions it opened with). A card this view does not draw keeps
+  // the questions the form opened with.
+  const answerCard = answerFor !== undefined ? cards.get(answerFor.changeName) : undefined;
+  const answerTarget: AnswerTarget | undefined = answerFor === undefined
+    ? undefined
+    : answerCard === undefined
+      ? answerFor
+      : { ...answerFor, questions: answerCard.openQuestions ?? (answerCard.run?.waiting?.kind === "question" ? answerCard.run.waiting.questions : []) };
+  const nothingLeftToAnswer = answerTarget !== undefined && answerTarget.questions.length === 0;
+  useEffect(() => {
+    if (nothingLeftToAnswer) setAnswerFor(undefined);
+  }, [nothingLeftToAnswer]);
   // What has landed, from the standings rather than from the words on a
   // card: a merged pull request, the change archived on the default
   // branch, or deleted from it after being there
@@ -970,14 +984,14 @@ export function PipelineView({
       {others.error !== undefined
         ? <p className="openspec-shell-note" data-testid="pipeline-survey-error">The other working directories could not be read: {others.error}</p>
         : null}
-      {answerFor !== undefined && onAnswerQuestion !== undefined ? (
+      {answerTarget !== undefined && !nothingLeftToAnswer && onAnswerQuestion !== undefined ? (
         <AnswerQuestionsForm
-          target={answerFor}
+          target={answerTarget}
           onAnswer={(questionId, answer) => {
             onAnswerQuestion({
-              changeName: answerFor.changeName,
-              ...(answerFor.runId !== undefined ? { runId: answerFor.runId } : {}),
-              workingDirectory: answerFor.workingDirectory,
+              changeName: answerTarget.changeName,
+              ...(answerTarget.runId !== undefined ? { runId: answerTarget.runId } : {}),
+              workingDirectory: answerTarget.workingDirectory,
               questionId,
               answer,
             });

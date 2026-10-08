@@ -165,6 +165,37 @@ describe("withOperatorQuestions", () => {
     expect(seen.at(-1)).toMatchObject({ kind: "completed", summary: "exported as CSV" });
   });
 
+  it("gives a later stage's question of the same run an id of its own", async () => {
+    const dir = await change();
+    // Asks on the first pass of each stage, and goes on once answered.
+    const runner: AgentRunner = {
+      async *run(sent: Command) {
+        yield { kind: "started", runId: sent.runId, timestamp: at, command: sent.kind, cwd: sent.cwd };
+        if (sent.context.answers === undefined) {
+          yield { kind: "stdout", runId: sent.runId, timestamp: at, chunk: `Question for the operator: asked in ${sent.kind}?\n` };
+        }
+        yield { kind: "completed", runId: sent.runId, timestamp: at, summary: sent.kind };
+      },
+    };
+    const wrapped = withOperatorQuestions(runner, { agent: "local-llm-acp", pollIntervalMs: 20 });
+    const answerEach = async (kind: Command["kind"]) => {
+      const events = wrapped.run(command(dir, kind, "run-chain-1"))[Symbol.asyncIterator]();
+      const seen: Event[] = [];
+      await drainUntil(events, seen, "awaitingAnswers");
+      const [open] = await openQuestions(dir);
+      await wrapped.run({ ...command(dir, "answerQuestion", "run-chain-1"), questionId: open!.id, answer: `yes, ${kind}` })[Symbol.asyncIterator]().next();
+      await drainAll(events, seen);
+      return seen;
+    };
+
+    await answerEach("implement");
+    const verify = await answerEach("verify");
+
+    expect(verify).toContainEqual(expect.objectContaining({ kind: "question", questionId: questionId("run-chain-1", 2) }));
+    expect(verify.at(-1)).toMatchObject({ kind: "completed" });
+    expect((await readFile(path.join(dir, "decisions.md"), "utf8"))).toContain("- Answer: yes, verify");
+  });
+
   it("ends the wait on a cancel, leaving the question open", async () => {
     const dir = await change();
     const { runner } = scriptedAgent("Question for the operator: Which database?\n");
