@@ -1,3 +1,5 @@
+import { writeFile } from "node:fs/promises";
+import path from "node:path";
 import type { AgentRunner, Command, Event } from "@openspec-ui/core";
 
 // Register under DEFAULT_AGENT_ID ("claude-cli", packages/core/src/agents/
@@ -42,7 +44,12 @@ export function createFakeAgentRunner(options: FakeAgentRunnerOptions): AgentRun
       if (command.kind === "implement") {
         yield { kind: "started", runId: command.runId, timestamp: nowIso(), command: command.kind, cwd: command.cwd };
         yield { kind: "progress", runId: command.runId, timestamp: nowIso(), message: "applying changes" };
-        yield { kind: "stdout", runId: command.runId, timestamp: nowIso(), chunk: "updated proposal.md\n" };
+        // A file changed, as an implementing run that did its work changes
+        // one: an apply that changes no file and ticks no task ends the
+        // chain (an-apply-that-ticks-nothing-ends-the-chain). Outside the
+        // change's directory, so its own diff stays what each spec wrote.
+        await writeFile(path.join(command.cwd, "fake-agent-work.txt"), `${nowIso()}\n`, "utf8");
+        yield { kind: "stdout", runId: command.runId, timestamp: nowIso(), chunk: "updated fake-agent-work.txt\n" };
         await implementGate;
         yield { kind: "completed", runId: command.runId, timestamp: nowIso(), summary: "1 file changed" };
         return;

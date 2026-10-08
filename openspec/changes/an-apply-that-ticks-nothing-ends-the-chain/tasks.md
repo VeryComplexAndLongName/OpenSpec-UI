@@ -16,6 +16,12 @@ From the owner's decision on 2026-10-08, after two chains went on to
   tests whose fake agent did nothing in `apply` while tasks were open,
   and which test what comes after `apply`, now have that agent change a
   file (`makeWorkingRunner`, `doSomeWork`); all 127 pass.
+  The standalone e2e fake agent (`packages/server/e2e/fixtures/
+  fake-agent-runner.ts`) also said it changed a file and changed none, so
+  three specs that run a chain past `apply` stopped there in CI; it now
+  writes `fake-agent-work.txt` in the working directory, outside the
+  change's own diff. `pipeline.spec.ts`, `tour.spec.ts` and
+  `harness-screenshots.spec.ts`: 7 passed locally.
 
 ## 2. Documents
 
