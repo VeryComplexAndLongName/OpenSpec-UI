@@ -106,8 +106,8 @@ its own for each such decision: `Question for the operator: <question>`
   command after `apply` or `verify` - and the run or the chain goes on from
   there. A cancel ends the wait; the questions stay open.
 - **The refusal.** While a change's `decisions.md` holds an open question,
-  an agent run on it is refused, naming the question. Read-only commands
-  are not.
+  in the checkout or in the change's own worktree, an agent run on it is
+  refused, naming the question. Read-only commands are not.
 - **Answering.** On the change's card (**Answer...**), in the AI or chain
   panel watching the run, in the Human-Only Inbox, with
   `openspec-ui-cli answer <change> <Q-id> "<answer>"` (`answer <change>`

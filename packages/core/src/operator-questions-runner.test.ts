@@ -160,4 +160,26 @@ describe("withOperatorQuestions", () => {
     for await (const event of wrapped.run(command(dir, "status", "run-read"))) read.push(event);
     expect(read.at(-1)).toMatchObject({ kind: "completed" });
   });
+
+  it("refuses a run from the checkout past a question its chain asked in the change's own worktree", async () => {
+    const checkout = await change();
+    const worktree = await change();
+    await appendQuestion(worktree, { id: "Q-chain-1", text: "SQLite or PostgreSQL?", askedAt: at, agent: "copilot-cli-acp", stage: "review", runId: "run-chain" });
+    const { runner, commands } = scriptedAgent("Done.\n");
+    const asked: Array<[string, string]> = [];
+    const wrapped = withOperatorQuestions(runner, {
+      agent: "copilot-cli-acp",
+      readChangeWorktreeDirs: async (cwd, changeName) => {
+        asked.push([cwd, changeName]);
+        return [worktree];
+      },
+    });
+
+    const refused: Event[] = [];
+    for await (const event of wrapped.run(command(checkout, "implement", "run-new"))) refused.push(event);
+
+    expect(asked).toEqual([[path.dirname(path.dirname(path.dirname(checkout))), "demo"]]);
+    expect((refused[0] as Extract<Event, { kind: "failed" }>).reason).toContain('demo has an open question for the operator: Q-chain-1 "SQLite or PostgreSQL?"');
+    expect(commands).toEqual([]);
+  });
 });

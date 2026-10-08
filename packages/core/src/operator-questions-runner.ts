@@ -20,8 +20,10 @@ import {
   questionId as makeQuestionId,
   readQuestions,
 } from "./decisions-file.js";
+import path from "node:path";
 import { readAcpStreamedText } from "./acp-streamed-text.js";
 import { changeNameOf } from "./audit-runs.js";
+import { changeOfWorktree } from "./change-worktrees.js";
 import { createGitWrapper } from "./git.js";
 import { LineCollector, readOperatorQuestion } from "./operator-question.js";
 import type { AgentRunner } from "./agent-runner.js";
@@ -43,6 +45,25 @@ export interface OperatorQuestionsOptions {
   readIdentity?: (cwd: string) => Promise<string | undefined>;
   pollIntervalMs?: number;
   now?: () => Date;
+  /** The change directories of the change's own worktrees, where a run of
+   * it asks its questions. A test seam: production reads `git worktree
+   * list` from the command's directory. */
+  readChangeWorktreeDirs?: (cwd: string, changeName: string) => Promise<string[]>;
+}
+
+/** The change directory in each worktree that is the change's own, other
+ * than the main one. A directory that is not a git repository has none. */
+async function changeWorktreeDirsOf(cwd: string, changeName: string): Promise<string[]> {
+  const worktrees = await createGitWrapper({ cwd }).worktreeList();
+  return worktrees
+    .filter((worktree, index) => changeOfWorktree(worktree, index === 0) === changeName)
+    .map((worktree) => path.join(worktree.path, "openspec", "changes", changeName));
+}
+
+/** One spelling of a directory, for telling two of them apart. */
+function samePlace(left: string): string {
+  const resolved = path.resolve(left);
+  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
 }
 
 /** The command the stage goes on with once its questions are answered: a
@@ -74,6 +95,25 @@ export function withOperatorQuestions(runner: AgentRunner, options: OperatorQues
   const now = options.now ?? (() => new Date());
   const pollMs = options.pollIntervalMs ?? ANSWER_POLL_INTERVAL_MS;
   const readIdentity = options.readIdentity ?? ((cwd: string) => createGitWrapper({ cwd }).configuredIdentity());
+  const readWorktreeDirs = options.readChangeWorktreeDirs ?? changeWorktreeDirsOf;
+
+  /** Every question still open on the change, wherever its runs asked it:
+   * the command's own directory, and the change's own worktree, so a run
+   * started from the checkout does not go past a question its chain asked
+   * in the worktree. The same question in both is counted once. */
+  async function openQuestionsOfChange(command: Command): Promise<Awaited<ReturnType<typeof openQuestions>>> {
+    const own = command.context.changeDir;
+    const change = changeNameOf(own);
+    const elsewhere = (await readWorktreeDirs(command.cwd, change).catch((): string[] => []))
+      .filter((dir) => samePlace(dir) !== samePlace(own));
+    const found = new Map<string, Awaited<ReturnType<typeof openQuestions>>[number]>();
+    for (const dir of [own, ...elsewhere]) {
+      for (const question of await openQuestions(dir).catch(() => [])) {
+        if (!found.has(question.id)) found.set(question.id, question);
+      }
+    }
+    return [...found.values()];
+  }
   /** The runs waiting for answers, by run id. */
   const waiters = new Map<string, Waiter>();
   const at = () => now().toISOString();
@@ -252,7 +292,7 @@ export function withOperatorQuestions(runner: AgentRunner, options: OperatorQues
         yield* runner.run(command);
         return;
       }
-      const blocking = (await openQuestions(command.context.changeDir).catch(() => []))
+      const blocking = (await openQuestionsOfChange(command))
         .filter((question) => question.runId !== command.runId);
       if (blocking.length > 0) {
         const [question] = blocking;

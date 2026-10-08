@@ -69,7 +69,9 @@ hosts (ADR 0028); the Human-Only Inbox over `tasks.md`; the supervisor's
    file.
 6. **The refusal.** The same wrapper refuses an agent command (`plan`,
    `review`, `update`, `implement`, `verify`) on a change whose
-   `decisions.md` holds an open question, with "<change> has an open
+   `decisions.md` holds an open question - in the command's own directory
+   or in the change's own worktree, so a run started from the checkout
+   does not go past a question its chain asked there - with "<change> has an open
    question for the operator: <Q-id> "<text>". Answer it first - on the
    change's card, with `openspec-ui-cli answer <change> <Q-id> "<answer>"`,
    or in its decisions.md." A chain is refused at its first stage, which
