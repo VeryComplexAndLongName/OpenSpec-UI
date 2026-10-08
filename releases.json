@@ -1,39 +1,35 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-07T20:18:35.568Z",
+  "generated_at": "2026-10-08T11:05:13.331Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "820a7d924e0080fe07d6ca23db1c3b219d37f8d4",
+  "commit": "ca9a43bce96f700a04d49bdbc4590d5176b0291d",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.95.0",
-      "released_at": "2026-10-07T20:18:35.568Z",
-      "tag": "openspec-ui-vscode@0.95.0",
+      "version": "0.96.0",
+      "released_at": "2026-10-08T11:05:13.331Z",
+      "tag": "openspec-ui-vscode@0.96.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.95.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.96.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.95.0/openspec-ui-vscode-0.95.0.vsix",
-          "size_bytes": 9741022
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.96.0/openspec-ui-vscode-0.96.0.vsix",
+          "size_bytes": 9789309
         }
       ],
       "changes": [
         {
           "kind": "minor",
-          "summary": "Agents are told how work is done here (agents-are-told-how-work-is-done-here, ADR 0043). Initializing OpenSpec, in either host, now writes a section into CLAUDE.md and AGENTS.md that tells every agent, however it was started, to work each change in a git worktree of its own at ../.worktrees/<repository>/<change-id> on a branch cut from origin/main, and where the stage assignment is; a file somebody else wrote gets it only where you agree. \"Write Agent Workflow Rules\" adds it to a repository initialized before. \"Create OpenSpec Change\" now makes the change in its own working directory, and openspec-ui-cli worktree add makes one for a change that does not exist yet. Initializing also offers to commit the OpenSpec setup to main and push it at once, so each change has origin/main to be cut from; an agent that finds it missing commits it itself and goes on."
-        },
-        {
-          "kind": "patch",
-          "summary": "What landed is archived without waiting (landed-changes-are-archived-without-waiting). The extension now starts in any workspace with an OpenSpec project, not only once its view is opened, so the sweep that archives landed changes runs there. A host sweeps again within minutes, not at its half hour, after an archive merges, after a new failure, and while a change's own branch is on the server, so a merge is followed by its archive within minutes. A refused push says git's reason, and a fetch that failed says the archive waits."
+          "summary": "The agent asks the operator, and nothing goes on without an answer (the-agent-asks-the-operator, ADR 0042). Agent stages are told to print `Question for the operator: <question>` for each decision the change's files leave open, and `local-llm-acp` can ask mid-turn with its `ask_operator` tool. Each question is kept in the change's `decisions.md` and the audit log. A run that asked waits instead of completing, under every autonomy level, and once every question is answered it runs the stage again with the answers (`update` after `propose` or `review`). Agent runs on a change with an open question are refused, naming it. Questions are answered on the change's card, in the AI and chain panels, in the Human-Only Inbox, with `openspec-ui-cli answer`, or in `decisions.md` itself; `openspec-ui-cli status` and the supervisor say how to answer a waiting run. The run and chain panels also offer every permission request still pending, each with its own Allow and Deny, rather than only the latest: an agent that runs tool calls side by side asks for several at once. A new `permissionSettled` event says in the run's stream that a permission request was answered, on whichever surface, or withdrawn by the agent (it cancelled the request, or its turn ended with it open), and the request leaves every panel, as do the requests of a stage that has ended."
         }
       ]
     },
@@ -42,8 +38,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.56.0",
-      "released_at": "2026-10-07T20:18:35.568Z",
+      "version": "1.57.0",
+      "released_at": "2026-10-08T11:05:13.331Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -54,7 +50,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "Agents are told how work is done here (agents-are-told-how-work-is-done-here, ADR 0043). Initializing OpenSpec, in either host, now writes a section into CLAUDE.md and AGENTS.md that tells every agent, however it was started, to work each change in a git worktree of its own at ../.worktrees/<repository>/<change-id> on a branch cut from origin/main, and where the stage assignment is; a file somebody else wrote gets it only where you agree. \"Write Agent Workflow Rules\" adds it to a repository initialized before. \"Create OpenSpec Change\" now makes the change in its own working directory, and openspec-ui-cli worktree add makes one for a change that does not exist yet. Initializing also offers to commit the OpenSpec setup to main and push it at once, so each change has origin/main to be cut from; an agent that finds it missing commits it itself and goes on."
+          "summary": "The agent asks the operator, and nothing goes on without an answer (the-agent-asks-the-operator, ADR 0042). Agent stages are told to print `Question for the operator: <question>` for each decision the change's files leave open, and `local-llm-acp` can ask mid-turn with its `ask_operator` tool. Each question is kept in the change's `decisions.md` and the audit log. A run that asked waits instead of completing, under every autonomy level, and once every question is answered it runs the stage again with the answers (`update` after `propose` or `review`). Agent runs on a change with an open question are refused, naming it. Questions are answered on the change's card, in the AI and chain panels, in the Human-Only Inbox, with `openspec-ui-cli answer`, or in `decisions.md` itself; `openspec-ui-cli status` and the supervisor say how to answer a waiting run. The run and chain panels also offer every permission request still pending, each with its own Allow and Deny, rather than only the latest: an agent that runs tool calls side by side asks for several at once. A new `permissionSettled` event says in the run's stream that a permission request was answered, on whichever surface, or withdrawn by the agent (it cancelled the request, or its turn ended with it open), and the request leaves every panel, as do the requests of a stage that has ended."
         }
       ]
     },
@@ -63,8 +59,8 @@
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.137.0",
-      "released_at": "2026-10-07T20:18:35.568Z",
+      "version": "0.138.0",
+      "released_at": "2026-10-08T11:05:13.331Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -75,11 +71,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "Agents are told how work is done here (agents-are-told-how-work-is-done-here, ADR 0043). Initializing OpenSpec, in either host, now writes a section into CLAUDE.md and AGENTS.md that tells every agent, however it was started, to work each change in a git worktree of its own at ../.worktrees/<repository>/<change-id> on a branch cut from origin/main, and where the stage assignment is; a file somebody else wrote gets it only where you agree. \"Write Agent Workflow Rules\" adds it to a repository initialized before. \"Create OpenSpec Change\" now makes the change in its own working directory, and openspec-ui-cli worktree add makes one for a change that does not exist yet. Initializing also offers to commit the OpenSpec setup to main and push it at once, so each change has origin/main to be cut from; an agent that finds it missing commits it itself and goes on."
-        },
-        {
-          "kind": "minor",
-          "summary": "What landed is archived without waiting (landed-changes-are-archived-without-waiting). The extension now starts in any workspace with an OpenSpec project, not only once its view is opened, so the sweep that archives landed changes runs there. A host sweeps again within minutes, not at its half hour, after an archive merges, after a new failure, and while a change's own branch is on the server, so a merge is followed by its archive within minutes. A refused push says git's reason, and a fetch that failed says the archive waits."
+          "summary": "The agent asks the operator, and nothing goes on without an answer (the-agent-asks-the-operator, ADR 0042). Agent stages are told to print `Question for the operator: <question>` for each decision the change's files leave open, and `local-llm-acp` can ask mid-turn with its `ask_operator` tool. Each question is kept in the change's `decisions.md` and the audit log. A run that asked waits instead of completing, under every autonomy level, and once every question is answered it runs the stage again with the answers (`update` after `propose` or `review`). Agent runs on a change with an open question are refused, naming it. Questions are answered on the change's card, in the AI and chain panels, in the Human-Only Inbox, with `openspec-ui-cli answer`, or in `decisions.md` itself; `openspec-ui-cli status` and the supervisor say how to answer a waiting run. The run and chain panels also offer every permission request still pending, each with its own Allow and Deny, rather than only the latest: an agent that runs tool calls side by side asks for several at once. A new `permissionSettled` event says in the run's stream that a permission request was answered, on whichever surface, or withdrawn by the agent (it cancelled the request, or its turn ended with it open), and the request leaves every panel, as do the requests of a stage that has ended."
         }
       ]
     },
@@ -88,8 +80,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.84.0",
-      "released_at": "2026-10-07T20:18:35.568Z",
+      "version": "1.85.0",
+      "released_at": "2026-10-08T11:05:13.331Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -99,7 +91,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "Agents are told how work is done here (agents-are-told-how-work-is-done-here, ADR 0043). Initializing OpenSpec, in either host, now writes a section into CLAUDE.md and AGENTS.md that tells every agent, however it was started, to work each change in a git worktree of its own at ../.worktrees/<repository>/<change-id> on a branch cut from origin/main, and where the stage assignment is; a file somebody else wrote gets it only where you agree. \"Write Agent Workflow Rules\" adds it to a repository initialized before. \"Create OpenSpec Change\" now makes the change in its own working directory, and openspec-ui-cli worktree add makes one for a change that does not exist yet. Initializing also offers to commit the OpenSpec setup to main and push it at once, so each change has origin/main to be cut from; an agent that finds it missing commits it itself and goes on."
+          "summary": "The agent asks the operator, and nothing goes on without an answer (the-agent-asks-the-operator, ADR 0042). Agent stages are told to print `Question for the operator: <question>` for each decision the change's files leave open, and `local-llm-acp` can ask mid-turn with its `ask_operator` tool. Each question is kept in the change's `decisions.md` and the audit log. A run that asked waits instead of completing, under every autonomy level, and once every question is answered it runs the stage again with the answers (`update` after `propose` or `review`). Agent runs on a change with an open question are refused, naming it. Questions are answered on the change's card, in the AI and chain panels, in the Human-Only Inbox, with `openspec-ui-cli answer`, or in `decisions.md` itself; `openspec-ui-cli status` and the supervisor say how to answer a waiting run. The run and chain panels also offer every permission request still pending, each with its own Allow and Deny, rather than only the latest: an agent that runs tool calls side by side asks for several at once. A new `permissionSettled` event says in the run's stream that a permission request was answered, on whichever surface, or withdrawn by the agent (it cancelled the request, or its turn ended with it open), and the request leaves every panel, as do the requests of a stage that has ended."
         }
       ]
     },
@@ -108,8 +100,8 @@
       "name": "CLI",
       "package": "@openspec-ui/cli",
       "public": false,
-      "version": "0.26.0",
-      "released_at": "2026-10-07T20:18:35.568Z",
+      "version": "0.27.0",
+      "released_at": "2026-10-08T11:05:13.331Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
@@ -119,7 +111,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "The plan is updated from its review (the-plan-is-updated-from-its-review, ADR 0041). A new command, `update`, revises a change's existing planning artifacts so they answer its last completed review and the operator's notes, keeps them coherent, validates the change strictly and changes no code. A review now ends with `Review verdict: ready` or `Review verdict: changes needed`; in a chain, `changes needed` runs one update on the review's agent before apply. The AI panel offers `update` with a notes field, a card whose last review asked for changes offers **Update the plan**, and the CLI has `openspec-ui-cli update <change> [--note <text>] [--agent <id>]`. An update from the terminal asks there for each permission its agent requests, and denies it where nobody can be asked. A review whose agent printed its findings without reporting a result now keeps them in the audit log, so the update can read them."
+          "summary": "The agent asks the operator, and nothing goes on without an answer (the-agent-asks-the-operator, ADR 0042). Agent stages are told to print `Question for the operator: <question>` for each decision the change's files leave open, and `local-llm-acp` can ask mid-turn with its `ask_operator` tool. Each question is kept in the change's `decisions.md` and the audit log. A run that asked waits instead of completing, under every autonomy level, and once every question is answered it runs the stage again with the answers (`update` after `propose` or `review`). Agent runs on a change with an open question are refused, naming it. Questions are answered on the change's card, in the AI and chain panels, in the Human-Only Inbox, with `openspec-ui-cli answer`, or in `decisions.md` itself; `openspec-ui-cli status` and the supervisor say how to answer a waiting run. The run and chain panels also offer every permission request still pending, each with its own Allow and Deny, rather than only the latest: an agent that runs tool calls side by side asks for several at once. A new `permissionSettled` event says in the run's stream that a permission request was answered, on whichever surface, or withdrawn by the agent (it cancelled the request, or its turn ended with it open), and the request leaves every panel, as do the requests of a stage that has ended."
         }
       ]
     }
