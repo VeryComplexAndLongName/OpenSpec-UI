@@ -126,6 +126,64 @@ describe("AcpSessionDriver", () => {
     expect(driver.resolvePermission("run-2", resolvedRequestId as string, "allow")).toBe(false);
   });
 
+  // Live on 2026-10-08: copilot-cli-acp cancelled a permission request when a
+  // tool call beside it failed and went on; its Allow/Deny stayed on screen.
+  it("says a permission request the agent cancelled is withdrawn, and answers it as cancelled", async () => {
+    let outcome: string | undefined;
+    const mockAgent = agent({ name: "mock-agent" })
+      .onRequest(AGENT_METHODS.initialize, () => ({ protocolVersion: PROTOCOL_VERSION }))
+      .onRequest(AGENT_METHODS.session_new, () => ({ sessionId: "session-1" }))
+      .onRequest(AGENT_METHODS.session_prompt, async ({ params, client }) => {
+        const cancel = new AbortController();
+        const asked = client.request(CLIENT_METHODS.session_request_permission, {
+          sessionId: params.sessionId,
+          toolCall: { toolCallId: "tool-1", title: "Running command" },
+          options: [{ optionId: "allow-once", name: "Allow", kind: "allow_once" }],
+        }, { cancellationSignal: cancel.signal });
+        setTimeout(() => cancel.abort(), 20);
+        outcome = await asked.then((response) => response.outcome.outcome, () => "rejected");
+        return { stopReason: "end_turn" };
+      });
+
+    const driver = new AcpSessionDriver();
+    const events = await collect(
+      driver.run({ target: mockAgent, cwd: "/tmp/work", runId: "run-withdrawn", commandKind: "implement", prompt: "do it" }),
+    );
+
+    const asked = events.find((event) => event.kind === "permissionRequest");
+    const withdrawn = events.find((event) => event.kind === "permissionWithdrawn");
+    expect(asked).toBeDefined();
+    expect(withdrawn).toMatchObject({ requestId: (asked as Extract<Event, { kind: "permissionRequest" }>).requestId });
+    expect(events.at(-1)?.kind).toBe("completed");
+    expect(outcome).toBeDefined();
+    expect(driver.resolvePermission("run-withdrawn", (asked as Extract<Event, { kind: "permissionRequest" }>).requestId, "allow")).toBe(false);
+  });
+
+  it("says a permission request still open when the turn ends is withdrawn", async () => {
+    const mockAgent = agent({ name: "mock-agent" })
+      .onRequest(AGENT_METHODS.initialize, () => ({ protocolVersion: PROTOCOL_VERSION }))
+      .onRequest(AGENT_METHODS.session_new, () => ({ sessionId: "session-1" }))
+      .onRequest(AGENT_METHODS.session_prompt, async ({ params, client }) => {
+        // Asked, and never waited for.
+        void client.request(CLIENT_METHODS.session_request_permission, {
+          sessionId: params.sessionId,
+          toolCall: { toolCallId: "tool-1", title: "Edit file" },
+          options: [{ optionId: "allow-once", name: "Allow", kind: "allow_once" }],
+        }).catch(() => undefined);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        return { stopReason: "end_turn" };
+      });
+
+    const driver = new AcpSessionDriver();
+    const events = await collect(
+      driver.run({ target: mockAgent, cwd: "/tmp/work", runId: "run-left-open", commandKind: "implement", prompt: "do it" }),
+    );
+
+    const kinds = events.map((event) => event.kind);
+    expect(kinds.indexOf("permissionWithdrawn")).toBeGreaterThan(kinds.indexOf("permissionRequest"));
+    expect(kinds.at(-1)).toBe("completed");
+  });
+
   it("a peer that never issues session/request_permission never produces a permissionRequest event", async () => {
     const mockAgent = agent({ name: "mock-agent" })
       .onRequest(AGENT_METHODS.initialize, () => ({ protocolVersion: PROTOCOL_VERSION }))

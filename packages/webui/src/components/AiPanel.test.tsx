@@ -486,6 +486,18 @@ describe("AiPanel (direct OpenSpec mode)", () => {
         expect(prompts()).toEqual([]);
     });
 
+    it("drops a request the agent withdrew", () => {
+        const { transport, emit } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-perm-withdrawn"} />);
+        fireEvent.click(screen.getByTestId("run-button"));
+        emit({ kind: "permissionRequest", runId: "run-perm-withdrawn", timestamp: "t", requestId: "perm-gone", description: "Running command" });
+        expect(screen.getByTestId("permission-request")).toHaveTextContent("Running command");
+
+        emit({ kind: "permissionWithdrawn", runId: "run-perm-withdrawn", timestamp: "t", requestId: "perm-gone" });
+
+        expect(screen.queryByTestId("permission-request")).toBeNull();
+    });
+
     it("offers no request once the run has ended", () => {
         const { transport, emit } = createFakeTransport();
         render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-perm-end"} />);

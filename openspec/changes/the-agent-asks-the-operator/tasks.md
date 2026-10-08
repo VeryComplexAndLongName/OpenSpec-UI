@@ -74,6 +74,17 @@ the-plan-is-updated-from-its-review.
   waiting run's questions with the command that answers them
   (`status-command.test.ts`); `render-run.ts` renders the new events
   (2026-10-08).
+- [x] 2.4 Found while checking 4.4 on 2026-10-08, and fixed:
+  typing into the run panel's answer field blanked the panel (the updater
+  read `e.currentTarget`, which React has cleared by then);
+  copilot-cli-acp asks for several permissions at once, and the panels
+  showed only the latest, so each Allow left another request's buttons in
+  place; and a request the agent cancelled (`$/cancel_request`) or left
+  open when its turn ended stayed on screen. The ACP driver now emits
+  `permissionWithdrawn` for both, and the panels show every pending
+  request and drop one that was withdrawn or whose stage has ended. Tests:
+  `AiPanel.test.tsx`, `HarnessChainPanel.test.tsx`,
+  `acp-session-driver.test.ts` (a cancelled request, one left open).
 
 ## 3. Documents
 

@@ -183,8 +183,20 @@ export function findPendingPermissionRequests(
   events: readonly Event[],
   resolvedIds: ReadonlySet<string>,
 ): Array<Extract<Event, { kind: "permissionRequest" }>> {
-  return events.filter((event): event is Extract<Event, { kind: "permissionRequest" }> =>
-    event.kind === "permissionRequest" && !resolvedIds.has(event.requestId));
+  const pending = new Map<string, Extract<Event, { kind: "permissionRequest" }>>();
+  for (const event of events) {
+    if (event.kind === "permissionRequest") {
+      if (!resolvedIds.has(event.requestId)) pending.set(event.requestId, event);
+    } else if (event.kind === "permissionWithdrawn") {
+      // The agent no longer waits on it.
+      pending.delete(event.requestId);
+    } else if (event.kind === "stageCompleted" || event.kind === "checkpoint" || event.kind === "handedOff") {
+      // The stage that asked has ended, so nothing waits on what it asked,
+      // even where its agent did not say so.
+      pending.clear();
+    }
+  }
+  return [...pending.values()];
 }
 
 /** The most recent of them, for a caller that shows one. */
@@ -736,6 +748,8 @@ function describeEvent(event: Event): string {
       return describeAcpUpdate(event.update) ?? `agent update: ${String(event.update.sessionUpdate ?? "update")}`;
     case "permissionRequest":
       return `permission requested: ${event.description}`;
+    case "permissionWithdrawn":
+      return "the agent withdrew a permission request";
     case "stopRequested":
       return event.outcome === "nothing-to-stop"
         ? `stop: nothing was running (${event.reason})`
