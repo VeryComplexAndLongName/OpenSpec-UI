@@ -445,6 +445,23 @@ describe("AiPanel (direct OpenSpec mode)", () => {
         expect(screen.getByTestId("event-1")).toHaveTextContent("failed: Edit packages/core/src/index.ts");
     });
 
+    // every-message-has-an-identifier 5.3: on 2026-10-09 the Pipeline's run
+    // showed the identifier as text; the log is where it is read.
+    it("links a logged message's identifier to its entry", () => {
+        const { transport, emit } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-code-1"} />);
+        fireEvent.click(screen.getByTestId("run-button"));
+
+        emit({ kind: "progress", runId: "run-code-1", timestamp: "t", message: "plain progress" });
+        emit({ kind: "failed", runId: "run-code-1", timestamp: "t", reason: "demo has an open question", code: "OSW-QST-001" });
+
+        expect(screen.getByTestId("event-0").textContent).toBe("plain progress");
+        expect(screen.getByTestId("event-1").textContent).toBe("failed: OSW-QST-001: demo has an open question");
+        const links = screen.getByTestId("event-1").querySelectorAll("a[data-testid='message-code']");
+        expect(links).toHaveLength(1);
+        expect(links[0]!.getAttribute("href")).toMatch(/docs\/messages\.md#osw-qst-001$/u);
+    });
+
     it("shows an Allow/Deny control for a permissionRequest, sends resolvePermission on click, and hides afterward", () => {
         const { transport, emit, send } = createFakeTransport();
         render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-perm-1"} />);

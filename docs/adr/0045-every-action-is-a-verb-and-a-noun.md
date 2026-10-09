@@ -1,6 +1,6 @@
 # 0045: Every Action Is a Verb and a Noun
 
-Status: Proposed
+Status: Accepted
 
 Date: 2026-10-08
 

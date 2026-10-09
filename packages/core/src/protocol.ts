@@ -256,6 +256,10 @@ export interface ProgressEvent extends BaseEvent {
   /** Arbitrary human-readable progress message (not necessarily numeric —
    * specific agents report progress differently). */
   message: string;
+  /** The message's identifier in the register, where it has one (ADR 0046):
+   * a host acts on it without reading the words, and shows it beside them.
+   * Absent on a message not yet in the register. */
+  code?: string;
 }
 
 export interface CompletedEvent extends BaseEvent {
@@ -276,6 +280,10 @@ export interface FailedEvent extends BaseEvent {
    * before it existed reads as it did, and a reader that ignores it reads
    * on. */
   diagnosis?: FailureDiagnosis;
+  /** The message's identifier in the register, where it has one (ADR 0046):
+   * a host acts on it without reading the words, and shows it beside them.
+   * Absent on a message not yet in the register. */
+  code?: string;
 }
 
 /** The run ended because it was cancelled. Emitted only once the process
@@ -292,6 +300,10 @@ export interface CancelledEvent extends BaseEvent {
    * meaning exactly that. A reader seeing a cancellation otherwise
    * cannot tell a click from a rule firing. */
   reason?: string;
+  /** The message's identifier in the register, where it has one (ADR 0046):
+   * a host acts on it without reading the words, and shows it beside them.
+   * Absent on a message not yet in the register. */
+  code?: string;
 }
 
 /** Cancellation was asked for and has not taken effect yet.

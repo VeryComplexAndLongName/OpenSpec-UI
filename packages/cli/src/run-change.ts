@@ -33,6 +33,8 @@ import {
   type AgentRunner,
   type Command,
   type Event,
+  formatMessage,
+  say,
 } from "@openspec-ui/core";
 import { RunTextRenderer, renderRunEventAsJsonLine } from "./render-run.js";
 
@@ -87,9 +89,9 @@ export async function runChange(options: RunChangeOptions, deps: RunChangeDeps):
     resolveRunner: resolve,
   });
   if (!start.ok) {
-    deps.stderr(`openspec-ui-cli: will not run "${options.changeName}": ${start.refusal.reason}`);
+    deps.stderr(formatMessage(say("OSW-RUN-005", { change: options.changeName, reason: start.refusal.reason })));
     if (start.refusal.configKey) {
-      deps.stderr(`openspec-ui-cli: the setting that governs this is ${start.refusal.configKey}`);
+      deps.stderr(formatMessage(say("OSW-RUN-006", { setting: start.refusal.configKey })));
     }
     return 2;
   }
@@ -187,11 +189,11 @@ async function driveChain(
   let interrupted = false;
   const removeHandler = (deps.onInterrupt ?? defaultOnInterrupt)(() => {
     if (interrupted) {
-      deps.stderr("\nopenspec-ui-cli: interrupted again — exiting without waiting for the agent to stop");
+      deps.stderr(`\n${formatMessage(say("OSW-RUN-211"))}`);
       process.exit(1);
     }
     interrupted = true;
-    deps.stderr("\nopenspec-ui-cli: cancelling; press Ctrl-C again to exit at once");
+    deps.stderr(`\n${formatMessage(say("OSW-RUN-210"))}`);
     chain.cancel(runId);
   });
 
@@ -240,7 +242,7 @@ async function driveChain(
     // own account of itself is missing has not been shown to have worked,
     // and reporting success on silence is how a broken chain reads as a
     // green build.
-    deps.stderr("openspec-ui-cli: the run ended without reporting an outcome");
+    deps.stderr(formatMessage(say("OSW-RUN-212")));
     return 1;
   }
   return 1;

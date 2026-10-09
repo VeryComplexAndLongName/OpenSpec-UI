@@ -22,7 +22,9 @@ import {
   type Event,
   type AgentUsage,
   type HarnessStepAgents,
+  withMessageCode,
 } from "@openspec-ui/core/browser";
+import { MessageCode } from "./MessageCode.js";
 import type { Transport } from "../transport/types.js";
 import { AGENT_COMMANDS } from "../notify-run-completion.js";
 import { FailureDiagnosisNote } from "./FailureDiagnosisNote.js";
@@ -604,7 +606,7 @@ function collectRunInsights(events: Event[]): RunInsights {
     }
 
     if (event.kind === "failed") {
-      terminal = `failed: ${event.reason}`;
+      terminal = `failed: ${withMessageCode(event.reason, event.code)}`;
       continue;
     }
 
@@ -721,13 +723,13 @@ function describeEvent(event: Event): string {
     case "stderr":
       return event.chunk;
     case "progress":
-      return event.message;
+      return withMessageCode(event.message, event.code);
     case "completed":
       return event.summary ? `completed: ${event.summary}` : "completed";
     case "failed":
-      return `failed: ${event.reason}`;
+      return `failed: ${withMessageCode(event.reason, event.code)}`;
     case "cancelled":
-      return event.reason ? `cancelled: ${event.reason}` : "cancelled";
+      return event.reason ? `cancelled: ${withMessageCode(event.reason, event.code)}` : "cancelled";
     case "cancelling":
       return event.attempted === "nothing-to-cancel"
         ? "cancelling: nothing was running"
@@ -995,6 +997,16 @@ export function renderEventBody(event: Event, index: number): ReactNode {
       return renderStructuredText(event.chunk, index);
     case "completed":
       return event.summary ? renderStructuredText(`completed: ${event.summary}`, index) : "completed";
+    // A message in the register is said by its identifier, a link to what
+    // it means (ADR 0046); the log is where the Pipeline's run shows it.
+    case "progress":
+      return event.code === undefined ? describeEvent(event) : <><MessageCode code={event.code} />{event.message}</>;
+    case "failed":
+      return event.code === undefined ? describeEvent(event) : <>failed: <MessageCode code={event.code} />{event.reason}</>;
+    case "cancelled":
+      return event.code === undefined || event.reason === undefined
+        ? describeEvent(event)
+        : <>cancelled: <MessageCode code={event.code} />{event.reason}</>;
     case "agentUpdate": {
       const text = extractAgentUpdateText(event.update);
       if (text === undefined) return describeEvent(event);
@@ -1233,7 +1245,7 @@ export function AiPanel({
     : isRunning
       ? "Loading..."
       : latestEvent?.kind === "failed"
-        ? `Failed: ${latestEvent.reason}`
+        ? <>Failed: <MessageCode code={latestEvent.code} />{latestEvent.reason}</>
         : latestEvent?.kind === "completed"
           ? "Completed"
           : "Idle";

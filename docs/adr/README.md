@@ -50,8 +50,8 @@ Alternatives / Consequences.
 | [0041](0041-the-plan-is-updated-from-its-review.md) | The plan is updated from its review | Accepted |
 | [0042](0042-the-agent-asks-the-operator.md) | The agent asks the operator, and nothing goes on without an answer | Accepted |
 | [0043](0043-a-change-is-made-in-a-working-directory-of-its-own.md) | A change is made in a working directory of its own, and every agent is told so | Accepted; amends 0022 decision 3 |
-| [0044](0044-the-pipeline-is-where-changes-are-worked.md) | The Pipeline is where changes are worked, and the side panel becomes the Workspace | Proposed |
-| [0045](0045-every-action-is-a-verb-and-a-noun.md) | Every action is a verb and a noun | Proposed |
-| [0046](0046-every-message-has-an-identifier.md) | Every message has an identifier | Proposed |
+| [0044](0044-the-pipeline-is-where-changes-are-worked.md) | The Pipeline is where changes are worked, and the side panel becomes the Workspace | Accepted |
+| [0045](0045-every-action-is-a-verb-and-a-noun.md) | Every action is a verb and a noun | Accepted |
+| [0046](0046-every-message-has-an-identifier.md) | Every message has an identifier | Accepted |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.

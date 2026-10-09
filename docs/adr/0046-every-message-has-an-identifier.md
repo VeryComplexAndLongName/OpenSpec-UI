@@ -1,6 +1,6 @@
 # 0046: Every Message Has an Identifier
 
-Status: Proposed
+Status: Accepted
 
 Date: 2026-10-08
 
@@ -66,6 +66,22 @@ said as `<identifier>: <message>`, with identifiers in groups.
 6. **In steps.** The register, the form and the first groups - `CLI`,
    `RUN`, `QST`, `PRM` - come first; the other groups move in later
    changes, one or a few groups at a time, under the ratchet.
+
+### Amended on 2026-10-09
+
+Carrying out the first step (every-message-has-an-identifier) settled two
+things this record left open:
+
+- **The hundreds say when.** Within a group, 0xx is said before anything
+  runs (an argument, a refusal), 1xx while it runs, 2xx as it ends (a
+  limit, an interruption). The example above keeps its number: an `apply`
+  that did nothing is `OSW-RUN-104`.
+- **Two ways of saying one message.** On a line of its own it is `<level>
+  <identifier>: <message>`. After a mark that already says how a run ended
+  - the CLI's `✗`, the output channel's `[failed]`, a panel's `Failed:` -
+  the identifier leads the message alone, `✗ OSW-RUN-104: ...`, since the
+  level would say the same thing twice. An event's words do not include
+  the identifier; it rides beside them as `code`.
 
 ## Consequences
 

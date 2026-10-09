@@ -15,6 +15,10 @@ describe("describeEvent", () => {
       [{ ...base, kind: "completed" }, "[completed]"],
       [{ ...base, kind: "failed", reason: "boom" }, "[failed] boom"],
       [{ ...base, kind: "cancelled" }, "[cancelled]"],
+      // every-message-has-an-identifier (ADR 0046): the identifier leads.
+      [{ ...base, kind: "progress", message: "answered; going on as implement", code: "OSW-QST-102" }, "[progress] OSW-QST-102: answered; going on as implement"],
+      [{ ...base, kind: "failed", reason: "budget exceeded", code: "OSW-RUN-201" }, "[failed] OSW-RUN-201: budget exceeded"],
+      [{ ...base, kind: "cancelled", reason: "stopped at the stage time limit", code: "OSW-RUN-208" }, "[cancelled] OSW-RUN-208: stopped at the stage time limit"],
       // Nothing a person can read: not shown at all, rather than named by
       // its kind — an-agent-update-says-something tasks.md 4.6.
       [{ ...base, kind: "agentUpdate", update: { sessionUpdate: "plan" } }, undefined],
