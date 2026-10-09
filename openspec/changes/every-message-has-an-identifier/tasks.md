@@ -63,6 +63,12 @@ From ADR 0046, accepted by the owner on 2026-10-08.
   the merge gate with the worktree's absolute path as `--cwd`.
   2026-10-09: valid under `--strict`; the gate named only 5.1-5.3 as
   open before they were ticked.
-- [ ] 5.3 **Human-only**: in VS Code, a run that fails for a registered
+- [x] 5.3 **Human-only**: in VS Code, a run that fails for a registered
   reason shows `Failed:` with the identifier as a link, and the link opens
   its entry in `docs/messages.md`.
+  2026-10-09, the owner, on the extension built from this branch, in the
+  demo repository with an open question left by another run: Start on the
+  card ended with `failed: OSW-QST-001: choose-export-format has an open
+  question for the operator: Q-manual-1 ...`. The first build showed the
+  identifier as text in the run's log; after the log's lines linked it
+  (3.2), the owner confirmed the link and where it leads.
