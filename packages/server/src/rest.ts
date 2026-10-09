@@ -43,6 +43,7 @@ import {
   readChangeHarnessConfig,
   renderTemplate,
   resolveHarnessConfig,
+  changeActionRoot,
   buildWorkspaceRunStats,
   buildVerifyQuality,
   addScheduledRun,
@@ -2119,7 +2120,8 @@ export async function handleHarnessConfigResolveRequest(req: IncomingMessage, re
   if (!authorizeCwd(res, policy, parsed.cwd)) return;
 
   try {
-    const config = await resolveHarnessConfig(parsed.cwd, parsed.changeName);
+    const root = parsed.changeName === undefined ? parsed.cwd : (await changeActionRoot(parsed.cwd, parsed.changeName)).root;
+    const config = await resolveHarnessConfig(root, parsed.changeName);
     sendJson(res, 200, config);
   } catch (error) {
     if (error instanceof InvalidChangeNameError) {
@@ -2158,7 +2160,10 @@ export async function handleHarnessConfigReadChangeOverrideRequest(req: Incoming
   if (!authorizeCwd(res, policy, parsed.cwd)) return;
 
   try {
-    const override = await readChangeHarnessConfig(parsed.cwd, parsed.changeName);
+    // Read where the change is worked: its own worktree, where it has one
+    // (ADR 0044, a-change-is-acted-on-from-its-card).
+    const at = await changeActionRoot(parsed.cwd, parsed.changeName);
+    const override = await readChangeHarnessConfig(at.root, parsed.changeName);
     sendJson(res, 200, { override: override ?? null });
   } catch (error) {
     // A name that is not a change name is a refused request, not a
@@ -2215,7 +2220,14 @@ export async function handleHarnessConfigWriteRequest(req: IncomingMessage, res:
   try {
     const config = parsed.config as Partial<HarnessConfig>;
     if (parsed.changeName !== undefined) {
-      await writeChangeHarnessConfig(parsed.cwd, parsed.changeName, config);
+      // Written where the change is worked, and refused where that
+      // directory's records do not check out (ADR 0044).
+      const at = await changeActionRoot(parsed.cwd, parsed.changeName);
+      if (at.refusal !== undefined) {
+        sendJson(res, 409, { error: at.refusal });
+        return;
+      }
+      await writeChangeHarnessConfig(at.root, parsed.changeName, config);
     } else {
       await writeGlobalHarnessConfig(parsed.cwd, config);
     }

@@ -133,7 +133,7 @@ describe("ChangesTreeProvider - whose each change is", () => {
 
     expect(String(theirs?.description)).toContain("worked in theirs, by DW");
     expect(theirs?.contextValue).toBe("openspec-ui.activeChange.elsewhere");
-    expect((theirs?.iconPath as { id: string }).id).toBe("lock");
+    expect((theirs?.iconPath as { id: string }).id).toBe("repo-forked");
     expect(String(theirs?.tooltip)).toContain("worked in theirs, by DW");
   });
 
@@ -155,7 +155,7 @@ describe("ChangesTreeProvider - whose each change is", () => {
 
     expect(free?.contextValue).toBe("openspec-ui.activeChange");
     expect(String(free?.description)).not.toContain("worked in");
-    expect((free?.iconPath as { id: string }).id).not.toBe("lock");
+    expect((free?.iconPath as { id: string }).id).not.toBe("repo-forked");
   });
 
   it("says how many changes are worked in directories this checkout does not have", async () => {

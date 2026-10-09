@@ -849,7 +849,39 @@ describe("registerCommands", () => {
   // changes-shows-one-change-and-who-owns-it 3.3. The menus hide these on
   // another directory's row; a `when` clause governs a menu and nothing
   // else, so the command refuses too.
-  it("refuses to archive a change another working directory is working, and says where", async () => {
+  // a-change-is-acted-on-from-its-card (ADR 0044): where a change is worked
+  // decides where an action runs, never whether it is offered.
+  it("archives a change worked in another working directory there", async () => {
+    vscodeMock.window.showWarningMessage.mockResolvedValue("Archive");
+    archiveChangeMock.mockResolvedValue({ ok: true });
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.archiveChange")?.({
+      changeName: "done-change",
+      changeDir: "/workspace/repo/openspec/changes/done-change",
+      archived: false,
+      ownership: { kind: "elsewhere", label: "their-worktree", path: "/wt/theirs" },
+    });
+
+    expect(archiveChangeMock).toHaveBeenCalledWith("done-change", { cwd: "/wt/theirs" });
+  });
+
+  it("archives at once a change whose card confirmed it, without asking again", async () => {
+    archiveChangeMock.mockResolvedValue({ ok: true });
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.archiveChange")?.(
+      { changeName: "done-change", changeDir: "/workspace/repo/openspec/changes/done-change", archived: false },
+      { confirmed: true },
+    );
+
+    expect(vscodeMock.window.showWarningMessage).not.toHaveBeenCalledWith(expect.stringContaining("Archive done-change?"), expect.anything(), "Archive");
+    expect(archiveChangeMock).toHaveBeenCalledWith("done-change", { cwd: "/workspace/repo" });
+  });
+
+  it("refuses to archive a change whose directory's records do not check out, and says where", async () => {
     vscodeMock.window.showWarningMessage.mockResolvedValue(undefined);
     const deps = makeDeps();
     registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
@@ -857,13 +889,14 @@ describe("registerCommands", () => {
     await vscodeMock._registeredCommands.get("openspec-ui.archiveChange")?.({
       changeName: "done-change",
       archived: false,
-      ownership: { kind: "elsewhere", label: "their-worktree", path: "/wt/theirs" },
+      ownership: { kind: "unverified", label: "their-worktree", path: "/wt/theirs" },
     });
 
     expect(archiveChangeMock).not.toHaveBeenCalled();
     const said = vscodeMock.window.showWarningMessage.mock.calls.map((call: unknown[]) => String(call[0])).join(" ");
     expect(said).toContain("their-worktree");
     expect(said).toContain("/wt/theirs");
+    expect(said).toContain("do not check out");
   });
 
   it("offers to run npx changeset after archiving when Changesets is adopted but nothing is pending", async () => {
@@ -1587,6 +1620,21 @@ describe("registerCommands", () => {
 
       expect(writeChangeHarnessConfigMock).not.toHaveBeenCalled();
       expect(deps.showHarnessSettings).toHaveBeenCalledWith("demo-change");
+    });
+
+    // a-change-is-acted-on-from-its-card: the owner, on 2026-10-08 - a change
+    // in its own worktree had nowhere to set its harness but in the file.
+    it("sets up a change worked in its own worktree there, and opens that change's panel on it", async () => {
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.configureChangeHarness")?.({
+        ...changeItem,
+        ownership: { kind: "elsewhere", label: "demo-change", path: "/wt/demo-change" },
+      });
+
+      expect(writeChangeHarnessConfigMock).toHaveBeenCalledWith("/wt/demo-change", "demo-change", {});
+      expect(deps.showHarnessSettings).toHaveBeenCalledWith("demo-change", "/wt/demo-change");
     });
 
     it("warns instead of silently doing nothing without a tree item (invoked outside the context menu)", async () => {

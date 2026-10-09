@@ -137,13 +137,25 @@ export function isOursToWrite(ownership: ChangeOwnership): boolean {
   return ownership.kind === "here" || ownership.kind === "nobody";
 }
 
-/** Why a command refused, in the words it tells the person. The useful
- * thing to know is not "no" but "over there". */
+/** Where an action on the change runs (ADR 0044, a-change-is-acted-on-from-
+ * its-card): the working directory it is worked in, where that is another
+ * one, and this checkout otherwise (`undefined`). Where it lives decides only
+ * where an action runs, never whether it is offered. */
+export function workedElsewhere(ownership: ChangeOwnership): { label: string; path: string } | undefined {
+  return ownership.kind === "elsewhere" || ownership.kind === "unverified"
+    ? { label: ownership.label, path: ownership.path }
+    : undefined;
+}
+
+/** Why a command refused to write to the change, in the words it tells the
+ * person: only where the directory it is worked in reports by records that
+ * do not check out, since writing there would act on the word of somebody
+ * unknown. The useful thing to know is not "no" but "over there". A change
+ * worked in another directory whose records check out is written there
+ * (ADR 0044), not refused. */
 export function refuseToWrite(changeName: string, ownership: ChangeOwnership): string | undefined {
-  if (isOursToWrite(ownership)) return undefined;
-  const where = ownership as { label: string; path: string };
-  return `${changeName} is worked in ${where.label} (${where.path}). Work on it there:`
-    + " changing this checkout's copy would collide with theirs.";
+  if (ownership.kind !== "unverified") return undefined;
+  return `${changeName} is worked in ${ownership.label} (${ownership.path}), and the records reporting from there do not check out. Work on it there.`;
 }
 
 /** A change worked in another working directory that this checkout does

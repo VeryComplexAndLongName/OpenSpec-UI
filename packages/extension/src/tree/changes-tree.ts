@@ -79,9 +79,9 @@ export class ChangeTreeItem extends vscode.TreeItem {
     if (whose !== undefined) lines.push(whose);
     if (lines.length > 0) this.tooltip = lines.join("\n");
     // A row worked in another working directory takes a context value of
-    // its own, so the menu items that would write to it are not offered.
-    // Reading it, and speaking to the run in it, still are: the channel is
-    // how two agents are meant to coordinate (ADR 0028).
+    // its own. It offers every action a row of this checkout does, and each
+    // runs in that directory (ADR 0044, a-change-is-acted-on-from-its-card);
+    // the value is what tells a command, and a menu, where.
     this.contextValue = archived
       ? "openspec-ui.archivedChange"
       : isOursToWrite(ownership) ? "openspec-ui.activeChange" : "openspec-ui.activeChange.elsewhere";
@@ -93,8 +93,9 @@ export class ChangeTreeItem extends vscode.TreeItem {
     // one channel each (the-icon-carries-the-colour). Another directory's
     // copy is greyed because this checkout's copy of it is a snapshot from
     // when their branch was cut, so a colour here would be about the past.
+    // A branch of its own, not a lock: it is acted on, there (ADR 0044).
     if (!archived && !isOursToWrite(ownership)) {
-      this.iconPath = new vscode.ThemeIcon("lock", new vscode.ThemeColor("disabledForeground"));
+      this.iconPath = new vscode.ThemeIcon("repo-forked", new vscode.ThemeColor("disabledForeground"));
     } else {
       const colour = standing === undefined ? undefined : standingThemeColour(standing.colour);
       this.iconPath = new vscode.ThemeIcon(iconForState(state), colour);

@@ -17,6 +17,10 @@ import {
   myRosterLabel,
   discoverOpenSpecWorkspace,
   isValidChangeName,
+  changeAction,
+  isChangeActionId,
+  say,
+  withMessageCode,
   catchUpWithMain,
   readChangeStandings,
   readArchivedChanges,
@@ -48,6 +52,7 @@ import {
   setTaskDone,
   type AgentRunner,
 } from "@openspec-ui/core";
+import { changeItemNamed } from "../change-action-target.js";
 import { EMBED_THEME_PARAMETER, editorThemeName, frameFillingStyle } from "./embedded-page.js";
 import { REQUEST_MESSAGE_TYPE, RESPONSE_MESSAGE_TYPE } from "./harness-requests.js";
 import { ICON_FONT_SOURCE } from "./icon-font-source.js";
@@ -96,6 +101,10 @@ export const RUN_CONTROL_MESSAGE_TYPE = "openspec-ui/run-control";
 export const ASK_TO_STOP_MESSAGE_TYPE = "openspec-ui/ask-to-stop";
 /** The folded row's press (what-is-finished-is-tidied-away). */
 export const ARCHIVE_CHANGES_MESSAGE_TYPE = "openspec-ui/archive-changes";
+
+/** Webview to host: one of a change's actions was chosen on its card
+ * (ADR 0044, a-change-is-acted-on-from-its-card). */
+export const CHANGE_ACTION_MESSAGE_TYPE = "openspec-ui/change-action";
 
 /** Host to webview: what became of a request to stop. */
 export const ASK_TO_STOP_RESULT_MESSAGE_TYPE = "openspec-ui/ask-to-stop-result";
@@ -168,6 +177,9 @@ export interface PipelineReaders {
   findActiveChange: (workspaceRoot: string, changeName: string) => Promise<ActiveChange | undefined>;
   /** The change's own worktree, where it is worked (a-card-works-its-own-tasks). */
   ownWorktree: (workspaceRoot: string, changeName: string) => ReturnType<typeof resolveOwnWorktree>;
+  /** The change a card names, as a Changes row carries it, so its action runs
+   * the row's command where the change is worked (ADR 0044). */
+  changeItem: (workspaceRoot: string, changeName: string) => ReturnType<typeof changeItemNamed>;
   /** Where every change stands, with the refs fetched now
    * (a-change-says-where-it-stands). */
   standingsNow: (workspaceRoot: string) => Promise<ChangeStandings>;
@@ -219,6 +231,7 @@ const DEFAULT_READERS: PipelineReaders = {
   myLabel: (statusDirectory) => myRosterLabel(statusDirectory),
   askLiveRun: (options) => askLiveRunToStop(options),
   ownWorktree: (workspaceRoot, changeName) => resolveOwnWorktree({ repositoryRoot: workspaceRoot, changeName }),
+  changeItem: (workspaceRoot, changeName) => changeItemNamed(workspaceRoot, changeName),
 };
 
 export interface PipelinePanelDeps {
@@ -450,6 +463,14 @@ export class PipelinePanel {
     }
     if (typeof message === "object" && message !== null && (message as { type?: unknown }).type === ARCHIVE_CHANGES_MESSAGE_TYPE) {
       await this.archiveChanges((message as { changeNames?: unknown }).changeNames);
+      return;
+    }
+    if (typeof message === "object" && message !== null && (message as { type?: unknown }).type === CHANGE_ACTION_MESSAGE_TYPE) {
+      const { action, changeName, confirmed, origin } = message as { action?: unknown; changeName?: unknown; confirmed?: unknown; origin?: unknown };
+      // The same rule as opening a change: in embed mode, only the embed's
+      // own origin is honoured.
+      if (this.embedOrigin !== undefined && origin !== this.embedOrigin) return;
+      await this.performChangeAction(action, changeName, confirmed === true);
       return;
     }
     const request = asRequest(message);
@@ -744,6 +765,30 @@ export class PipelinePanel {
     void panel.webview.postMessage(response);
   }
 
+  /** Runs the command a card's action names, on the change as the Changes
+   * tree would carry it, so a card does what a row does, where the change is
+   * worked (ADR 0044). The action and the name are checked against this
+   * host's own list and workspace, never trusted from the message. */
+  private async performChangeAction(action: unknown, changeName: unknown, confirmed: boolean): Promise<void> {
+    const workspaceRoot = this.deps.getWorkspaceRoot();
+    if (!workspaceRoot || !isChangeActionId(action)) return;
+    if (!isValidChangeName(changeName)) {
+      const refused = say("OSW-CHG-001", { name: String(changeName) });
+      void vscode.window.showWarningMessage(withMessageCode(refused.text, refused.code));
+      return;
+    }
+    const item = await this.readers.changeItem(workspaceRoot, changeName);
+    if (item === undefined) {
+      const gone = say("OSW-CHG-002", { name: changeName });
+      void vscode.window.showInformationMessage(withMessageCode(gone.text, gone.code));
+      return;
+    }
+    const command = changeAction(action)?.command;
+    if (command === undefined) return;
+    // Start is the card's own control, and names its change as it always has.
+    await vscode.commands.executeCommand(command, action === "runChange" ? changeName : item, { confirmed });
+  }
+
   /** Opens what a card asks for, from where the change is worked: its own
    * worktree where it has one, otherwise this checkout's copy
    * (a-card-works-its-own-tasks). A change worked in its own worktree
@@ -847,7 +892,7 @@ export class PipelinePanel {
       const vscodeApi = acquireVsCodeApi();
       window.addEventListener("message", (event) => {
         if (event.origin !== ${JSON.stringify(serverOrigin)}) return;
-        if (!event.data || event.data.type !== ${JSON.stringify(OPEN_CHANGE_MESSAGE_TYPE)}) return;
+        if (!event.data || (event.data.type !== ${JSON.stringify(OPEN_CHANGE_MESSAGE_TYPE)} && event.data.type !== ${JSON.stringify(CHANGE_ACTION_MESSAGE_TYPE)})) return;
         vscodeApi.postMessage({ ...event.data, origin: event.origin });
       });
     </script>

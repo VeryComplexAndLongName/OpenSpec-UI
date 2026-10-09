@@ -134,6 +134,9 @@ import {
   type DescribedChangeState,
 } from "@openspec-ui/core/browser";
 import type { CatalogTemplate, ChangeReadinessReport, CommandKind, Event, HarnessBudget, HarnessStepAgents, HarnessTemplate, HumanOnlyInboxState, RunPathId, WorkspaceRunStats } from "@openspec-ui/core/browser";
+import { CHANGE_ACTIONS, type ChangeActionAnswer } from "@openspec-ui/core/browser";
+import { ChangeActionDialog, type ChangeActionTarget, type PerformChangeAction } from "./components/ChangeActionDialog.js";
+import type { ChangeActionsHost } from "./components/CardActions.js";
 import { toChangeState, toChangeSummary } from "./overview-mapping.js";
 
 /** What a delegated item's last run reported, shown beside its row: the
@@ -589,6 +592,35 @@ function StandaloneApp() {
   // A change's run logs, opened from its card beneath the picture
   // (a-change-shows-its-run-logs).
   const [logsFor, setLogsFor] = useState<string | null>(null);
+  // A change's action, chosen on its card, over the Pipeline where it was
+  // pressed (ADR 0044, a-change-is-acted-on-from-its-card).
+  const [actionFor, setActionFor] = useState<ChangeActionTarget | null>(null);
+  const performChangeAction = useCallback<PerformChangeAction>(async (target, input) => {
+    const response = await apiFetch("/api/change-action", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ cwd, changeName: target.changeName, action: target.action, ...(input !== undefined ? { input } : {}) }),
+    });
+    const payload = await response.json().catch(() => ({})) as ChangeActionAnswer & { error?: string };
+    if (!response.ok) throw new Error(payload.error ?? `the server answered ${response.status}`);
+    return payload;
+  }, [cwd]);
+  const pipelineChangeActions = useMemo<ChangeActionsHost>(() => ({
+    offered: new Set(CHANGE_ACTIONS.map((action) => action.id)),
+    perform: (action, changeName, { confirmed }) => {
+      // Embedded in the editor, the editor runs it, as a Changes row would.
+      if (!isStandaloneHost) {
+        window.parent.postMessage({ type: "openspec-ui/change-action", action, changeName, confirmed }, "*");
+        return;
+      }
+      // The change's own copy is its tasks page, which reads where it is worked.
+      if (action === "openChangeCopy") {
+        window.open(tasksPageAddress(changeName), "_blank", "noopener");
+        return;
+      }
+      setActionFor({ action, changeName });
+    },
+  }), []);
   const logsLoad = useCallback(() => listChangeRunLogs(apiFetch, cwd, logsFor ?? ""), [cwd, logsFor]);
   const logsRead = useCallback((runId: string) => readChangeRunLog(apiFetch, cwd, runId), [cwd]);
   // `handleRunWithHarness` is a hoisted declaration further down and reads
@@ -2795,7 +2827,22 @@ function StandaloneApp() {
                 onArchive={pipelineArchive}
                 onReadingChange={setPipelineReading}
                 taskActions={pipelineTaskActions}
+                changeActions={pipelineChangeActions}
               />
+              {actionFor !== null ? (
+                <div className="openspec-pipeline-run-layer" data-testid="pipeline-action-layer">
+                  <ChangeActionDialog
+                    key={`${actionFor.action} ${actionFor.changeName}`}
+                    target={actionFor}
+                    perform={performChangeAction}
+                    harnessApi={harnessSettingsApi}
+                    onClose={() => {
+                      setActionFor(null);
+                      void pipelineRefresh().catch(() => undefined);
+                    }}
+                  />
+                </div>
+              ) : null}
               {logsFor !== null
                 ? <RunLogsView changeName={logsFor} load={logsLoad} read={logsRead} onClose={() => setLogsFor(null)} />
                 : null}

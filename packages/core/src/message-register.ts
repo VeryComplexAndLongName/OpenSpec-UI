@@ -48,6 +48,26 @@ export interface MessageEntry {
 }
 
 export const MESSAGES = {
+  // CHG: a change - finding it, acting on it, where it lives.
+  "OSW-CHG-001": {
+    level: "warning",
+    text: "\"{name}\" is not a change name this workspace can have.",
+    why: "A card or a request named a change by something no change can be called.",
+    todo: "Refresh the Pipeline; report it if a card shows that name.",
+  },
+  "OSW-CHG-002": {
+    level: "info",
+    text: "{name} is neither an active change of this checkout nor worked in a directory of its own - it may have been archived or deleted since the Pipeline was read.",
+    why: "The change a card names is no longer where the card was read from.",
+    todo: "Refresh the Pipeline.",
+  },
+  "OSW-CHG-003": {
+    level: "info",
+    text: "{action} {name}: {reason}",
+    why: "The action cannot run now, for the reason given (ADR 0044).",
+    todo: "Do what the reason says, then choose the action again.",
+  },
+
   // CLI: the CLI's arguments and subcommands.
   "OSW-CLI-001": {
     level: "error",

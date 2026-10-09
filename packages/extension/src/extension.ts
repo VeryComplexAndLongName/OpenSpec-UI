@@ -904,9 +904,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     runController,
     outputChannel,
     revealAiPanel: (panelContext: AiPanelContext | undefined) => aiPanel.reveal(panelContext),
-    showHarnessSettings: (changeName?: string) => {
+    showHarnessSettings: (changeName?: string, root?: string) => {
       if (changeName === undefined) harnessSettingsPanel.showGlobal();
-      else harnessSettingsPanel.showChange(changeName);
+      else harnessSettingsPanel.showChange(changeName, root);
     },
     refreshTrees: () => {
       changesTree?.refresh();
