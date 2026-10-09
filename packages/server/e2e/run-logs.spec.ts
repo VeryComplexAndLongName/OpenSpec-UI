@@ -40,7 +40,7 @@ test.describe("standalone run logs", () => {
       await page.getByLabel("Workspace root (cwd)").fill(workspaceRoot);
       await page.getByRole("tab", { name: "Pipeline" }).click();
 
-      await page.getByRole("button", { name: "Logs of still-open" }).click({ timeout: 60000 });
+      await page.getByRole("button", { name: "Show Logs still-open" }).click({ timeout: 60000 });
 
       const view = page.getByRole("dialog", { name: "Logs of still-open" });
       await expect(view.getByTestId("run-logs-list").locator("tbody tr")).toHaveCount(2);

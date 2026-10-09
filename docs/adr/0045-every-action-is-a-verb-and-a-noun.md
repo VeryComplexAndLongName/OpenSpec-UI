@@ -34,11 +34,11 @@ the new ones.
 
    | Group | Verbs |
    | --- | --- |
-   | Run | Run, Continue, Update, Reopen, Stop, Send, Finish |
+   | Run | Run, Continue, Update, Reopen, Stop, Send, Finish, Schedule |
    | Respond | Answer, Allow, Deny, Confirm |
    | Inspect | Show, Open, Find, Explain, Recommend, Validate, Diagnose |
    | Arrange | Filter, Clear, Hide, Refresh, Copy |
-   | Set up | Configure, Set, Initialize, Write, Generate, Create, Edit, Insert, Add, Remove, Join, Restore, Commit, Complete, Move |
+   | Set up | Configure, Set, Initialize, Write, Generate, Create, Edit, Insert, Add, Remove, Join, Restore, Commit, Complete, Move, Save |
    | Danger | Archive, Rollback, Delete |
 
    `Delete` destroys something (a change, a directory, a template);
@@ -53,7 +53,10 @@ the new ones.
    People, Owner, Implementer, Presence, Lock, Lease, Checks, Manifest,
    Workspace, Pipeline, Dashboard, Views, Archive, Archive Filter, Specs
    Filter, Graph Filter, Changes, Process, Implementation,
-   Typecheck, Tests, Lint, CLI View. A noun of two words is one noun.
+   Typecheck, Tests, Lint, CLI View, Actions, Main, Landed Changes, Logs,
+   Path, Done Tasks, Chain, Agents, Command, Proposal, Design, Stage
+   Agents, Settings, Templates, Summary, Configuration, Processes. A noun
+   of two words is one noun.
 4. **VS Code**: the command id is `openspec-ui.<verb><Noun>` in camel case
    (`openspec-ui.configureChangeHarness`); the title is the pair; the
    palette's "OpenSpec Workbench:" comes from the command's `category`, not
@@ -189,6 +192,31 @@ and the test refuses two commands with one glyph.
 
 The nouns gain Actions: a change's row in the Changes tree opens with
 **Show Actions...**, which lists every action on the change, grouped, with ones that cannot run now saying why (ADR 0044).
+
+### Amended on 2026-10-09 (every-control-is-a-verb-and-a-noun)
+
+The web UI's buttons were named one at a time, as the commands had been:
+"Start...", "Logs", "Catch up", "Show them", "Open all", "It was me",
+"Clean old history". They follow the same rule now, in both hosts:
+
+- A button outside a dialog is a pair: Run Change..., Show Logs, Update
+  Main, Show Landed Changes, Show Tasks, Confirm Key, Delete History....
+  Its accessible name starts with its visible words, and adds the change
+  it is about: "Stop Run alpha".
+- A button inside a dialog, or a prompt that already names what it is
+  about, is the verb alone: Answer, Allow, Deny, Archive, Delete,
+  Rollback, Cancel, Close. Every system dialog does the same.
+- A switch (pressed or not, a tab, a choice of view) says what it shows,
+  not an action: "By stage", "One change".
+- A button with a Danger verb asks first in the web UI as well: Archive
+  Landed Changes..., Delete History..., Rollback Process..., Delete
+  Leftover..., Delete Worktree... and Delete Template... open a dialog
+  before anything is deleted (ADR 0047).
+- The verbs gain Schedule (Run) and Save (Set up), and the nouns the
+  ones the buttons act on, listed above.
+
+A test reads every `.tsx` source for its buttons' words and holds them to
+the lists, and holds a Danger verb to its three dots.
 
 ## Consequences
 

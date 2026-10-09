@@ -30,6 +30,7 @@ export const ACTION_VERBS: readonly ActionVerb[] = [
   { verb: "Update", group: "run" },
   { verb: "Reopen", group: "run" },
   { verb: "Stop", group: "run" },
+  { verb: "Schedule", group: "run" },
   { verb: "Send", group: "run" },
   { verb: "Finish", group: "run" },
   { verb: "Answer", group: "respond" },
@@ -60,6 +61,7 @@ export const ACTION_VERBS: readonly ActionVerb[] = [
   { verb: "Remove", group: "set-up" },
   { verb: "Join", group: "set-up" },
   { verb: "Restore", group: "set-up" },
+  { verb: "Save", group: "set-up" },
   { verb: "Commit", group: "set-up" },
   { verb: "Complete", group: "set-up" },
   { verb: "Move", group: "set-up" },
@@ -78,6 +80,9 @@ export const ACTION_NOUNS: readonly string[] = [
   "Presence", "Lock", "Lease", "Checks", "Manifest", "Workspace", "Pipeline", "Dashboard", "Views",
   "Archive", "Archive Filter", "Specs Filter", "Graph Filter", "Process", "Implementation", "Typecheck",
   "Tests", "Lint", "CLI View", "Changes", "Actions",
+  // The web UI's controls (every-control-is-a-verb-and-a-noun).
+  "Main", "Landed Changes", "Logs", "Path", "Done Tasks",
+  "Chain", "Agents", "Command", "Proposal", "Design", "Stage Agents", "Settings", "Templates", "Summary", "Configuration", "Processes",
 ];
 
 /** The verb an action is named by. */

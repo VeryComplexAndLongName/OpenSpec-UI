@@ -90,7 +90,7 @@ reference.
 
 ![Standalone Harness Settings tab showing the global per-stage agents, a named configuration list and the autonomy level; a change's own settings are in the Change Editor's Harness tab](../../docs/images/standalone/harness-settings.png)
 
-![Change Editor's "Run with Agentic Harness" button for the selected change](../../docs/images/standalone/run-with-harness.png)
+![Change Editor's "Run Change..." button for the selected change](../../docs/images/standalone/run-with-harness.png)
 
 ## Transport
 

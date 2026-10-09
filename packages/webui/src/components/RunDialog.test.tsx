@@ -187,7 +187,7 @@ describe("RunDialog — advising, not just picking a path", () => {
     render(<RunDialog {...props} />);
 
     choose("economy");
-    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    fireEvent.click(screen.getByRole("button", { name: "Set Configuration" }));
 
     expect(props.onApplyTemplate).toHaveBeenCalledWith(expect.objectContaining({ id: "economy" }));
   });
@@ -197,7 +197,7 @@ describe("RunDialog — advising, not just picking a path", () => {
     const { rerender } = render(<RunDialog {...props} />);
 
     choose("economy");
-    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    fireEvent.click(screen.getByRole("button", { name: "Set Configuration" }));
     rerender(<RunDialog {...props} appliedNote='Applied "Economy" to openspec/changes/demo/harness.json.' />);
 
     expect(screen.getByTestId("run-dialog-named-configuration-status").textContent)
@@ -243,7 +243,7 @@ describe("RunDialog — advising, not just picking a path", () => {
     const props = baseProps();
     const { rerender } = render(<RunDialog {...props} stats={stats} onUseAgent={onUseAgent} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Use claude-cli-acp for every stage" }));
+    fireEvent.click(screen.getByRole("button", { name: "Set Stage Agents: claude-cli-acp" }));
     expect(onUseAgent).toHaveBeenCalledWith("claude-cli-acp");
 
     rerender(<RunDialog {...props} stats={stats} onUseAgent={onUseAgent} useAgentNote="Put claude-cli-acp on every stage." />);
@@ -261,7 +261,7 @@ describe("RunDialog — advising, not just picking a path", () => {
     } as never;
     render(<RunDialog {...baseProps()} stats={stats} />);
 
-    expect(screen.queryByRole("button", { name: /for every stage/u })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Set Stage Agents/u })).toBeNull();
   });
 });
 

@@ -52,8 +52,8 @@ export function HintList({ hints, copyText }: HintListProps): JSX.Element | null
                 <div key={command} className="openspec-hint-command-row">
                   <pre className="openspec-hint-command">{command}</pre>
                   {copyText !== undefined ? (
-                    <button type="button" className="openspec-pipeline-button" aria-label={`Copy ${command}`} onClick={() => void copyText(command)}>
-                      <CopyIcon />Copy
+                    <button type="button" className="openspec-pipeline-button" aria-label={`Copy Command ${command}`} onClick={() => void copyText(command)}>
+                      <CopyIcon />Copy Command
                     </button>
                   ) : null}
                 </div>

@@ -21,13 +21,16 @@ describe("ProcessesView", () => {
     const api = createApi();
     render(<ProcessesView api={api} />);
     expect(await screen.findByText("interrupted")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Review" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show Process" }));
     // The changed files are a table of path and kind
     // (the-remaining-tabs-wear-metro 2.3).
     expect(await screen.findByText("src/app.ts")).toBeInTheDocument();
     expect(screen.getByText("modified")).toBeInTheDocument();
     expect(screen.getByText(/large\.bin/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Rollback files" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rollback Process..." }));
+    // A Danger action asks first (ADR 0045).
+    expect(api.rollback).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("processes-confirm-yes"));
     await waitFor(() => expect(api.rollback).toHaveBeenCalledWith("run-1"));
     expect(await screen.findByText("Rollback restored 1 files.")).toBeInTheDocument();
   });
@@ -36,7 +39,9 @@ describe("ProcessesView", () => {
     const api = createApi();
     render(<ProcessesView api={api} />);
     await screen.findByText("interrupted");
-    fireEvent.click(screen.getByRole("button", { name: "Clean old history" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete History..." }));
+    expect(api.cleanup).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("processes-confirm-yes"));
     await waitFor(() => expect(api.cleanup).toHaveBeenCalledOnce());
   });
 
@@ -107,7 +112,7 @@ describe("ProcessesView", () => {
     expect(await screen.findByText("suspended")).toHaveClass("badge");
     expect(screen.getByText("a CI run to finish")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Review" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show Process" }));
     expect(await screen.findByText("Waiting for: a CI run to finish")).toBeInTheDocument();
   });
 });
@@ -221,11 +226,11 @@ describe("ProcessesView — says what it is reading", () => {
     render(<ProcessesView api={api} onReadingChange={onReadingChange} />);
 
     await waitFor(() => expect(onReadingChange).toHaveBeenLastCalledWith("Reading persisted runs…"));
-    expect(screen.getByRole("button", { name: "Clean old history" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Delete History..." })).toBeDisabled();
 
     answer([]);
 
     await waitFor(() => expect(onReadingChange).toHaveBeenLastCalledWith(null));
-    expect(screen.getByRole("button", { name: "Clean old history" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Delete History..." })).toBeEnabled();
   });
 });

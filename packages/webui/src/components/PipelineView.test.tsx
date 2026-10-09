@@ -177,12 +177,12 @@ describe("PipelineView — a card opens to its tasks (a-card-opens-to-its-tasks 
     render(<PipelineView isActive load={load} survey={surveyed} />);
     await screen.findByRole("button", { name: "Show tasks of alpha" });
 
-    fireEvent.click(screen.getByRole("button", { name: "Open all" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show Tasks" }));
     expect(screen.getByRole("button", { name: "Hide tasks of alpha" })).toHaveAttribute("aria-expanded", "true");
     // A card with no tasks has nothing to open.
     expect(screen.queryByRole("button", { name: /tasks of beta/u })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Close all" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hide Tasks" }));
     expect(screen.getByRole("button", { name: "Show tasks of alpha" })).toHaveAttribute("aria-expanded", "false");
   });
 
@@ -247,7 +247,7 @@ describe("PipelineView — asking a run elsewhere to stop", () => {
   it("offers Stop on my own verified run elsewhere, asks with the instance id and reason, and then says it is waiting", async () => {
     const { onAskToStop } = renderElsewhere({ signature: "verified", label: "Ada", myLabel: "Ada" });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Stop alpha" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Stop Run alpha" }));
     const form = screen.getByRole("dialog", { name: "Ask alpha to stop" });
     fireEvent.change(within(form).getByTestId("pipeline-stop-reason"), { target: { value: "live check" } });
     fireEvent.click(within(form).getByTestId("pipeline-ask-to-stop"));
@@ -273,7 +273,7 @@ describe("PipelineView — asking a run elsewhere to stop", () => {
       />,
     );
     // Loaded on real timers; the time after the press is the test's own.
-    fireEvent.click(await screen.findByRole("button", { name: "Stop alpha" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Stop Run alpha" }));
     vi.useFakeTimers();
     const form = screen.getByRole("dialog", { name: "Ask alpha to stop" });
     fireEvent.change(within(form).getByTestId("pipeline-stop-reason"), { target: { value: "live check" } });
@@ -333,7 +333,7 @@ describe("PipelineView — asking a run elsewhere to stop", () => {
       />,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Stop alpha" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Stop Run alpha" }));
     const form = screen.getByRole("dialog", { name: "Ask alpha to stop" });
     fireEvent.change(within(form).getByTestId("pipeline-stop-reason"), { target: { value: "live check" } });
     fireEvent.click(within(form).getByTestId("pipeline-ask-to-stop"));
@@ -776,11 +776,11 @@ describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)
       held: [heldRun({ waiting: true })],
     });
 
-    const continueButton = await screen.findByRole("button", { name: "Continue alpha to verify" });
+    const continueButton = await screen.findByRole("button", { name: "Continue Run alpha to verify" });
     fireEvent.click(continueButton);
     expect(onRunControl).toHaveBeenCalledWith({ changeName: "alpha", runId: "r1", kind: "confirmCheckpoint" });
 
-    fireEvent.click(screen.getByRole("button", { name: "Stop alpha" }));
+    fireEvent.click(screen.getByRole("button", { name: "Stop Run alpha" }));
     const form = screen.getByRole("dialog", { name: "Ask alpha to stop" });
     fireEvent.click(within(form).getByTestId("pipeline-ask-to-stop"));
     expect(within(form).getByRole("alert")).toHaveTextContent("A stop needs a reason.");
@@ -798,8 +798,8 @@ describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)
       held: [heldRun({ waiting: true, permissionRequestId: "p1" })],
     });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Allow alpha: Write to x" }));
-    fireEvent.click(screen.getByRole("button", { name: "Deny alpha: Write to x" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Allow Permission alpha: Write to x" }));
+    fireEvent.click(screen.getByRole("button", { name: "Deny Permission alpha: Write to x" }));
 
     expect(onRunControl).toHaveBeenCalledWith({ changeName: "alpha", runId: "r1", kind: "resolvePermission", permissionRequestId: "p1", permissionOutcome: "allow" });
     expect(onRunControl).toHaveBeenCalledWith({ changeName: "alpha", runId: "r1", kind: "resolvePermission", permissionRequestId: "p1", permissionOutcome: "deny" });
@@ -817,8 +817,8 @@ describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)
       })],
     });
 
-    const allow = await screen.findByRole("button", { name: "Allow alpha: Edit file (1 of 2)" });
-    expect(allow).toHaveTextContent("Allow (1 of 2)");
+    const allow = await screen.findByRole("button", { name: "Allow Permission alpha: Edit file (1 of 2)" });
+    expect(allow).toHaveTextContent("Allow Permission (1 of 2)");
     fireEvent.click(allow);
     expect(onRunControl).toHaveBeenCalledWith({ changeName: "alpha", runId: "r1", kind: "resolvePermission", permissionRequestId: "p1", permissionOutcome: "allow" });
   });
@@ -826,7 +826,7 @@ describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)
   it("offers Stop on a running held run, and Stop now once a stop has been asked", async () => {
     const { onRunControl } = renderCard({ held: [heldRun({ stopRequested: { reason: "wrong branch" } })] });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Stop alpha now" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Stop Process alpha" }));
     expect(onRunControl).toHaveBeenCalledWith({ changeName: "alpha", runId: "r1", kind: "cancel" });
     expect(screen.queryByTestId("pipeline-stop-alpha")).toBeNull();
   });
@@ -835,7 +835,7 @@ describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)
     const liveRuns = vi.fn(async () => ({ runs: [heldRun({ stopRequested: { reason: "wrong branch" } })] }));
     const { onRunControl } = renderCard({ liveRuns });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Stop alpha now" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Stop Process alpha" }));
     expect(onRunControl).toHaveBeenCalledTimes(1);
     const readsBefore = liveRuns.mock.calls.length;
     await waitFor(() => expect(liveRuns.mock.calls.length).toBeGreaterThan(readsBefore), { timeout: 3000 });
@@ -844,7 +844,7 @@ describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)
   it("offers Stop, not Stop now, while no stop has been asked", async () => {
     renderCard({ held: [heldRun()] });
 
-    expect(await screen.findByRole("button", { name: "Stop alpha" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Stop Run alpha" })).toBeInTheDocument();
     expect(screen.queryByTestId("pipeline-stop-now-alpha")).toBeNull();
   });
 
@@ -854,7 +854,7 @@ describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)
       held: [],
     });
 
-    const copy = await screen.findByRole("button", { name: "Copy folder path of alpha" });
+    const copy = await screen.findByRole("button", { name: "Copy Path alpha" });
     expect(screen.queryByTestId("pipeline-continue-alpha")).toBeNull();
     expect(screen.queryByTestId("pipeline-stop-alpha")).toBeNull();
     fireEvent.click(copy);
@@ -874,7 +874,7 @@ describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)
       />,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Logs of alpha" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Show Logs alpha" }));
     expect(onViewLogs).toHaveBeenCalledWith("alpha");
   });
 
@@ -889,21 +889,21 @@ describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)
       />,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Start alpha" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Run Change alpha" }));
     expect(onStart).toHaveBeenCalledWith("alpha");
   });
 
   it("offers no Logs where the host cannot show them", async () => {
     renderCard({ record: null });
 
-    await screen.findByRole("button", { name: "Start alpha" });
+    await screen.findByRole("button", { name: "Run Change alpha" });
     expect(screen.queryByTestId("pipeline-logs-alpha")).toBeNull();
   });
 
   it("offers Start on a change that is ready, for its host to open the run dialog", async () => {
     const { onStart } = renderCard({ record: null });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Start alpha" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Run Change alpha" }));
     expect(onStart).toHaveBeenCalledWith("alpha");
   });
 
@@ -911,9 +911,9 @@ describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)
   it("keeps every control's accessible name after the icons arrived, and draws Start as the forward control", async () => {
     renderCard({ record: null });
 
-    const start = await screen.findByRole("button", { name: "Start alpha" });
+    const start = await screen.findByRole("button", { name: "Run Change alpha" });
     // It opens the run dialog, and says so (a-control-that-asks-first-says-so).
-    expect(start.textContent).toBe("Start...");
+    expect(start.textContent).toBe("Run Change...");
     expect(start.querySelector("[aria-hidden='true']")).not.toBeNull();
     expect(start).toHaveClass("openspec-pipeline-button--forward");
 
@@ -925,10 +925,10 @@ describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)
   it("keeps Stop named as it was, with an icon that is not part of the name", async () => {
     renderCard({ held: [heldRun()] });
 
-    const stop = await screen.findByRole("button", { name: "Stop alpha" });
+    const stop = await screen.findByRole("button", { name: "Stop Run alpha" });
     // It asks for a reason before it stops, and says so as a menu would
     // (a-control-that-asks-first-says-so).
-    expect(stop.textContent).toBe("Stop...");
+    expect(stop.textContent).toBe("Stop Run...");
     expect(stop.querySelector("[aria-hidden='true']")).not.toBeNull();
     expect(stop).toHaveClass("openspec-pipeline-button--stop");
     // A run this host started says so in its footer.
@@ -943,7 +943,7 @@ describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)
       held: [heldRun({ waiting: true })],
     });
 
-    const continueButton = await screen.findByRole("button", { name: "Continue alpha to verify" });
+    const continueButton = await screen.findByRole("button", { name: "Continue Run alpha to verify" });
     expect(continueButton).toHaveClass("openspec-pipeline-button--forward");
     const node = screen.getByTestId("pipeline-node-alpha");
     await waitFor(() => expect(node.querySelector(".openspec-pipeline-node-callout")).toHaveTextContent("waiting to continue to verify, in repo"));
@@ -1289,6 +1289,10 @@ describe("PipelineView - what has landed, folded away", () => {
 
     await waitFor(() => expect(screen.getByTestId("pipeline-archive-landed")).toBeTruthy());
     fireEvent.click(screen.getByTestId("pipeline-archive-landed"));
+    // Archive is a Danger action: it asks first (ADR 0045), in a dialog.
+    expect(archived).toEqual([]);
+    expect(screen.getByRole("dialog", { name: "Archive Landed Changes" })).toHaveAttribute("aria-modal", "true");
+    fireEvent.click(screen.getByTestId("pipeline-confirm-archive-landed-yes"));
 
     expect(archived).toEqual([["alpha"]]);
   });

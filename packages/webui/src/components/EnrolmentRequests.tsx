@@ -39,7 +39,7 @@ export function EnrolmentRequests({ requests, confirming, outcomes, onConfirm }:
               disabled={confirming !== null}
               onClick={() => onConfirm(request.keyId)}
             >
-              {confirming === request.keyId ? "Enrolling..." : "It was me"}
+              {confirming === request.keyId ? "Enrolling..." : "Confirm Key"}
             </button>
             {outcomes[request.keyId] ? (
               <div data-testid={`enrolment-outcome-${request.keyId}`}>{outcomes[request.keyId]}</div>

@@ -11,7 +11,9 @@
 // named here with nothing left to do is one the sweep kept - its tree
 // holds uncommitted work - and removing it is the person's call.
 
+import { useState } from "react";
 import type { WorkspaceLeftoverReading } from "../change-leftovers-client.js";
+import { ModalLayer } from "./ModalLayer.js";
 
 export interface LeftoverListProps {
   reading: WorkspaceLeftoverReading | undefined;
@@ -27,6 +29,9 @@ const REASON_WORDS: Record<"merged" | "branch-gone", string> = {
 };
 
 export function LeftoverList({ reading, onRemove, error }: LeftoverListProps) {
+  // A deletion asks first, as every Danger action does (ADR 0045), in a
+  // dialog over the page (ADR 0047).
+  const [asking, setAsking] = useState<{ target: { name: string } | { path: string }; what: string; verb: string } | undefined>(undefined);
   if (error !== undefined) {
     return (
       <section className="openspec-panel" data-testid="leftovers">
@@ -98,9 +103,9 @@ export function LeftoverList({ reading, onRemove, error }: LeftoverListProps) {
                 <button
                   type="button"
                   data-testid={`remove-leftover-${one.name}`}
-                  onClick={() => onRemove?.({ name: one.name })}
+                  onClick={() => setAsking({ target: { name: one.name }, what: one.name, verb: "Delete Leftover" })}
                 >
-                  Remove
+                  Delete Leftover...
                 </button>
               </li>
             ))}
@@ -121,9 +126,9 @@ export function LeftoverList({ reading, onRemove, error }: LeftoverListProps) {
                 <button
                   type="button"
                   data-testid={`remove-directory-${one.label}`}
-                  onClick={() => onRemove?.({ path: one.path })}
+                  onClick={() => setAsking({ target: { path: one.path }, what: one.label, verb: "Delete Worktree" })}
                 >
-                  Remove
+                  Delete Worktree...
                 </button>
               </li>
             ))}
@@ -135,6 +140,29 @@ export function LeftoverList({ reading, onRemove, error }: LeftoverListProps) {
         <p className="openspec-panel-fine" data-testid="leftovers-failures">
           {failures.map((failure) => `${failure.name} could not be removed: ${failure.reason}`).join("; ")}
         </p>
+      ) : null}
+      {asking !== undefined ? (
+        <ModalLayer onCancel={() => setAsking(undefined)}>
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${asking.verb} ${asking.what}`}
+            className="openspec-pipeline-stop-form"
+            data-testid="leftover-confirm"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onRemove?.(asking.target);
+              setAsking(undefined);
+            }}
+          >
+            <p><strong>{`${asking.verb} ${asking.what}?`}</strong></p>
+            <p>The directory is deleted, with everything in it. This cannot be undone.</p>
+            <div className="openspec-pipeline-stop-form-actions">
+              <button type="submit" className="button alert" data-testid="leftover-confirm-yes">{asking.verb}</button>
+              <button type="button" className="button" onClick={() => setAsking(undefined)}>Cancel</button>
+            </div>
+          </form>
+        </ModalLayer>
       ) : null}
     </section>
   );

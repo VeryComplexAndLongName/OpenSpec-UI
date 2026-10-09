@@ -71,12 +71,12 @@ test("loads, edits, and saves an accessible standalone change", async ({ page })
   await page.getByTestId("page-tab-panel-change-editor")
     .getByRole("combobox")
     .selectOption(CHANGE_NAME);
-  await page.getByRole("button", { name: "Load change", exact: true }).click();
+  await page.getByRole("button", { name: "Open Change", exact: true }).click();
   await expect(page.getByText(`Loaded ${CHANGE_NAME}.`)).toBeVisible({ timeout: 15000 });
 
   const proposalEditor = page.getByLabel("Markdown (proposal)");
   await proposalEditor.fill("## Why\n\nUpdated in Chromium.\n");
-  await page.getByRole("button", { name: "Save markdown" }).click();
+  await page.getByRole("button", { name: "Save Change" }).click();
   // Save internally reloads the overview too (see above) before showing
   // this message.
   await expect(page.getByText(`Saved ${CHANGE_NAME}.`)).toBeVisible({ timeout: 15000 });

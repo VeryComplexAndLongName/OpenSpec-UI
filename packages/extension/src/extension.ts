@@ -681,7 +681,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
           return;
         }
         const label = await vscode.window.showInputBox({
-          title: `It was me: ${row.request.label}`,
+          title: `Confirm Key: ${row.request.label}`,
           prompt: "The name this key's runs will be signed by",
           value: row.request.gitAuthor ?? row.request.label,
         });

@@ -876,7 +876,7 @@ export function SettingsFoot(
         {loading ? "Working..." : saveLabel}
       </button>
       <button type="button" className="button openspec-button-quiet" data-testid={`${testIdPrefix}-discard`} onClick={onDiscard} disabled={loading || !dirty}>
-        Discard
+        Restore Settings
       </button>
       {dirty ? <span className="openspec-harness-foot-unsaved" data-testid={`${testIdPrefix}-unsaved`}>Unsaved changes</span> : null}
       {message ? <span className="openspec-harness-foot-message" role="status" data-testid={`${testIdPrefix}-message`}>{message}</span> : null}

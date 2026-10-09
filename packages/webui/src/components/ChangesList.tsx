@@ -141,7 +141,7 @@ export function ChangesList({ changes, onSelect, states, ownerships, sources, on
           </span>
           {onRefresh ? (
             <button type="button" className="button openspec-button-quiet openspec-button-small" data-testid="changes-refresh" disabled={refreshing} onClick={onRefresh}>
-              {refreshing ? "Refreshing…" : "Refresh"}
+              {refreshing ? "Refreshing…" : "Refresh Changes"}
             </button>
           ) : null}
         </div>

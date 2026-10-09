@@ -294,7 +294,7 @@ export function RunDialog(
                 disabled={held}
                 onClick={() => schedule(path.id)}
               >
-                {`Schedule: ${path.title}`}
+                Schedule Run
               </button>
             ))}
           </div>

@@ -1387,7 +1387,7 @@ export function AiPanel({
       </WaitingForYou>
       <div className="openspec-controls openspec-ai-panel-controls">
         <button className="button" type="button" data-testid="load-changes-button" onClick={handleLoadChanges} disabled={isRunning}>
-          Reload changes
+          Refresh Changes
         </button>
         <select
           aria-label="Select OpenSpec change"
@@ -1436,15 +1436,15 @@ export function AiPanel({
         </select>
         {onRefreshAgents ? (
           <button className="button" type="button" data-testid="refresh-agents-button" onClick={onRefreshAgents}>
-            Refresh agents
+            Refresh Agents
           </button>
         ) : null}
         <button type="button" className="button primary" data-testid="run-button" onClick={handleRun} disabled={!canRunCommand}>
-          Run
+          Run Command
         </button>
         {isRunning ? (
           <button type="button" className="button alert" data-testid="cancel-run-button" onClick={handleCancel}>
-            Cancel
+            Stop Run
           </button>
         ) : null}
       </div>

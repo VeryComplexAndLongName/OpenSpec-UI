@@ -19,12 +19,12 @@ import { renderInlineMarkdown, renderMarkdown } from "../markdown.js";
 export type OpenTarget = "tasks" | "proposal" | "design" | "specs" | "window" | "copyPath";
 
 const OPEN_TARGET_WORDS: Readonly<Record<OpenTarget, string>> = {
-  tasks: "Open tasks.md",
-  proposal: "Open the proposal",
-  design: "Open the design",
-  specs: "Show the specs folder",
-  window: "Open the worktree in a new window",
-  copyPath: "Copy the worktree's path",
+  tasks: "Open Tasks",
+  proposal: "Open Proposal",
+  design: "Open Design",
+  specs: "Show Specs",
+  window: "Open Worktree",
+  copyPath: "Copy Path",
 };
 
 /** What came of a press, in the words to show. */
@@ -202,7 +202,7 @@ export function TaskPanel({ selection, actions, copyText, onClose, onChanged }: 
           <textarea id={noteId} data-testid="task-panel-note" rows={3} value={note} onChange={(event) => setNote(event.target.value)} />
           <div className="openspec-task-panel-buttons">
             <button type="submit" className="button primary" data-testid="task-panel-set" disabled={busy}>
-              {row.done ? "Reopen the task" : "Close the task"}
+              {row.done ? "Reopen Task" : "Complete Task"}
             </button>
             {row.closedBy === "named-agent" && !row.done && actions.run !== undefined && row.agent !== undefined ? (
               <button
@@ -210,9 +210,10 @@ export function TaskPanel({ selection, actions, copyText, onClose, onChanged }: 
                 className="button"
                 data-testid="task-panel-run"
                 disabled={busy}
+                title={`Run on ${row.agent}`}
                 onClick={() => void press(() => (actions.run as NonNullable<TaskActions["run"]>)(changeName, row.lineNumber as number))}
               >
-                {`Run on ${row.agent}`}
+                Run Task
               </button>
             ) : null}
           </div>
@@ -222,12 +223,12 @@ export function TaskPanel({ selection, actions, copyText, onClose, onChanged }: 
       <div className="openspec-task-panel-buttons" data-testid="task-panel-actions">
         {row !== undefined && row.lineNumber !== undefined && actions?.open !== undefined && targets.includes("tasks") ? (
           <button type="button" className="button" data-testid="task-panel-goto" onClick={() => actions.open?.(changeName, "tasks", row.lineNumber)}>
-            Go to line
+            Open Task
           </button>
         ) : null}
         {acting ? (
           <button type="button" className="button" data-testid="task-panel-commit" disabled={busy} onClick={() => void press(() => actions.commit(changeName))}>
-            Commit and push tasks.md
+            Commit Tasks
           </button>
         ) : null}
         {targets.filter((target) => target !== "tasks" || row === undefined).map((target) => (

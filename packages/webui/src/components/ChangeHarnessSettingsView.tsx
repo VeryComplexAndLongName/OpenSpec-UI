@@ -267,7 +267,7 @@ export function ChangeHarnessSettingsView(
             status={applyStatus}
             note="Nothing is saved until you save."
             testIdPrefix="change-harness"
-            applyLabel="Apply to the form"
+            applyLabel="Set Configuration"
           />
           <HarnessFindingsPanel findings={findings} />
           <section className="openspec-panel openspec-harness-section" data-testid="change-harness-fields">
@@ -432,7 +432,7 @@ export function ChangeHarnessSettingsView(
               </div>
             </div>
             <SettingsFoot
-              saveLabel="Save change settings"
+              saveLabel="Save Settings"
               onSave={() => void save()}
               onDiscard={() => void reload(changeName)}
               loading={loading}
@@ -445,7 +445,7 @@ export function ChangeHarnessSettingsView(
                 <>
                   {" "}
                   <button type="button" className="openspec-link-button" onClick={onEditGlobal}>
-                    Edit global defaults
+                    Configure Workspace Harness
                   </button>
                 </>
               ) : null}
