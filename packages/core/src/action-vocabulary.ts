@@ -77,7 +77,7 @@ export const ACTION_NOUNS: readonly string[] = [
   "Scoped Instructions", "Dependabot", "LLM Key", "Key", "Team", "People", "Owner", "Implementer",
   "Presence", "Lock", "Lease", "Checks", "Manifest", "Workspace", "Pipeline", "Dashboard", "Views",
   "Archive", "Archive Filter", "Specs Filter", "Graph Filter", "Process", "Implementation", "Typecheck",
-  "Tests", "Lint", "CLI View", "Changes",
+  "Tests", "Lint", "CLI View", "Changes", "Actions",
 ];
 
 /** The verb an action is named by. */

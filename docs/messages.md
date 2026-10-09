@@ -9,6 +9,32 @@ Search this page for the identifier you saw. Within a group the hundreds
 say when a message is said: 0xx before anything runs, 1xx while it runs,
 2xx as it ends. An identifier is never given to another message.
 
+## CHG: a change: finding, creating, deleting it, where it lives
+
+### OSW-CHG-001
+
+> warning: "{name}" is not a change name this workspace can have.
+
+Why: A card or a request named a change by something no change can be called.
+
+What to do: Refresh the Pipeline; report it if a card shows that name.
+
+### OSW-CHG-002
+
+> info: {name} is neither an active change of this checkout nor worked in a directory of its own - it may have been archived or deleted since the Pipeline was read.
+
+Why: The change a card names is no longer where the card was read from.
+
+What to do: Refresh the Pipeline.
+
+### OSW-CHG-003
+
+> info: {action} {name}: {reason}
+
+Why: The action cannot run now, for the reason given (ADR 0044).
+
+What to do: Do what the reason says, then choose the action again.
+
 ## RUN: runs, chains, stages, checkpoints, limits
 
 ### OSW-RUN-001

@@ -77,7 +77,11 @@ import {
   type SurveyedTask,
   type TaskRow,
   type WorktreeSurvey,
+  type ChangeAction,
+  type ChangeActionFacts,
+  type ChangeActionState,
 } from "@openspec-ui/core/browser";
+import { CardActions, ConfirmActionForm, cardActionRows, cardActionStates, type ChangeActionsHost } from "./CardActions.js";
 import { HintList } from "./HintList.js";
 import { Icon } from "./Icon.js";
 import {
@@ -230,6 +234,10 @@ export interface PipelineViewProps {
    * (a-card-works-its-own-tasks). Absent, every card is read-only, as
    * before, and a task opens read-only. */
   taskActions?: TaskActions;
+  /** What the host does with a change's actions: the icons under its name
+   * (ADR 0044, a-change-is-acted-on-from-its-card). Absent, a card draws
+   * none. */
+  changeActions?: ChangeActionsHost;
 }
 
 /** What the Pipeline says while its first report has not returned. */
@@ -483,6 +491,7 @@ export function PipelineView({
   onAskToStop,
   onReadingChange,
   taskActions,
+  changeActions,
 }: PipelineViewProps) {
   const local = usePolledReading(load, isActive, PIPELINE_POLL_INTERVAL_MS, { name: "readiness", subscribe });
   const others = usePolledReading(survey, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
@@ -505,6 +514,8 @@ export function PipelineView({
   const held = usePolledReading(liveRuns, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
   const [stopFor, setStopFor] = useState<StopTarget | undefined>(undefined);
   const [answerFor, setAnswerFor] = useState<AnswerTarget | undefined>(undefined);
+  // A Danger action waiting for its confirmation (a-change-is-acted-on-from-its-card).
+  const [confirmFor, setConfirmFor] = useState<{ action: ChangeAction; changeName: string } | undefined>(undefined);
   /** When this view asked each run elsewhere to stop, by instance id, so its
    * card can say it is waiting for the run to read the request. */
   const [stopsAsked, setStopsAsked] = useState<ReadonlyMap<string, string>>(() => new Map());
@@ -716,6 +727,15 @@ export function PipelineView({
     onAskStop: setStopFor,
     canAskToStop: onAskToStop !== undefined,
     ...(onAnswerQuestion !== undefined ? { onAnswer: setAnswerFor } : {}),
+    ...(changeActions !== undefined
+      ? {
+        actions: changeActions,
+        chooseAction: (action: ChangeAction, changeName: string) => {
+          if (action.confirm) setConfirmFor({ action, changeName });
+          else changeActions.perform(action.id, changeName, { confirmed: false });
+        },
+      }
+      : {}),
   };
   // The cards Open all opens: every card with rows to list, here and in
   // every other working directory.
@@ -1000,6 +1020,17 @@ export function PipelineView({
           onClose={() => setAnswerFor(undefined)}
         />
       ) : null}
+      {confirmFor !== undefined && changeActions !== undefined ? (
+        <ConfirmActionForm
+          action={confirmFor.action}
+          changeName={confirmFor.changeName}
+          onConfirm={() => {
+            changeActions.perform(confirmFor.action.id, confirmFor.changeName, { confirmed: true });
+            setConfirmFor(undefined);
+          }}
+          onCancel={() => setConfirmFor(undefined)}
+        />
+      ) : null}
       {stopFor !== undefined && ("runId" in stopFor ? sendRunControl !== undefined : onAskToStop !== undefined) ? (
         <StopReasonForm
           changeName={stopFor.changeName}
@@ -1071,6 +1102,8 @@ interface LocalCardModel {
   callout?: string;
   details: CardDetail[];
   buttons: ReactNode[];
+  /** The change's actions, each with whether it can run now. */
+  actions: ChangeActionState[];
   /** The run this card shows was started by this host. */
   startedHere: boolean;
   rows: TaskRow[];
@@ -1094,10 +1127,35 @@ function localCardModel(change: ChangeReadiness, card: ChangeCard, now: Date, al
     ...(waiting !== undefined ? { callout: waiting.text } : {}),
     details: [...described.details.filter((detail) => detail !== waiting), ...onStage, ...readiness, ...also],
     buttons: cardControls(card, controls),
+    actions: cardActionStates(localActionFacts(card), controls.actions),
     startedHere: card.run?.ownedHere === true,
     rows: card.tasks ?? [],
     // The whole of the text, for a reader whose card cut a line.
     title: `${change.changeName} — ${[described.stateWords, ...described.lines, ...onStage.map((detail) => detail.text), ...readiness.map((detail) => detail.text), ...also.map((detail) => detail.text)].join(" ")}`,
+  };
+}
+
+/** What decides a card's actions: where its facts were read, whether a run
+ * of it is going, and its open tasks. */
+function localActionFacts(card: ChangeCard): ChangeActionFacts {
+  const where = !card.where.ownWorktree ? "checkout" : card.run?.signature === "does-not-check-out" ? "unverified" : "worktree";
+  return {
+    where,
+    running: card.run !== undefined,
+    ...(card.progress !== undefined ? { openTasks: card.progress.total - card.progress.done } : {}),
+  };
+}
+
+/** The same for a change read from its own worktree, beside this
+ * checkout's; `undefined` for one its directory is not the worktree of,
+ * which stays read-only (ADR 0026, amended 2026-10-05). */
+function elsewhereActionFacts(change: SurveyedChange, directory: Extract<SurveyedDirectory, { readable: true }>): ChangeActionFacts | undefined {
+  if (directory.ownChange !== change.changeName) return undefined;
+  const runs = directory.runs.filter((run) => run.changeName === change.changeName && !run.gone);
+  return {
+    where: runs.some((run) => run.signature === "does-not-check-out") ? "unverified" : "worktree",
+    running: runs.length > 0,
+    ...(!change.tasksUnreadable ? { openTasks: change.tasksTotal - change.tasksDone } : {}),
   };
 }
 
@@ -1147,14 +1205,19 @@ function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, dire
   // A card whose done tasks are hidden lists fewer rows, and is as tall as
   // what it lists (a-card-works-its-own-tasks).
   const taskCards = useContext(TaskCardContext);
+  const elsewhereActions = new Map<string, ChangeActionState[]>();
   for (const [name, { directory: where, change }] of elsewhere) {
     const openRows = openParts(change.tasks ?? [], openCards.isOpen(where.path, name), taskCards.hidesDone(where.path, name));
+    const facts = elsewhereActionFacts(change, where);
+    const actions = facts === undefined ? [] : cardActionStates(facts, controls.actions);
+    elsewhereActions.set(name, actions);
     heights.set(name, pipelineCardHeight({
       hasState: false,
       hasProgress: !change.tasksUnreadable && change.tasksTotal > 0,
       hasCallout: false,
       detailLines: elsewhereDetails(change, where, labels, archivedOnMain, stages.get(name), now).length,
       hasControls: false,
+      actionRows: cardActionRows(actions).length,
       ...(openRows !== undefined ? { open: openRows } : {}),
     }));
   }
@@ -1170,6 +1233,7 @@ function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, dire
       hasCallout: model.callout !== undefined,
       detailLines: model.details.length,
       hasControls: model.buttons.length > 0,
+      actionRows: cardActionRows(model.actions).length,
       ...(openRows !== undefined ? { open: openRows } : {}),
     }));
   }
@@ -1244,6 +1308,8 @@ function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, dire
                 testId={`pipeline-node-${name}`}
                 open={openCards.isOpen(foreign.directory.path, name)}
                 onToggle={() => openCards.toggle(foreign.directory.path, name)}
+                actions={elsewhereActions.get(name) ?? []}
+                {...(controls.chooseAction !== undefined ? { onChooseAction: controls.chooseAction } : {})}
               />
             );
           }
@@ -1258,6 +1324,7 @@ function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, dire
               directory={directory}
               open={openCards.isOpen(directory, name)}
               onToggle={() => openCards.toggle(directory, name)}
+              {...(controls.chooseAction !== undefined ? { onChooseAction: controls.chooseAction } : {})}
             />
           );
         }}
@@ -1577,10 +1644,11 @@ function Progress({ done, total }: { done: number; total: number }) {
   );
 }
 
-function Node({ node, model, onOpenChange, directory, open, onToggle }: {
+function Node({ node, model, onOpenChange, directory, open, onToggle, onChooseAction }: {
   node: ChangeLayoutNode;
   model: LocalCardModel;
   onOpenChange?: (name: string) => void;
+  onChooseAction?: (action: ChangeAction, changeName: string) => void;
   /** The directory this picture is drawn for, which the card's open and
    * hidden states are kept by. */
   directory: string;
@@ -1628,6 +1696,9 @@ function Node({ node, model, onOpenChange, directory, open, onToggle }: {
           ? <TasksToggle name={change.changeName} open={open} listId={`${testId}-tasks`} testId={`${testId}-tasks-toggle`} onToggle={onToggle} />
           : null}
       </div>
+      {onChooseAction !== undefined
+        ? <CardActions changeName={change.changeName} states={model.actions} onChoose={(action) => onChooseAction(action, change.changeName)} testId={testId} />
+        : null}
       {/* The state as a word, not only as a colour — two hues a reader
           cannot tell apart must still be two states. */}
       <div className="openspec-pipeline-node-state-row">
@@ -1674,6 +1745,10 @@ interface CardControlHandlers {
   canAskToStop: boolean;
   /** Opens the answer form for a run waiting on the operator (ADR 0042). */
   onAnswer?: (target: AnswerTarget) => void;
+  /** What the host does with a change's actions, and what the view does when
+   * one is chosen: asks first for a Danger one (a-change-is-acted-on-from-its-card). */
+  actions?: ChangeActionsHost;
+  chooseAction?: (action: ChangeAction, changeName: string) => void;
 }
 
 /** The buttons a card offers, from its facts alone. Answer, Stop and Stop
@@ -2177,7 +2252,7 @@ function elsewhereDetails(
  * that directory is the change's own worktree, which its card works
  * (ADR 0026 amended 2026-10-05, a-card-works-its-own-tasks). Then its name
  * opens the change there, and its rows and list carry their actions. */
-function DirectoryCard({ node, change, directory, details, testId, open, onToggle }: {
+function DirectoryCard({ node, change, directory, details, testId, open, onToggle, actions, onChooseAction }: {
   node: ChangeLayoutNode;
   change: SurveyedChange | undefined;
   directory: Extract<SurveyedDirectory, { readable: true }>;
@@ -2185,6 +2260,10 @@ function DirectoryCard({ node, change, directory, details, testId, open, onToggl
   testId: string;
   open: boolean;
   onToggle: () => void;
+  /** Its change's actions, on a card of the change's own worktree drawn on
+   * this board; none elsewhere. */
+  actions?: readonly ChangeActionState[];
+  onChooseAction?: (action: ChangeAction, changeName: string) => void;
 }) {
   const taskCards = useContext(TaskCardContext);
   const name = node.change.changeName;
@@ -2217,6 +2296,9 @@ function DirectoryCard({ node, change, directory, details, testId, open, onToggl
           ? <TasksToggle name={name} open={open} listId={`${testId}-tasks`} testId={`${testId}-tasks-toggle`} onToggle={onToggle} />
           : null}
       </div>
+      {onChooseAction !== undefined && actions !== undefined
+        ? <CardActions changeName={name} states={actions} onChoose={(action) => onChooseAction(action, name)} testId={testId} />
+        : null}
       {counted ? <Progress done={change.tasksDone} total={change.tasksTotal} /> : null}
       <CardDetails details={details} />
       {rows.length > 0 ? (
@@ -2235,7 +2317,7 @@ function DirectoryCard({ node, change, directory, details, testId, open, onToggl
 }
 
 /** A change of another working directory, drawn on this board. */
-function ElsewhereNode({ node, change, where, labels, archivedOnMain, stage, now, testId, open, onToggle }: {
+function ElsewhereNode({ node, change, where, labels, archivedOnMain, stage, now, testId, open, onToggle, actions, onChooseAction }: {
   node: ChangeLayoutNode;
   change: SurveyedChange;
   where: Extract<SurveyedDirectory, { readable: true }>;
@@ -2246,9 +2328,11 @@ function ElsewhereNode({ node, change, where, labels, archivedOnMain, stage, now
   testId: string;
   open: boolean;
   onToggle: () => void;
+  actions: readonly ChangeActionState[];
+  onChooseAction?: (action: ChangeAction, changeName: string) => void;
 }) {
   const details = elsewhereDetails(change, where, labels, archivedOnMain, stage, now);
-  return <DirectoryCard node={node} change={change} directory={where} details={details} testId={testId} open={open} onToggle={onToggle} />;
+  return <DirectoryCard node={node} change={change} directory={where} details={details} testId={testId} open={open} onToggle={onToggle} actions={actions} {...(onChooseAction !== undefined ? { onChooseAction } : {})} />;
 }
 
 /** A change of another working directory, drawn in that directory's own

@@ -417,6 +417,26 @@ describe("PipelinePanel — answering the view", () => {
     expect(runChange).toHaveBeenCalledWith("alpha");
   });
 
+  // a-change-is-acted-on-from-its-card (ADR 0044): a card's action runs the
+  // command a Changes row runs, on the change as the row carries it.
+  it("runs a card's action as the Changes row's command, only for one of a change's actions and a change there is", async () => {
+    const item = { changeName: "beta", changeDir: "/wt/beta/openspec/changes/beta" };
+    const { pipeline } = createPipelinePanel({ readers: { changeItem: vi.fn(async (_root: string, name: string) => (name === "beta" ? item : undefined)) } });
+    pipeline.show();
+    vscodeMock.commands.executeCommand.mockClear();
+
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/change-action", action: "configureChangeHarness", changeName: "beta", confirmed: false });
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/change-action", action: "deleteChange", changeName: "beta", confirmed: true });
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/change-action", action: "deleteWorkspace", changeName: "beta" });
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/change-action", action: "showDiff", changeName: "gone" });
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/change-action", action: "showDiff", changeName: "../etc" });
+
+    expect(vscodeMock.commands.executeCommand.mock.calls).toEqual([
+      ["openspec-ui.configureChangeHarness", item, { confirmed: false }],
+      ["openspec-ui.deleteChange", item, { confirmed: true }],
+    ]);
+  });
+
   // the-plan-is-updated-from-its-review 2.2 (ADR 0041).
   it("opens the AI panel on update for a card's Update the plan, only for an active change, in its directory", async () => {
     const updatePlan = vi.fn(async () => undefined);

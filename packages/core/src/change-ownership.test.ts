@@ -7,6 +7,7 @@ import {
   isOursToWrite,
   ownChangeOf,
   refuseToWrite,
+  workedElsewhere,
 } from "./change-ownership.js";
 import type { SurveyedDirectory, SurveyedRun, WorktreeSurvey } from "./worktree-survey-facts.js";
 
@@ -184,16 +185,22 @@ describe("what this checkout may write", () => {
     expect(refuseToWrite("demo", { kind: "here" })).toBeUndefined();
   });
 
-  it("refuses another directory's change, and says where to work instead", () => {
-    const refusal = refuseToWrite("demo", changeOwnership("demo", elsewhere()));
-    expect(refusal).toContain("demo-worktree");
-    expect(refusal).toContain("/wt/demo");
-    expect(refusal).toContain("Work on it there");
+  // a-change-is-acted-on-from-its-card (ADR 0044): where a change is worked
+  // decides where an action runs, never whether it is offered.
+  it("writes another directory's change there, rather than refusing it", () => {
+    const ownership = changeOwnership("demo", elsewhere());
+    expect(isOursToWrite(ownership)).toBe(false);
+    expect(refuseToWrite("demo", ownership)).toBeUndefined();
+    expect(workedElsewhere(ownership)).toEqual({ label: "demo-worktree", path: "/wt/demo" });
+    expect(workedElsewhere({ kind: "here" })).toBeUndefined();
   });
 
-  it("refuses a directory whose record does not check out too", () => {
+  it("refuses a directory whose record does not check out, and says where to work instead", () => {
     const ownership = changeOwnership("demo", elsewhere([run({ signature: "does-not-check-out" })]));
-    expect(isOursToWrite(ownership)).toBe(false);
-    expect(refuseToWrite("demo", ownership)).toContain("demo-worktree");
+    const refusal = refuseToWrite("demo", ownership);
+    expect(refusal).toContain("demo-worktree");
+    expect(refusal).toContain("/wt/demo");
+    expect(refusal).toContain("do not check out");
+    expect(refusal).toContain("Work on it there");
   });
 });

@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { landedBranches, readChangeGraph, type ChangeGraph, type ChangeGraphNode } from "@openspec-ui/core";
+import { changeAncestry, landedBranches, readChangeGraph, type ChangeGraph, type ChangeGraphNode } from "@openspec-ui/core";
 import { EmptyTreeItem } from "./changes-tree.js";
 import { ViewFilterState } from "./view-filter-state.js";
 import { statingRelation } from "../relations-context.js";
@@ -337,25 +337,7 @@ function reachableFromRoots(nodes: ChangeGraph, children: Map<string, string[]>)
  * nearest reason comes first. Answers the question the graph exists for —
  * why is this here — from the change rather than from the graph. */
 export function ancestryOf(nodes: ChangeGraph, id: string): ChangeGraphNode[] {
-  const start = nodes.get(id);
-  if (!start) return [];
-
-  const seen = new Set<string>([id]);
-  const ordered: ChangeGraphNode[] = [];
-  let frontier = [...start.follows];
-  while (frontier.length > 0) {
-    const next: string[] = [];
-    for (const current of frontier) {
-      if (seen.has(current)) continue;
-      seen.add(current);
-      const node = nodes.get(current);
-      if (!node) continue;
-      ordered.push(node);
-      next.push(...node.follows);
-    }
-    frontier = next;
-  }
-  return ordered;
+  return changeAncestry(nodes, id);
 }
 
 /** Every row a change occupies, not the first found — a change following

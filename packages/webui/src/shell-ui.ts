@@ -3804,6 +3804,69 @@ export const shellThemeCss = `
   }
 
   .openspec-pipeline .openspec-pipeline-node-disclosure[aria-expanded="true"] { background: var(--surface-3); }
+  /* The change's actions under its name, in rows of icons grouped by their
+     verb's group and coloured by it (ADR 0044, ADR 0045). One that cannot
+     run now is dimmed and says why in its tooltip. */
+  .openspec-pipeline-node-actions {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    margin-top: ${Z(PIPELINE_CARD_REM.actionsGap)};
+  }
+
+  .openspec-pipeline-node-actions-row {
+    display: flex;
+    align-items: center;
+    gap: ${Z(0.5)};
+    height: ${Z(PIPELINE_CARD_REM.actionsRow)};
+  }
+
+  .openspec-pipeline-node-actions-group {
+    display: flex;
+    align-items: center;
+    gap: ${Z(0.125)};
+  }
+
+  .openspec-pipeline-node-actions-group + .openspec-pipeline-node-actions-group {
+    padding-left: ${Z(0.5)};
+    border-left: 1px solid var(--line);
+  }
+
+  .openspec-pipeline .openspec-pipeline-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: ${Z(1.375)};
+    height: ${Z(1.375)};
+    margin: 0;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: none;
+    cursor: pointer;
+  }
+
+  .openspec-pipeline .openspec-pipeline-action:hover:not([aria-disabled="true"]) {
+    border-color: var(--line-strong);
+    background: var(--surface-3);
+  }
+
+  .openspec-pipeline .openspec-pipeline-action[aria-disabled="true"] {
+    opacity: 0.35;
+    cursor: default;
+  }
+
+  .openspec-pipeline-action .openspec-codicon {
+    width: ${Z(1)};
+    height: ${Z(1)};
+  }
+
+  .openspec-pipeline-action[data-group="run"] { color: var(--vscode-charts-blue, var(--cobalt)); }
+  .openspec-pipeline-action[data-group="respond"] { color: var(--vscode-charts-green, var(--emerald)); }
+  .openspec-pipeline-action[data-group="inspect"] { color: var(--vscode-charts-purple, var(--indigo)); }
+  .openspec-pipeline-action[data-group="arrange"] { color: var(--muted); }
+  .openspec-pipeline-action[data-group="set-up"] { color: var(--vscode-charts-yellow, var(--orange)); }
+  .openspec-pipeline-action[data-group="danger"] { color: var(--vscode-errorForeground, var(--crimson)); }
 
   /* The state row: the badge that carries the word, and the run's stage. */
   .openspec-pipeline-node-state-row {

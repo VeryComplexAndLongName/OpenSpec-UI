@@ -19,6 +19,10 @@ export const PIPELINE_CARD_REM = {
   /** The heading row: the change's name, and the control that shows its
    * tasks. One line, never shrunk. */
   nameLine: 1.75,
+  /** The change's actions, under its name: their gap above, then each row of
+   * icons (a-change-is-acted-on-from-its-card). */
+  actionsGap: 0.375,
+  actionsRow: 1.5,
   /** The state row: its gap above, then the badge. */
   stateGap: 0.375,
   stateLine: 1.25,
@@ -66,6 +70,8 @@ export interface PipelineCardParts {
   detailLines: number;
   /** A footer of controls. */
   hasControls: boolean;
+  /** How many rows of action icons the card draws under its name. */
+  actionRows?: number;
   /** While the card lists its tasks: how many rows and section headings. */
   open?: { rows: number; sections: number };
 }
@@ -76,6 +82,7 @@ export interface PipelineCardParts {
 export function pipelineCardHeight(parts: PipelineCardParts): number {
   const r = PIPELINE_CARD_REM;
   let height = 2 * r.borderBlock + r.headTop + r.nameLine;
+  if (parts.actionRows !== undefined && parts.actionRows > 0) height += r.actionsGap + parts.actionRows * r.actionsRow;
   if (parts.hasState) height += r.stateGap + r.stateLine;
   if (parts.hasProgress) height += r.progressGap + r.progressLine;
   if (parts.hasCallout) height += r.calloutGap + r.calloutBox;

@@ -73,6 +73,12 @@ describe("the Pipeline card's stylesheet", () => {
     expect(section).toContain("box-sizing: border-box;");
   });
 
+  // a-change-is-acted-on-from-its-card
+  it("gives a card's rows of action icons the gap and the height core adds for them", () => {
+    expect(rule(".openspec-pipeline-node-actions")).toContain(`margin-top: ${zoomed(r.actionsGap)};`);
+    expect(rule(".openspec-pipeline-node-actions-row")).toContain(`height: ${zoomed(r.actionsRow)};`);
+  });
+
   // a-card-opens-to-its-tasks 4.1
   it("scales the picture's unit by its zoom, as every length on a card is", () => {
     expect(rule(".openspec-pipeline-picture")).toContain("--u: calc(1rem * var(--pipeline-zoom, 1));");

@@ -23,11 +23,15 @@ function graphOf(nodes: Record<string, Partial<ChangeGraphNode>>): ChangeGraph {
 
 interface MenuEntry { command: string; when?: string; group?: string }
 
-function contextMenu(): MenuEntry[] {
+function manifestMenus(): Record<string, MenuEntry[]> {
   const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
     contributes: { menus: Record<string, MenuEntry[]> };
   };
-  return manifest.contributes.menus["view/item/context"] ?? [];
+  return manifest.contributes.menus;
+}
+
+function contextMenu(): MenuEntry[] {
+  return manifestMenus()["view/item/context"] ?? [];
 }
 
 /** The context values a clause names, split on its `||`. Every clause
@@ -58,11 +62,15 @@ describe("which rows may take a relation back (relations-and-leftovers-explain-t
     expect(withoutRelationMark("openspec-ui.activeChange.elsewhere")).toBe("openspec-ui.activeChange.elsewhere");
   });
 
-  it("offers Remove Relation only on a row that states one", () => {
-    const remove = contextMenu().filter((entry) => entry.command === "openspec-ui.removeRelation");
+  // a-change-is-acted-on-from-its-card: a change's own row offers it in its
+  // Set Up submenu, and a row worked in another directory too, whose
+  // relations are read there.
+  it("offers Remove Relation only on a row that states one, or whose relations are read elsewhere", () => {
+    const remove = [...contextMenu(), ...(manifestMenus()["openspec-ui.changeSetUp"] ?? [])]
+      .filter((entry) => entry.command === "openspec-ui.removeRelation");
 
-    expect(remove).toHaveLength(1);
-    expect(namedRows(remove[0]?.when).sort()).toEqual([
+    expect(remove.flatMap((entry) => namedRows(entry.when)).sort()).toEqual([
+      "openspec-ui.activeChange.elsewhere",
       "openspec-ui.activeChange.related",
       "openspec-ui.graphActiveChange.related",
       "openspec-ui.unwrittenChange.related",

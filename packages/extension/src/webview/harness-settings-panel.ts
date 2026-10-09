@@ -42,6 +42,9 @@ export interface ObservedHarnessRequest {
 export class HarnessSettingsPanel {
   private globalPanel: vscode.WebviewPanel | undefined;
   private readonly changePanels = new Map<string, vscode.WebviewPanel>();
+  /** The working directory each change's panel reads and writes, where the
+   * change is worked in another one (ADR 0044); this window's otherwise. */
+  private readonly changeRoots = new Map<string, string>();
   private readonly testResponseListeners = new Set<(response: unknown) => void>();
   private readonly testRequestListeners = new Set<(request: ObservedHarnessRequest) => void>();
 
@@ -59,13 +62,18 @@ export class HarnessSettingsPanel {
   /** One panel per change, revealed when it is open. Two changes side by
    * side are ordinary with worktrees, so a single panel that switched
    * between them would take away the comparison. */
-  showChange(changeName: string): void {
+  showChange(changeName: string, root?: string): void {
+    if (root !== undefined) this.changeRoots.set(changeName, root);
+    else this.changeRoots.delete(changeName);
     const existing = this.changePanels.get(changeName);
     if (existing) {
       existing.reveal();
       return;
     }
-    const panel = this.open(changeHarnessPanelTitle(changeName), changeName, () => { this.changePanels.delete(changeName); });
+    const panel = this.open(changeHarnessPanelTitle(changeName), changeName, () => {
+      this.changePanels.delete(changeName);
+      this.changeRoots.delete(changeName);
+    });
     this.changePanels.set(changeName, panel);
   }
 
@@ -100,7 +108,8 @@ export class HarnessSettingsPanel {
     for (const listener of this.testRequestListeners) {
       listener({ ...(changeName !== undefined ? { changeName } : {}), op: String(request.op), args: request.args });
     }
-    void answerHarnessRequest(this.deps.getWorkspaceRoot(), request, (body) => {
+    const root = (changeName === undefined ? undefined : this.changeRoots.get(changeName)) ?? this.deps.getWorkspaceRoot();
+    void answerHarnessRequest(root, request, (body) => {
       const response = { type: RESPONSE_MESSAGE_TYPE, id: request.id, ...body };
       for (const listener of this.testResponseListeners) listener(response);
       void panel.webview.postMessage(response);

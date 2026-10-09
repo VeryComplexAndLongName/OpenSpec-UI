@@ -18,6 +18,7 @@ import {
   UnknownProjectTemplateError,
   archiveChange,
   buildChangeCostReport,
+  renderChangeCostReport,
   buildSprintReport,
   findHarnessConfigLimits,
   readTaskChecklist,
@@ -43,6 +44,12 @@ import {
   runTimestampsByChange,
   readChangeGraph,
   refuseToWrite,
+  workedElsewhere,
+  ACTION_GROUPS,
+  changeActionStates,
+  say,
+  withMessageCode,
+  type ChangeActionFacts,
   editChangeRelation,
   askLiveRunToStop,
   sayToLiveRun,
@@ -101,7 +108,6 @@ import {
   type OpenSpecValidateResult,
   type CheckScriptName,
   type AuditEntry,
-  type ChangeCostReport,
   type ChangeOwnership,
 } from "@openspec-ui/core";
 // The report's page, from the package that owns the product's look
@@ -181,7 +187,9 @@ export interface CommandsDeps {
    * or the named change's own panel. Each file has a panel of its own;
    * the AI panel no longer hosts a settings form. See
    * a-change-is-configured-from-the-change. */
-  showHarnessSettings: (changeName?: string) => void;
+  /** `root`: the working directory the change is worked in, where it is
+   * not this one (ADR 0044). */
+  showHarnessSettings: (changeName?: string, root?: string) => void;
   refreshTrees: () => void;
   refreshTemplatesTree: () => void;
   scheduler: WorkbenchProcessScheduler;
@@ -203,69 +211,10 @@ export interface CommandsDeps {
   readAuditEntries?: () => Promise<AuditEntry[]>;
 }
 
-/** Renders a change's cost report as Markdown. Core produced the
- * structure; this decides how it reads — including the two places the
- * numbers must not be tidied: a figure the agent never reported shows as
- * "not reported", never as `$0.00`, and the totals line says it covers
- * only what was reported. */
-export function renderChangeCostReport(changeName: string, report: ChangeCostReport): string {
-  const lines: string[] = [`# What ${changeName} cost`, ""];
-  if (!report.hasRecords) {
-    lines.push("Nothing has run against this change.", "");
-    lines.push("This is not the same as a change that ran and reported nothing —");
-    lines.push("there are no records for it at all.");
-    return lines.join("\n");
-  }
-
-  const money = (value: number | undefined): string => (value === undefined ? "not reported" : `$${value.toFixed(2)}`);
-  const count = (value: number | undefined): string => (value === undefined ? "not reported" : value.toLocaleString());
-  const duration = (value: number | undefined): string => {
-    if (value === undefined) return "still running";
-    const seconds = Math.round(value / 1000);
-    const minutes = Math.floor(seconds / 60);
-    return `${minutes}m${String(seconds % 60).padStart(2, "0")}s`;
-  };
-
-  lines.push("| Stage | Agent | Effort | Outcome | Cost | Tokens in | Tokens out | Duration |");
-  lines.push("|---|---|---|---|---|---|---|---|");
-  for (const row of report.rows) {
-    lines.push([
-      "",
-      row.stage ?? "_unattributed_",
-      row.agent,
-      row.effort ?? "—",
-      row.outcome,
-      money(row.costUsd),
-      count(row.inputTokens),
-      count(row.outputTokens),
-      duration(row.durationMs),
-      "",
-    ].join(" | ").trim());
-  }
-  lines.push("");
-  lines.push(`**Reported total:** ${money(report.reportedCostUsd)}`
-    + `, ${count(report.reportedInputTokens)} in, ${count(report.reportedOutputTokens)} out`
-    + `, ${duration(report.totalDurationMs)}.`);
-  if (report.rowsWithNothingReported > 0) {
-    lines.push("");
-    lines.push(`${report.rowsWithNothingReported} of ${report.rows.length} run(s) reported nothing at all,`);
-    lines.push("so the totals above cover only part of what happened. Most supported");
-    lines.push("agents report no usage; see LIMITS.md for which.");
-  }
-  if (report.rows.some((row) => row.stage === undefined)) {
-    lines.push("");
-    lines.push("_Unattributed_ rows are records written before runs carried the stage");
-    lines.push("they belonged to. They are counted in the totals and not guessed at.");
-  }
-  const withReasons = report.rows.filter((row) => row.reason !== undefined);
-  if (withReasons.length > 0) {
-    lines.push("", "## How runs ended", "");
-    for (const row of withReasons) {
-      lines.push(`- ${row.stage ?? "unattributed"} (${row.outcome}): ${row.reason ?? ""}`);
-    }
-  }
-  return lines.join("\n");
-}
+// Rendered by core, so the standalone app says it in the same words
+// (a-change-is-acted-on-from-its-card); kept exported from here for the
+// callers that read it from this module.
+export { renderChangeCostReport };
 
 const CHECK_TITLES: Record<CheckScriptName, string> = {
   typecheck: "typecheck",
@@ -349,7 +298,9 @@ function warnNoTreeSelection(kind: "change" | "template" | "task"): void {
 // right-click menu would have offered it on. A structural check would
 // not: `TasksArtifactTreeItem` carries the same `changeName`/`archived`
 // fields as `ChangeTreeItem`.
-const CHANGE_CONTEXT_VALUES = new Set(["openspec-ui.activeChange", "openspec-ui.archivedChange"]);
+// A row worked in another working directory is a change all the same: its
+// actions run there (ADR 0044, a-change-is-acted-on-from-its-card).
+const CHANGE_CONTEXT_VALUES = new Set(["openspec-ui.activeChange", "openspec-ui.activeChange.elsewhere", "openspec-ui.archivedChange"]);
 const TASK_CONTEXT_VALUES = new Set([
   "openspec-ui.activeTask",
   "openspec-ui.activeTaskDone",
@@ -400,6 +351,52 @@ function resolveTreeItem<T>(
   if (!selection || selection.length !== 1) return undefined;
   const [candidate] = selection;
   return isExpectedKind(candidate) ? candidate : undefined;
+}
+
+/** Where a command acts on a change (ADR 0044, a-change-is-acted-on-from-
+ * its-card): in the working directory the change is worked in, where that
+ * is another one - a row of this checkout carries this checkout's copy, and
+ * the change's own copy is the other directory's - and in this checkout
+ * otherwise. Where it lives decides where an action runs, never whether it
+ * is offered. */
+export function workedIn(
+  item: { changeName: string; changeDir: string; ownership?: ChangeOwnership },
+  workspaceRoot: string,
+): { root: string; changeDir: string } {
+  const there = item.ownership === undefined ? undefined : workedElsewhere(item.ownership);
+  return there === undefined
+    ? { root: workspaceRoot, changeDir: item.changeDir }
+    : { root: there.path, changeDir: path.join(there.path, "openspec", "changes", item.changeName) };
+}
+
+/** What decides which of a row's actions can run now, read as a card reads
+ * it: where the change is worked, whether a run of it is going, and its
+ * open tasks. A fact that cannot be read leaves the actions it would decide
+ * offered, and the command itself says why it cannot. */
+async function changeActionFactsOf(item: ChangeTreeItem, workspaceRoot: string): Promise<ChangeActionFacts> {
+  const ownership = item.ownership;
+  const where = ownership.kind === "unverified" ? "unverified" : ownership.kind === "elsewhere" ? "worktree" : "checkout";
+  let running = false;
+  try {
+    const statusDirectory = await resolveAgentStatusDirectory(createGitWrapper({ cwd: workspaceRoot }), workspaceRoot);
+    const { reports } = await readAgentStatuses(statusDirectory);
+    running = reports.some((report) => report.changeName === item.changeName && !report.gone);
+  } catch {
+    // No status records to read: nothing reports a run.
+  }
+  let openTasks: number | undefined;
+  try {
+    openTasks = (await readTaskChecklist(workedIn(item, workspaceRoot).root, item.changeName, false)).filter((task) => !task.done).length;
+  } catch {
+    openTasks = undefined;
+  }
+  return { where, running, ...(openTasks !== undefined ? { openTasks } : {}) };
+}
+
+/** The person confirmed the action on the change's card, so the command does
+ * not ask again (a-change-is-acted-on-from-its-card). */
+function confirmedOnCard(options: unknown): boolean {
+  return typeof options === "object" && options !== null && (options as { confirmed?: unknown }).confirmed === true;
 }
 
 /** Best-effort, non-blocking nudge after a successful archive: if this
@@ -1474,13 +1471,14 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       if (!subject) { warnNoTreeSelection("change"); return; }
       if (subject.archived) { warnArchivedRelation(subject.name); return; }
       if (await refusedAsAnothersChange(subject.name, subject.ownership)) return;
+      const root = (subject.ownership === undefined ? undefined : workedElsewhere(subject.ownership))?.path ?? workspaceRoot;
       try {
-        const graph = await readChangeGraph(workspaceRoot, { changes: "all" });
+        const graph = await readChangeGraph(root, { changes: "all" });
         const key = await pickRelationKind(subject.name);
         if (!key) return;
         const named = await pickChangeToRelate(graph, subject.name, key);
         if (!named) return;
-        const result = await editChangeRelation(workspaceRoot, { change: subject.name, key, add: named });
+        const result = await editChangeRelation(root, { change: subject.name, key, add: named });
         if (!result.ok) {
           // The refusal core wrote, as it wrote it: a cycle names the
           // changes in it, and an unknown id names the id.
@@ -1502,11 +1500,12 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       if (!subject) { warnNoTreeSelection("change"); return; }
       if (subject.archived) { warnArchivedRelation(subject.name); return; }
       if (await refusedAsAnothersChange(subject.name, subject.ownership)) return;
+      const root = (subject.ownership === undefined ? undefined : workedElsewhere(subject.ownership))?.path ?? workspaceRoot;
       try {
-        const graph = await readChangeGraph(workspaceRoot, { changes: "all" });
+        const graph = await readChangeGraph(root, { changes: "all" });
         const stated = await pickRelationToRemove(graph.get(subject.name));
         if (!stated) return;
-        const result = await editChangeRelation(workspaceRoot, {
+        const result = await editChangeRelation(root, {
           change: subject.name,
           key: stated.key,
           remove: stated.id,
@@ -1667,13 +1666,51 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       // and the global file only (a-change-is-configured-from-the-change).
       deps.showHarnessSettings();
     }),
+    // Every action on a change, from core's one list, as its card offers
+    // them: grouped, with the ones that cannot run now saying why
+    // (ADR 0044, a-change-is-acted-on-from-its-card).
+    vscode.commands.registerCommand("openspec-ui.showActions", async (invokedItem?: ChangeTreeItem) => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
+      if (!item || item.archived) { warnNoTreeSelection("change"); return; }
+      const states = changeActionStates(await changeActionFactsOf(item, workspaceRoot));
+      type Entry = vscode.QuickPickItem & { state?: (typeof states)[number] };
+      const entries: Entry[] = [];
+      for (const { group, label } of ACTION_GROUPS) {
+        const inGroup = states.filter((state) => state.action.group === group);
+        if (inGroup.length === 0) continue;
+        entries.push({ label, kind: vscode.QuickPickItemKind.Separator });
+        for (const state of inGroup) {
+          entries.push({
+            label: `$(${state.action.icon}) ${state.action.title}`,
+            ...(state.enabled ? {} : { description: "not now", detail: state.reason }),
+            state,
+          });
+        }
+      }
+      const picked = await vscode.window.showQuickPick(entries, {
+        title: `Actions on ${item.changeName}`,
+        placeHolder: "What to do with this change",
+        matchOnDetail: true,
+      });
+      const chosen = picked?.state;
+      if (chosen === undefined) return;
+      if (!chosen.enabled) {
+        const notNow = say("OSW-CHG-003", { action: chosen.action.title.replace(/\.\.\.$/u, ""), name: item.changeName, reason: chosen.reason ?? "not now" });
+        void vscode.window.showInformationMessage(withMessageCode(notNow.text, notNow.code));
+        return;
+      }
+      await vscode.commands.executeCommand(chosen.action.command, item);
+    }),
     vscode.commands.registerCommand("openspec-ui.configureChangeHarness", async (invokedItem?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
       if (!item) { warnNoTreeSelection("change"); return; }
       if (await refusedAsAnothersChange(item.changeName, item.ownership)) return;
-      const uri = vscode.Uri.file(path.join(item.changeDir, "harness.json"));
+      const at = workedIn(item, workspaceRoot);
+      const uri = vscode.Uri.file(path.join(at.changeDir, "harness.json"));
       try {
         await vscode.workspace.fs.stat(uri);
       } catch {
@@ -1681,13 +1718,14 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         // everything from the global config) is a valid, schema-editable
         // starting point, unlike the global file it has no required
         // fields.
-        await writeChangeHarnessConfig(workspaceRoot, item.changeName, {});
+        await writeChangeHarnessConfig(at.root, item.changeName, {});
       }
       // The change's own panel, which has the change's name on its first
       // render. The view this replaces learned the name only after it had
       // mounted, and loaded nothing — the person who right-clicked the
       // change saw an empty field. See a-change-is-configured-from-the-change.
-      deps.showHarnessSettings(item.changeName);
+      if (at.root === workspaceRoot) deps.showHarnessSettings(item.changeName);
+      else deps.showHarnessSettings(item.changeName, at.root);
     }),
     // Registered, but contributed by no menu and no palette entry — see
     // one-way-in-to-run tasks.md 3.2, which first said this command would
@@ -1947,13 +1985,14 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
       const changeName = item?.changeName ?? (await pickChange(workspaceRoot))?.name;
       if (!changeName) return;
+      const root = item === undefined ? workspaceRoot : workedIn(item, workspaceRoot).root;
       try {
         let result: Awaited<ReturnType<typeof validateChange>> | undefined;
-        await runTrackedProcess(deps.implementationSessions, workspaceRoot, {
+        await runTrackedProcess(deps.implementationSessions, root, {
           operation: "validate",
           changeName,
           mutating: false,
-          execute: async () => { result = await validateChange(changeName, { cwd: workspaceRoot }); },
+          execute: async () => { result = await validateChange(changeName, { cwd: root }); },
         });
         if (!result) return;
         await openMarkdownDocument(
@@ -1970,7 +2009,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
       if (!item) { warnNoTreeSelection("change"); return; }
       try {
-        const timeline = await getChangeTimeline(workspaceRoot, item.changeName, item.archived);
+        const timeline = await getChangeTimeline(workedIn(item, workspaceRoot).root, item.changeName, item.archived);
         const staleThresholdDays = vscode.workspace
           .getConfiguration("openspec-ui")
           .get<number>("staleTaskThresholdDays", DEFAULT_STALE_TASK_THRESHOLD_DAYS);
@@ -2001,11 +2040,12 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         ?? resolveTreeItem(invokedItem, deps.archiveView, isChangeTreeItem);
       if (!item) { warnNoTreeSelection("change"); return; }
       try {
-        const tasks = await readTaskChecklist(workspaceRoot, item.changeName, item.archived);
+        const at = workedIn(item, workspaceRoot);
+        const tasks = await readTaskChecklist(at.root, item.changeName, item.archived);
         const entries = deps.readAuditEntries ? await deps.readAuditEntries() : [];
         const recommendation = recommendTemplate({
           openTaskCount: openTaskCount(tasks),
-          history: buildChangeCostReport(entries, item.changeDir),
+          history: buildChangeCostReport(entries, at.changeDir),
         });
         // The grounds are shown with the answer, never behind it: a
         // recommendation whose reasons are hidden can only be accepted or
@@ -2026,7 +2066,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem)
         ?? resolveTreeItem(invokedItem, deps.archiveView, isChangeTreeItem);
       try {
-        const config = await resolveHarnessConfig(workspaceRoot, item?.changeName);
+        const config = await resolveHarnessConfig(item === undefined ? workspaceRoot : workedIn(item, workspaceRoot).root, item?.changeName);
         const findings = findHarnessConfigLimits(config);
         if (findings.length === 0) {
           await vscode.window.showInformationMessage(
@@ -2062,7 +2102,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       }
       try {
         const entries = await deps.readAuditEntries();
-        const report = buildChangeCostReport(entries, item.changeDir);
+        const report = buildChangeCostReport(entries, workedIn(item, workspaceRoot).changeDir);
         const document = await vscode.workspace.openTextDocument({
           language: "markdown",
           content: renderChangeCostReport(item.changeName, report),
@@ -2079,7 +2119,8 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         ?? resolveTreeItem(invokedItem, deps.archiveView, isChangeTreeItem);
       if (!item) { warnNoTreeSelection("change"); return; }
       try {
-        const nodes = await readChangeGraph(workspaceRoot);
+        const root = workedIn(item, workspaceRoot).root;
+        const nodes = await readChangeGraph(root);
         if (!nodes.has(item.changeName)) {
           await vscode.window.showInformationMessage(`No change with id "${item.changeName}".`);
           return;
@@ -2104,7 +2145,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         const directory = picked.node.metadataPath.replace(/\/\.openspec\.yaml$/u, "");
         await vscode.commands.executeCommand(
           "vscode.open",
-          vscode.Uri.file(path.join(workspaceRoot, directory, "proposal.md")),
+          vscode.Uri.file(path.join(root, directory, "proposal.md")),
         );
       } catch (error) {
         await showCommandError("show what a change follows", error);
@@ -2172,29 +2213,32 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await showCommandError("reveal in Changes", error);
       }
     }),
-    vscode.commands.registerCommand("openspec-ui.archiveChange", async (invokedItem?: ChangeTreeItem) => {
+    vscode.commands.registerCommand("openspec-ui.archiveChange", async (invokedItem?: ChangeTreeItem, options?: unknown) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
       if (!item) { warnNoTreeSelection("change"); return; }
       if (await refusedAsAnothersChange(item.changeName, item.ownership)) return;
       if (item.archived) return;
-      const answer = await vscode.window.showWarningMessage(
-        `Archive ${item.changeName}? Canonical specs may be updated.`,
-        { modal: true },
-        "Archive",
-      );
-      if (answer !== "Archive") return;
+      if (!confirmedOnCard(options)) {
+        const answer = await vscode.window.showWarningMessage(
+          `Archive ${item.changeName}? Canonical specs may be updated.`,
+          { modal: true },
+          "Archive",
+        );
+        if (answer !== "Archive") return;
+      }
+      const root = workedIn(item, workspaceRoot).root;
       try {
-        await runTrackedProcess(deps.implementationSessions, workspaceRoot, {
+        await runTrackedProcess(deps.implementationSessions, root, {
           operation: "archive",
           changeName: item.changeName,
           mutating: true,
-          execute: async () => { await archiveChange(item.changeName, { cwd: workspaceRoot }); },
+          execute: async () => { await archiveChange(item.changeName, { cwd: root }); },
         });
         deps.refreshTrees();
-        void vscode.window.showInformationMessage(`OpenSpec Workbench: archived ${item.changeName}.`);
-        void remindAboutPendingChangeset(workspaceRoot);
+        void vscode.window.showInformationMessage(`OpenSpec Workbench: archived ${item.changeName}${root === workspaceRoot ? "" : ` in ${root}`}.`);
+        void remindAboutPendingChangeset(root);
       } catch (error) {
         await showCommandError("archive change", error);
       }
@@ -2356,24 +2400,27 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await showCommandError("delete project template", error);
       }
     }),
-    vscode.commands.registerCommand("openspec-ui.deleteChange", async (invokedItem?: ChangeTreeItem) => {
+    vscode.commands.registerCommand("openspec-ui.deleteChange", async (invokedItem?: ChangeTreeItem, options?: unknown) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
       if (!item) { warnNoTreeSelection("change"); return; }
       if (await refusedAsAnothersChange(item.changeName, item.ownership)) return;
-      const answer = await vscode.window.showWarningMessage(
-        `Permanently delete ${item.changeName} and all of its artifacts?`,
-        { modal: true },
-        "Delete",
-      );
-      if (answer !== "Delete") return;
+      if (!confirmedOnCard(options)) {
+        const answer = await vscode.window.showWarningMessage(
+          `Permanently delete ${item.changeName} and all of its artifacts?`,
+          { modal: true },
+          "Delete",
+        );
+        if (answer !== "Delete") return;
+      }
+      const root = item.archived ? workspaceRoot : workedIn(item, workspaceRoot).root;
       try {
-        await runTrackedProcess(deps.implementationSessions, workspaceRoot, {
+        await runTrackedProcess(deps.implementationSessions, root, {
           operation: "delete",
           changeName: item.changeName,
           mutating: true,
-          execute: async () => { await deleteChange(workspaceRoot, item.changeName, item.archived ? "archive" : "active"); },
+          execute: async () => { await deleteChange(root, item.changeName, item.archived ? "archive" : "active"); },
         });
         deps.refreshTrees();
         void vscode.window.showInformationMessage(`OpenSpec Workbench: deleted ${item.changeName}.`);
@@ -2467,7 +2514,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await showCommandError("rollback", error);
       }
     }),
-    vscode.commands.registerCommand("openspec-ui.rollbackChange", async (invokedItem?: ChangeTreeItem) => {
+    vscode.commands.registerCommand("openspec-ui.rollbackChange", async (invokedItem?: ChangeTreeItem, options?: unknown) => {
       const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
       if (!item) { warnNoTreeSelection("change"); return; }
       if (await refusedAsAnothersChange(item.changeName, item.ownership)) return;
@@ -2476,12 +2523,14 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         void vscode.window.showWarningMessage(`OpenSpec Workbench: no rollback-eligible processes for ${item.changeName}.`);
         return;
       }
-      const answer = await vscode.window.showWarningMessage(
-        `Rollback ${item.changeName}? This restores ${details.fileCount} file${details.fileCount === 1 ? "" : "s"} across ${details.processCount} process${details.processCount === 1 ? "" : "es"} to their state before this change was ever implemented.`,
-        { modal: true },
-        "Rollback",
-      );
-      if (answer !== "Rollback") return;
+      if (!confirmedOnCard(options)) {
+        const answer = await vscode.window.showWarningMessage(
+          `Rollback ${item.changeName}? This restores ${details.fileCount} file${details.fileCount === 1 ? "" : "s"} across ${details.processCount} process${details.processCount === 1 ? "" : "es"} to their state before this change was ever implemented.`,
+          { modal: true },
+          "Rollback",
+        );
+        if (answer !== "Rollback") return;
+      }
       try {
         const result = await deps.implementationSessions.rollbackChange(item.changeName);
         if (result.conflicts.length > 0) {
@@ -2697,7 +2746,8 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     vscode.commands.registerCommand("openspec-ui.showDiff", async (invokedItem?: ChangeTreeItem) => {
       const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
       if (!item) { warnNoTreeSelection("change"); return; }
-      const tasksPath = path.join(item.changeDir, "tasks.md");
+      const workspaceRoot = deps.getWorkspaceRoot();
+      const tasksPath = path.join(workspaceRoot === undefined ? item.changeDir : workedIn(item, workspaceRoot).changeDir, "tasks.md");
       await openDiffAgainstHead(
         vscode.Uri.file(tasksPath),
         `${item.changeName}: tasks.md (HEAD ↔ working tree)`,

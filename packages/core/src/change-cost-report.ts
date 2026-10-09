@@ -176,3 +176,67 @@ export function buildChangeCostReport(entries: readonly AuditEntry[], changeDir:
     hasRecords: true,
   };
 }
+
+/** Renders a change's cost report as Markdown. Core produced the
+ * structure; this decides how it reads — including the two places the
+ * numbers must not be tidied: a figure the agent never reported shows as
+ * "not reported", never as `$0.00`, and the totals line says it covers
+ * only what was reported. */
+export function renderChangeCostReport(changeName: string, report: ChangeCostReport): string {
+  const lines: string[] = [`# What ${changeName} cost`, ""];
+  if (!report.hasRecords) {
+    lines.push("Nothing has run against this change.", "");
+    lines.push("This is not the same as a change that ran and reported nothing —");
+    lines.push("there are no records for it at all.");
+    return lines.join("\n");
+  }
+
+  const money = (value: number | undefined): string => (value === undefined ? "not reported" : `$${value.toFixed(2)}`);
+  const count = (value: number | undefined): string => (value === undefined ? "not reported" : value.toLocaleString());
+  const duration = (value: number | undefined): string => {
+    if (value === undefined) return "still running";
+    const seconds = Math.round(value / 1000);
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes}m${String(seconds % 60).padStart(2, "0")}s`;
+  };
+
+  lines.push("| Stage | Agent | Effort | Outcome | Cost | Tokens in | Tokens out | Duration |");
+  lines.push("|---|---|---|---|---|---|---|---|");
+  for (const row of report.rows) {
+    lines.push([
+      "",
+      row.stage ?? "_unattributed_",
+      row.agent,
+      row.effort ?? "—",
+      row.outcome,
+      money(row.costUsd),
+      count(row.inputTokens),
+      count(row.outputTokens),
+      duration(row.durationMs),
+      "",
+    ].join(" | ").trim());
+  }
+  lines.push("");
+  lines.push(`**Reported total:** ${money(report.reportedCostUsd)}`
+    + `, ${count(report.reportedInputTokens)} in, ${count(report.reportedOutputTokens)} out`
+    + `, ${duration(report.totalDurationMs)}.`);
+  if (report.rowsWithNothingReported > 0) {
+    lines.push("");
+    lines.push(`${report.rowsWithNothingReported} of ${report.rows.length} run(s) reported nothing at all,`);
+    lines.push("so the totals above cover only part of what happened. Most supported");
+    lines.push("agents report no usage; see LIMITS.md for which.");
+  }
+  if (report.rows.some((row) => row.stage === undefined)) {
+    lines.push("");
+    lines.push("_Unattributed_ rows are records written before runs carried the stage");
+    lines.push("they belonged to. They are counted in the totals and not guessed at.");
+  }
+  const withReasons = report.rows.filter((row) => row.reason !== undefined);
+  if (withReasons.length > 0) {
+    lines.push("", "## How runs ended", "");
+    for (const row of withReasons) {
+      lines.push(`- ${row.stage ?? "unattributed"} (${row.outcome}): ${row.reason ?? ""}`);
+    }
+  }
+  return lines.join("\n");
+}

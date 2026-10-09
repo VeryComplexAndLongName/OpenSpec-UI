@@ -8,7 +8,8 @@
 
 import { createRoot } from "react-dom/client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ArchiveReading, BoardColumnsReading, CatchUpResult, ChangeReadinessReport, ChangeStageSummary, ChangeStandings, LastRunsReport, LiveRun, MainDrift, RunLogRecord, RunLogSummary, WorktreeSurvey } from "@openspec-ui/core/browser";
+import { CHANGE_ACTIONS, type ArchiveReading, type BoardColumnsReading, type CatchUpResult, type ChangeReadinessReport, type ChangeStageSummary, type ChangeStandings, type LastRunsReport, type LiveRun, type MainDrift, type RunLogRecord, type RunLogSummary, type WorktreeSurvey } from "@openspec-ui/core/browser";
+import type { ChangeActionsHost } from "./components/CardActions.js";
 import type { VsCodeApiLike } from "./transport/message-bridge-transport.js";
 import { createBridgeRequester } from "./bridge-request.js";
 import { RunLogsView } from "./components/RunLogsView.js";
@@ -45,6 +46,9 @@ export const ASK_TO_STOP_MESSAGE_TYPE = "openspec-ui/ask-to-stop";
 /** The folded row's press: the host archives the changes it names
  * (what-is-finished-is-tidied-away). */
 export const ARCHIVE_CHANGES_MESSAGE_TYPE = "openspec-ui/archive-changes";
+/** One of a change's actions, chosen on its card: the host runs the command
+ * a Changes row runs (ADR 0044, a-change-is-acted-on-from-its-card). */
+export const CHANGE_ACTION_MESSAGE_TYPE = "openspec-ui/change-action";
 
 /** The webview API, with the state the webview keeps while its panel is
  * hidden and destroyed. */
@@ -162,6 +166,11 @@ function PipelineApp() {
     (changeNames: string[]) => vscodeApi.postMessage({ type: ARCHIVE_CHANGES_MESSAGE_TYPE, changeNames }),
     [vscodeApi],
   );
+  // Every action on a change, run by the command a Changes row runs.
+  const changeActions = useMemo<ChangeActionsHost>(() => ({
+    offered: new Set(CHANGE_ACTIONS.map((action) => action.id)),
+    perform: (action, changeName, { confirmed }) => vscodeApi.postMessage({ type: CHANGE_ACTION_MESSAGE_TYPE, action, changeName, confirmed }),
+  }), [vscodeApi]);
 
   const editorDark = useEditorDarkTheme();
 
@@ -172,7 +181,7 @@ function PipelineApp() {
         <h2>Pipeline</h2>
         {/* Always active: the panel is not kept alive while hidden, so a
             page that exists is a page being looked at. */}
-        <PipelineView isActive load={load} survey={survey} subscribe={subscribe} onOpenChange={onOpenChange} refresh={refresh} lastRuns={lastRuns} standings={standings} stages={stages} archived={archived} columns={columns} drift={drift} onCatchUp={catchUp} liveRuns={liveRuns} onRunControl={onRunControl} onAnswerQuestion={onAnswerQuestion} onStart={onStart} onUpdatePlan={onUpdatePlan} onViewLogs={setLogsFor} copyText={copyText} viewState={viewState} onAskToStop={onAskToStop} onArchive={onArchive} taskActions={taskActions} />
+        <PipelineView isActive load={load} survey={survey} subscribe={subscribe} onOpenChange={onOpenChange} refresh={refresh} lastRuns={lastRuns} standings={standings} stages={stages} archived={archived} columns={columns} drift={drift} onCatchUp={catchUp} liveRuns={liveRuns} onRunControl={onRunControl} onAnswerQuestion={onAnswerQuestion} onStart={onStart} onUpdatePlan={onUpdatePlan} onViewLogs={setLogsFor} copyText={copyText} viewState={viewState} onAskToStop={onAskToStop} onArchive={onArchive} taskActions={taskActions} changeActions={changeActions} />
         {logsFor !== null ? <RunLogsView changeName={logsFor} load={logsLoad} read={logsRead} onClose={() => setLogsFor(null)} /> : null}
       </section>
     </div>

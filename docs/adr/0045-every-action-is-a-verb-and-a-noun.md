@@ -185,6 +185,11 @@ every icon to be unique: a picture two actions share tells neither apart.
 So each action has its own icon, the verb gives the group and the colour,
 and the test refuses two commands with one glyph.
 
+### Amended on 2026-10-09 (a-change-is-acted-on-from-its-card)
+
+The nouns gain Actions: a change's row in the Changes tree opens with
+**Show Actions...**, which lists every action on the change, grouped, with ones that cannot run now saying why (ADR 0044).
+
 ## Consequences
 
 - A user finds an action by its verb, and sees from the verb's group and
