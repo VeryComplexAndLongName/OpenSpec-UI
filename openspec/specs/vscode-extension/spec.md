@@ -252,8 +252,8 @@ immediately after "OpenSpec Configuration". Expanding it SHALL list the
 three repository-bootstrap actions ("Generate Agent Instructions",
 "Configure Dependabot", "Generate Path-Scoped Copilot Instructions") as
 child items; selecting one SHALL run the corresponding existing command
-(`openspec-ui.generateAgentInstructions`,
-`openspec-ui.configureDependabot`, `openspec-ui.generateSubtypeInstructions`)
+(`openspec-ui.generateInstructions`,
+`openspec-ui.configureDependabot`, `openspec-ui.generateScopedInstructions`)
 unchanged, including its project-type `QuickPick` prompt. The "Archive"
 tree SHALL NOT show this node.
 
@@ -268,7 +268,7 @@ tree SHALL NOT show this node.
 
 - **WHEN** the user expands "Repository Setup" and selects "Generate
   Agent Instructions"
-- **THEN** the `openspec-ui.generateAgentInstructions` command runs,
+- **THEN** the `openspec-ui.generateInstructions` command runs,
   including its existing project-type prompt
 
 #### Scenario: Archive tree has no Repository Setup node
@@ -356,13 +356,13 @@ their own tab, not replace one another.
 
 #### Scenario: User invokes the command on an active change
 
-- **WHEN** the user invokes "Show Change Timeline" on an active change
+- **WHEN** the user invokes "Show Timeline" on an active change
   tree item
 - **THEN** a new webview tab opens showing that change's timeline
 
 #### Scenario: User invokes the command on an archived change
 
-- **WHEN** the user invokes "Show Change Timeline" on an archived change
+- **WHEN** the user invokes "Show Timeline" on an archived change
   tree item
 - **THEN** the opened webview includes the change's archived date and
   where it was read from
@@ -959,7 +959,7 @@ chain's entry from the scheduler while the chain runs on.
 
 #### Scenario: A running chain
 
-- **WHEN** Cancel Process is used on a running chain in the Processes tree
+- **WHEN** Stop Process is used on a running chain in the Processes tree
 - **THEN** the chain is cancelled, and its agent's process ends
 
 ### Requirement: The extension is marked by the owl
@@ -1027,7 +1027,7 @@ webview.
 
 #### Scenario: Opening the comparison
 
-- **WHEN** the user invokes "Show Change Comparison Timeline"
+- **WHEN** the user invokes "Show Comparison"
 - **THEN** a webview opens with every active and archived change drawn as a
   bar from proposed to archived, with no selection asked for first
 
@@ -1623,3 +1623,31 @@ whether or not its view is opened, so that the workspace sweep runs there.
 - **WHEN** VS Code opens a repository with an `openspec/` project and the
   OpenSpec Workbench view is never opened
 - **THEN** the extension is active and the sweep runs on its interval
+
+### Requirement: Every command is a verb and a noun
+
+Every command the extension contributes SHALL be titled `<Verb> <Noun>`,
+with the verb and the noun from the product's lists (ADR 0045), and three
+dots after it where the command asks before it acts. Its id SHALL be
+`openspec-ui.<verb><Noun>`, its category "OpenSpec Workbench", and its
+icon its own. No two commands SHALL share a title or an icon's glyph, and
+no command SHALL keep a former id beside its new one.
+
+#### Scenario: A command a person reads
+
+- **WHEN** a person opens a change's context menu or the command palette
+- **THEN** every entry reads as a verb and a noun, such as "Configure Change
+  Harness" or "Answer Question...", and in the palette it follows "OpenSpec
+  Workbench:"
+
+#### Scenario: Icons side by side
+
+- **WHEN** a view's title bar or a row shows several commands as icons
+- **THEN** each shows a different picture, such as Run Typecheck, Run Tests
+  and Run Lint in the Changes view
+
+#### Scenario: Validation from the palette
+
+- **WHEN** "Validate Change" is run with no change selected
+- **THEN** it asks which change, and validates it strictly, as it does from
+  a change's row
