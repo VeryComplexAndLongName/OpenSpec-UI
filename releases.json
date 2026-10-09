@@ -1,35 +1,35 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-09T13:49:52.386Z",
+  "generated_at": "2026-10-09T15:23:58.703Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "62967749fe259bb1ddce1f49c3e3f4cee4ab19dc",
+  "commit": "c1e103e1f966c778699b2c8976492ffc11be94dd",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.100.0",
-      "released_at": "2026-10-09T13:49:52.386Z",
-      "tag": "openspec-ui-vscode@0.100.0",
+      "version": "0.101.0",
+      "released_at": "2026-10-09T15:23:58.703Z",
+      "tag": "openspec-ui-vscode@0.101.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.100.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.101.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.100.0/openspec-ui-vscode-0.100.0.vsix",
-          "size_bytes": 9937055
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.101.0/openspec-ui-vscode-0.101.0.vsix",
+          "size_bytes": 9941822
         }
       ],
       "changes": [
         {
           "kind": "minor",
-          "summary": "**What waits for you is a dialog** (what-waits-for-a-person-is-a-dialog, ADR 0047). Answering an agent's questions, giving a Stop its reason, confirming Archive, Rollback or Delete, a task shown whole and a run's logs now open as a modal dialog over the whole view, rather than as a form below the Pipeline: the view behind is dimmed and cannot be pressed, the focus moves into the dialog and stays there, and Escape or Cancel closes it - a stray click beside it does not. The top of the Pipeline now says what waits for you, whatever the number of changes - each change whose agent asks, with **Answer...**, and each permission a run here waits on, with **Allow** and **Deny** - and stays in sight as the picture scrolls; an agent's question never opens a dialog by itself, so it cannot take your typing mid-word. The run and chain panels put what their run waits for first. In the standalone app the run dialog, the chain and a change's actions open the same way."
+          "summary": "**Every button is a verb and a noun** (every-control-is-a-verb-and-a-noun, ADR 0045). The buttons of the Pipeline, the cards, the run and chain panels, the AI panel, the task list, Processes, the harness settings and the standalone app follow the rule the commands already did: **Run Change...** for Start..., **Show Logs** for Logs, **Update Main** for Catch up, **Show Landed Changes** for Show them, **Show Tasks** and **Hide Tasks** for Open all and Close all, **Stop Run...** and **Stop Process** for Stop... and Stop now, **Confirm Key** for It was me, **Delete History...** for Clean old history, and the rest. Inside a dialog that already names what it is about, a button is the verb alone: Answer, Allow, Deny, Archive, Delete, Cancel. Archive Landed Changes..., Delete History..., Rollback Process..., Delete Leftover... and Delete Worktree... now ask in a dialog before anything is deleted. A test reads every button's words and holds them to the lists."
         }
       ]
     },
@@ -38,8 +38,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.58.0",
-      "released_at": "2026-10-09T13:49:52.386Z",
+      "version": "1.58.1",
+      "released_at": "2026-10-09T15:23:58.703Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -47,20 +47,15 @@
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/server/README.md"
       },
       "artifacts": [],
-      "changes": [
-        {
-          "kind": "minor",
-          "summary": "**A change is acted on from its card** (a-change-is-acted-on-from-its-card, ADR 0044). A change's card in the Pipeline now offers every action on the change, from one list in core: under its name, in two rows of icons grouped and coloured by kind - what runs, what reads, what sets up, and what cannot be taken back - each the icon its command has in VS Code's menus. An action that cannot run now is dimmed and says why; Archive, Rollback and Delete ask first. An action runs where the change is worked: a change in its own worktree is configured, archived, related or deleted there, rather than refused - only a directory whose records do not check out is still refused. In VS Code the card runs the same command a Changes row does, and the Changes tree's menu now opens with **Show Actions...** (also an icon on the row), then what runs, **Inspect** and **Set Up** submenus, and the Danger actions last; a change worked in another worktree offers everything, with a branch icon instead of a lock. In the standalone app every action works too, through one server route, with a dialog over the Pipeline; a change's harness settings are read and written where the change is worked."
-        }
-      ]
+      "changes": []
     },
     {
       "id": "core",
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.142.0",
-      "released_at": "2026-10-09T13:49:52.386Z",
+      "version": "0.143.0",
+      "released_at": "2026-10-09T15:23:58.703Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -71,7 +66,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "**A change is acted on from its card** (a-change-is-acted-on-from-its-card, ADR 0044). A change's card in the Pipeline now offers every action on the change, from one list in core: under its name, in two rows of icons grouped and coloured by kind - what runs, what reads, what sets up, and what cannot be taken back - each the icon its command has in VS Code's menus. An action that cannot run now is dimmed and says why; Archive, Rollback and Delete ask first. An action runs where the change is worked: a change in its own worktree is configured, archived, related or deleted there, rather than refused - only a directory whose records do not check out is still refused. In VS Code the card runs the same command a Changes row does, and the Changes tree's menu now opens with **Show Actions...** (also an icon on the row), then what runs, **Inspect** and **Set Up** submenus, and the Danger actions last; a change worked in another worktree offers everything, with a branch icon instead of a lock. In the standalone app every action works too, through one server route, with a dialog over the Pipeline; a change's harness settings are read and written where the change is worked."
+          "summary": "**Every button is a verb and a noun** (every-control-is-a-verb-and-a-noun, ADR 0045). The buttons of the Pipeline, the cards, the run and chain panels, the AI panel, the task list, Processes, the harness settings and the standalone app follow the rule the commands already did: **Run Change...** for Start..., **Show Logs** for Logs, **Update Main** for Catch up, **Show Landed Changes** for Show them, **Show Tasks** and **Hide Tasks** for Open all and Close all, **Stop Run...** and **Stop Process** for Stop... and Stop now, **Confirm Key** for It was me, **Delete History...** for Clean old history, and the rest. Inside a dialog that already names what it is about, a button is the verb alone: Answer, Allow, Deny, Archive, Delete, Cancel. Archive Landed Changes..., Delete History..., Rollback Process..., Delete Leftover... and Delete Worktree... now ask in a dialog before anything is deleted. A test reads every button's words and holds them to the lists."
         }
       ]
     },
@@ -80,8 +75,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.89.0",
-      "released_at": "2026-10-09T13:49:52.386Z",
+      "version": "1.90.0",
+      "released_at": "2026-10-09T15:23:58.703Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -91,7 +86,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "**What waits for you is a dialog** (what-waits-for-a-person-is-a-dialog, ADR 0047). Answering an agent's questions, giving a Stop its reason, confirming Archive, Rollback or Delete, a task shown whole and a run's logs now open as a modal dialog over the whole view, rather than as a form below the Pipeline: the view behind is dimmed and cannot be pressed, the focus moves into the dialog and stays there, and Escape or Cancel closes it - a stray click beside it does not. The top of the Pipeline now says what waits for you, whatever the number of changes - each change whose agent asks, with **Answer...**, and each permission a run here waits on, with **Allow** and **Deny** - and stays in sight as the picture scrolls; an agent's question never opens a dialog by itself, so it cannot take your typing mid-word. The run and chain panels put what their run waits for first. In the standalone app the run dialog, the chain and a change's actions open the same way."
+          "summary": "**Every button is a verb and a noun** (every-control-is-a-verb-and-a-noun, ADR 0045). The buttons of the Pipeline, the cards, the run and chain panels, the AI panel, the task list, Processes, the harness settings and the standalone app follow the rule the commands already did: **Run Change...** for Start..., **Show Logs** for Logs, **Update Main** for Catch up, **Show Landed Changes** for Show them, **Show Tasks** and **Hide Tasks** for Open all and Close all, **Stop Run...** and **Stop Process** for Stop... and Stop now, **Confirm Key** for It was me, **Delete History...** for Clean old history, and the rest. Inside a dialog that already names what it is about, a button is the verb alone: Answer, Allow, Deny, Archive, Delete, Cancel. Archive Landed Changes..., Delete History..., Rollback Process..., Delete Leftover... and Delete Worktree... now ask in a dialog before anything is deleted. A test reads every button's words and holds them to the lists."
         }
       ]
     },
@@ -101,7 +96,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.29.0",
-      "released_at": "2026-10-09T13:49:52.386Z",
+      "released_at": "2026-10-09T15:23:58.703Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
