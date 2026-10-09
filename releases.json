@@ -1,35 +1,35 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-09T05:05:37.695Z",
+  "generated_at": "2026-10-09T07:45:08.407Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "9b04928a68b3a60c87a7b962d1d43bfe28c06e9f",
+  "commit": "8043a5eb64eab00ed5e2475ca5ef425b03b08dda",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.97.0",
-      "released_at": "2026-10-09T05:05:37.695Z",
-      "tag": "openspec-ui-vscode@0.97.0",
+      "version": "0.98.0",
+      "released_at": "2026-10-09T07:45:08.407Z",
+      "tag": "openspec-ui-vscode@0.98.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.97.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.98.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.97.0/openspec-ui-vscode-0.97.0.vsix",
-          "size_bytes": 9819697
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.98.0/openspec-ui-vscode-0.98.0.vsix",
+          "size_bytes": 9820203
         }
       ],
       "changes": [
         {
           "kind": "minor",
-          "summary": "**Breaking: every action is a verb and a noun** (every-action-is-a-verb-and-a-noun, ADR 0045). Every extension command is renamed to `<Verb> <Noun>` from approved lists, with the id `openspec-ui.<verb><Noun>`, the category \"OpenSpec Workbench\" and an icon of its own - no two commands show the same picture: \"Configure Harness for this Change\" is **Configure Change Harness**, \"Run...\" is **Run Change...**, \"Say Something to This Run...\" is **Send Message...**, \"It Was Me...\" is **Confirm Key...**, \"Review Diff (tasks.md vs HEAD)\" is **Show Diff**; the full table is in ADR 0045. Former command ids are not kept: a key binding that used one needs the new id. \"Validate Change (Strict)\" is gone - **Validate Change** is strict and asks for a change when none is selected. Every `openspec-ui-cli` subcommand is a pair too: `validate changes`, `run change`, `update plan`, `run checks`, `show readiness`, `diagnose workspace`, `show advice`, `show lease` / `remove lease`, `show status`, `set presence`, `set lock`, `stop run`, `confirm key`, `join team`, `show people`, `show history`, `show stages`, `set owner`, `set implementer`, `reopen change`, `complete task` / `reopen task` / `commit tasks`, `show questions` / `answer question`, `create worktree` / `show worktrees` / `move worktree` / `delete worktree`, `show graph`, `write manifest`. A former subcommand is refused with `error OSW-CLI-001`, naming its replacement. Core gains `action-vocabulary.ts`, the verbs and their groups, and the nouns, and every hint and message that names a command names it by its pair."
+          "summary": "**Every message has an identifier** (every-message-has-an-identifier, ADR 0046). Core gains one register of what the product says to a person: each message's identifier `OSW-<GROUP>-<NNN>`, its level, its words, why it is said and what to do, and [docs/messages.md](../docs/messages.md) is generated from it. The first groups are in it: the CLI's argument errors (`CLI`), the chain's refusals, limits and endings (`RUN`), the operator's questions (`QST`) and the permission requests nobody can answer (`PRM`). Their words are unchanged; the CLI now prints them as `error OSW-CLI-003: --cwd requires a value` rather than `openspec-ui-cli: --cwd requires a value`, with the same exit codes. `progress`, `failed` and `cancelled` events carry `code` beside their words, and so does the CLI's JSON; the CLI, the output channel and the panels put the identifier before the words (`✗ OSW-RUN-104: \"apply\" changed no file ...`), and the panels show it as a link to its entry. A test counts the messages still said in place - 290, from 323 - and lets the number only fall."
         }
       ]
     },
@@ -38,8 +38,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.57.2",
-      "released_at": "2026-10-09T05:05:37.695Z",
+      "version": "1.57.3",
+      "released_at": "2026-10-09T07:45:08.407Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -54,8 +54,8 @@
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.140.0",
-      "released_at": "2026-10-09T05:05:37.695Z",
+      "version": "0.141.0",
+      "released_at": "2026-10-09T07:45:08.407Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -66,7 +66,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "**Breaking: every action is a verb and a noun** (every-action-is-a-verb-and-a-noun, ADR 0045). Every extension command is renamed to `<Verb> <Noun>` from approved lists, with the id `openspec-ui.<verb><Noun>`, the category \"OpenSpec Workbench\" and an icon of its own - no two commands show the same picture: \"Configure Harness for this Change\" is **Configure Change Harness**, \"Run...\" is **Run Change...**, \"Say Something to This Run...\" is **Send Message...**, \"It Was Me...\" is **Confirm Key...**, \"Review Diff (tasks.md vs HEAD)\" is **Show Diff**; the full table is in ADR 0045. Former command ids are not kept: a key binding that used one needs the new id. \"Validate Change (Strict)\" is gone - **Validate Change** is strict and asks for a change when none is selected. Every `openspec-ui-cli` subcommand is a pair too: `validate changes`, `run change`, `update plan`, `run checks`, `show readiness`, `diagnose workspace`, `show advice`, `show lease` / `remove lease`, `show status`, `set presence`, `set lock`, `stop run`, `confirm key`, `join team`, `show people`, `show history`, `show stages`, `set owner`, `set implementer`, `reopen change`, `complete task` / `reopen task` / `commit tasks`, `show questions` / `answer question`, `create worktree` / `show worktrees` / `move worktree` / `delete worktree`, `show graph`, `write manifest`. A former subcommand is refused with `error OSW-CLI-001`, naming its replacement. Core gains `action-vocabulary.ts`, the verbs and their groups, and the nouns, and every hint and message that names a command names it by its pair."
+          "summary": "**Every message has an identifier** (every-message-has-an-identifier, ADR 0046). Core gains one register of what the product says to a person: each message's identifier `OSW-<GROUP>-<NNN>`, its level, its words, why it is said and what to do, and [docs/messages.md](../docs/messages.md) is generated from it. The first groups are in it: the CLI's argument errors (`CLI`), the chain's refusals, limits and endings (`RUN`), the operator's questions (`QST`) and the permission requests nobody can answer (`PRM`). Their words are unchanged; the CLI now prints them as `error OSW-CLI-003: --cwd requires a value` rather than `openspec-ui-cli: --cwd requires a value`, with the same exit codes. `progress`, `failed` and `cancelled` events carry `code` beside their words, and so does the CLI's JSON; the CLI, the output channel and the panels put the identifier before the words (`✗ OSW-RUN-104: \"apply\" changed no file ...`), and the panels show it as a link to its entry. A test counts the messages still said in place - 290, from 323 - and lets the number only fall."
         }
       ]
     },
@@ -75,8 +75,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.86.0",
-      "released_at": "2026-10-09T05:05:37.695Z",
+      "version": "1.87.0",
+      "released_at": "2026-10-09T07:45:08.407Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -86,7 +86,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "**Breaking: every action is a verb and a noun** (every-action-is-a-verb-and-a-noun, ADR 0045). Every extension command is renamed to `<Verb> <Noun>` from approved lists, with the id `openspec-ui.<verb><Noun>`, the category \"OpenSpec Workbench\" and an icon of its own - no two commands show the same picture: \"Configure Harness for this Change\" is **Configure Change Harness**, \"Run...\" is **Run Change...**, \"Say Something to This Run...\" is **Send Message...**, \"It Was Me...\" is **Confirm Key...**, \"Review Diff (tasks.md vs HEAD)\" is **Show Diff**; the full table is in ADR 0045. Former command ids are not kept: a key binding that used one needs the new id. \"Validate Change (Strict)\" is gone - **Validate Change** is strict and asks for a change when none is selected. Every `openspec-ui-cli` subcommand is a pair too: `validate changes`, `run change`, `update plan`, `run checks`, `show readiness`, `diagnose workspace`, `show advice`, `show lease` / `remove lease`, `show status`, `set presence`, `set lock`, `stop run`, `confirm key`, `join team`, `show people`, `show history`, `show stages`, `set owner`, `set implementer`, `reopen change`, `complete task` / `reopen task` / `commit tasks`, `show questions` / `answer question`, `create worktree` / `show worktrees` / `move worktree` / `delete worktree`, `show graph`, `write manifest`. A former subcommand is refused with `error OSW-CLI-001`, naming its replacement. Core gains `action-vocabulary.ts`, the verbs and their groups, and the nouns, and every hint and message that names a command names it by its pair."
+          "summary": "**Every message has an identifier** (every-message-has-an-identifier, ADR 0046). Core gains one register of what the product says to a person: each message's identifier `OSW-<GROUP>-<NNN>`, its level, its words, why it is said and what to do, and [docs/messages.md](../docs/messages.md) is generated from it. The first groups are in it: the CLI's argument errors (`CLI`), the chain's refusals, limits and endings (`RUN`), the operator's questions (`QST`) and the permission requests nobody can answer (`PRM`). Their words are unchanged; the CLI now prints them as `error OSW-CLI-003: --cwd requires a value` rather than `openspec-ui-cli: --cwd requires a value`, with the same exit codes. `progress`, `failed` and `cancelled` events carry `code` beside their words, and so does the CLI's JSON; the CLI, the output channel and the panels put the identifier before the words (`✗ OSW-RUN-104: \"apply\" changed no file ...`), and the panels show it as a link to its entry. A test counts the messages still said in place - 290, from 323 - and lets the number only fall."
         }
       ]
     },
@@ -95,8 +95,8 @@
       "name": "CLI",
       "package": "@openspec-ui/cli",
       "public": false,
-      "version": "0.28.0",
-      "released_at": "2026-10-09T05:05:37.695Z",
+      "version": "0.29.0",
+      "released_at": "2026-10-09T07:45:08.407Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
@@ -106,7 +106,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "**Breaking: every action is a verb and a noun** (every-action-is-a-verb-and-a-noun, ADR 0045). Every extension command is renamed to `<Verb> <Noun>` from approved lists, with the id `openspec-ui.<verb><Noun>`, the category \"OpenSpec Workbench\" and an icon of its own - no two commands show the same picture: \"Configure Harness for this Change\" is **Configure Change Harness**, \"Run...\" is **Run Change...**, \"Say Something to This Run...\" is **Send Message...**, \"It Was Me...\" is **Confirm Key...**, \"Review Diff (tasks.md vs HEAD)\" is **Show Diff**; the full table is in ADR 0045. Former command ids are not kept: a key binding that used one needs the new id. \"Validate Change (Strict)\" is gone - **Validate Change** is strict and asks for a change when none is selected. Every `openspec-ui-cli` subcommand is a pair too: `validate changes`, `run change`, `update plan`, `run checks`, `show readiness`, `diagnose workspace`, `show advice`, `show lease` / `remove lease`, `show status`, `set presence`, `set lock`, `stop run`, `confirm key`, `join team`, `show people`, `show history`, `show stages`, `set owner`, `set implementer`, `reopen change`, `complete task` / `reopen task` / `commit tasks`, `show questions` / `answer question`, `create worktree` / `show worktrees` / `move worktree` / `delete worktree`, `show graph`, `write manifest`. A former subcommand is refused with `error OSW-CLI-001`, naming its replacement. Core gains `action-vocabulary.ts`, the verbs and their groups, and the nouns, and every hint and message that names a command names it by its pair."
+          "summary": "**Every message has an identifier** (every-message-has-an-identifier, ADR 0046). Core gains one register of what the product says to a person: each message's identifier `OSW-<GROUP>-<NNN>`, its level, its words, why it is said and what to do, and [docs/messages.md](../docs/messages.md) is generated from it. The first groups are in it: the CLI's argument errors (`CLI`), the chain's refusals, limits and endings (`RUN`), the operator's questions (`QST`) and the permission requests nobody can answer (`PRM`). Their words are unchanged; the CLI now prints them as `error OSW-CLI-003: --cwd requires a value` rather than `openspec-ui-cli: --cwd requires a value`, with the same exit codes. `progress`, `failed` and `cancelled` events carry `code` beside their words, and so does the CLI's JSON; the CLI, the output channel and the panels put the identifier before the words (`✗ OSW-RUN-104: \"apply\" changed no file ...`), and the panels show it as a link to its entry. A test counts the messages still said in place - 290, from 323 - and lets the number only fall."
         }
       ]
     }
