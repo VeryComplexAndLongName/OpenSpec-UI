@@ -53,7 +53,7 @@ export function ChangeActionDialog({ target, perform, harnessApi, onClose }: {
   }, [target.action, target.changeName]);
 
   return (
-    <section className="openspec-shell-panel openspec-change-action" role="dialog" aria-label={title} data-testid="change-action-dialog" tabIndex={-1}>
+    <section className="openspec-shell-panel openspec-change-action" role="dialog" aria-modal="true" aria-label={title} data-testid="change-action-dialog" tabIndex={-1}>
       <h3>{title}</h3>
       {target.action === "configureChangeHarness" ? (
         harnessApi !== undefined

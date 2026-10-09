@@ -124,6 +124,7 @@ export function RunLogsView({ changeName, load, read, onClose }: RunLogsViewProp
       ref={panel}
       className="openspec-run-logs"
       role="dialog"
+      aria-modal="true"
       aria-label={`Logs of ${changeName}`}
       data-testid="run-logs"
       tabIndex={-1}

@@ -13,6 +13,7 @@ import type { ChangeActionsHost } from "./components/CardActions.js";
 import type { VsCodeApiLike } from "./transport/message-bridge-transport.js";
 import { createBridgeRequester } from "./bridge-request.js";
 import { RunLogsView } from "./components/RunLogsView.js";
+import { ModalLayer } from "./components/ModalLayer.js";
 import { PipelineView, type AskToStop, type PipelineReading, type PipelineViewMemory, type QuestionAnswer, type RunControl } from "./components/PipelineView.js";
 import { shellThemeCss, vscodeThemeCss } from "./shell-ui.js";
 import { metroCss } from "./metro-css.generated.js";
@@ -182,7 +183,11 @@ function PipelineApp() {
         {/* Always active: the panel is not kept alive while hidden, so a
             page that exists is a page being looked at. */}
         <PipelineView isActive load={load} survey={survey} subscribe={subscribe} onOpenChange={onOpenChange} refresh={refresh} lastRuns={lastRuns} standings={standings} stages={stages} archived={archived} columns={columns} drift={drift} onCatchUp={catchUp} liveRuns={liveRuns} onRunControl={onRunControl} onAnswerQuestion={onAnswerQuestion} onStart={onStart} onUpdatePlan={onUpdatePlan} onViewLogs={setLogsFor} copyText={copyText} viewState={viewState} onAskToStop={onAskToStop} onArchive={onArchive} taskActions={taskActions} changeActions={changeActions} />
-        {logsFor !== null ? <RunLogsView changeName={logsFor} load={logsLoad} read={logsRead} onClose={() => setLogsFor(null)} /> : null}
+        {logsFor !== null ? (
+          <ModalLayer onCancel={() => setLogsFor(null)}>
+            <RunLogsView changeName={logsFor} load={logsLoad} read={logsRead} onClose={() => setLogsFor(null)} />
+          </ModalLayer>
+        ) : null}
       </section>
     </div>
   );

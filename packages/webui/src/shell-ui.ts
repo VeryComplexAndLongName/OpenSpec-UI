@@ -4253,6 +4253,78 @@ export const shellThemeCss = `
     box-shadow: var(--shadow);
   }
   .openspec-run-logs:focus { outline: none; }
+  /* What waits for a person is a dialog (ADR 0047): over the whole view,
+     which is dimmed and cannot be pressed behind it. A panel that stood at
+     the side of the view - a run's logs, a task - stands in it as it is. */
+  .openspec-modal-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    box-sizing: border-box;
+    padding: 8vh 16px 16px;
+    overflow: auto;
+  }
+
+  .openspec-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: color-mix(in srgb, var(--ink) 45%, transparent);
+  }
+
+  .openspec-modal-content {
+    position: relative;
+    box-sizing: border-box;
+    width: min(760px, 100%);
+    max-height: 84vh;
+    overflow: auto;
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+
+  .openspec-modal-content > [role="dialog"] { margin: 0; }
+  .openspec-modal-content > .openspec-run-logs {
+    position: static;
+    width: auto;
+    border-left: 0;
+    box-shadow: none;
+  }
+
+  /* What waits for a person, at the top of the Pipeline whatever its length
+     (ADR 0047): it stays in sight as the picture scrolls. */
+  .openspec-waiting-banner {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    margin-bottom: 20px;
+    padding: 8px 16px;
+    border: 1px solid var(--amber);
+    border-left-width: 4px;
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+
+  .openspec-waiting-banner h2 { margin: 0 0 4px; font-size: 14px; color: var(--heading); }
+  .openspec-waiting-banner ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+  .openspec-waiting-banner li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .openspec-waiting-banner li > span { flex: 1 1 auto; }
+
+  /* A run's own panel: what it waits for stands first, and stays in sight
+     as its output grows (ADR 0047). */
+  .openspec-waiting-for-you {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    border: 1px solid var(--amber);
+    border-left-width: 4px;
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
 
   /* One task, whole, beside the board; and a change's tasks on a page of
      their own (a-card-works-its-own-tasks). */
