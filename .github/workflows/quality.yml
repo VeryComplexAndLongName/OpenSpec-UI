@@ -153,7 +153,7 @@ jobs:
       - run: git fetch --no-tags --depth=1 origin "$BASE_REF"
         env:
           BASE_REF: ${{ github.base_ref }}
-      - run: npm run start --workspace @openspec-ui/cli -- validate --cwd "$GITHUB_WORKSPACE" --change "$HEAD_REF" --base "origin/$BASE_REF"
+      - run: npm run start --workspace @openspec-ui/cli -- validate changes --cwd "$GITHUB_WORKSPACE" --change "$HEAD_REF" --base "origin/$BASE_REF"
         env:
           HEAD_REF: ${{ github.head_ref }}
           BASE_REF: ${{ github.base_ref }}
@@ -348,8 +348,8 @@ jobs:
           # simulation missed it by adding --silent when the workflow had
           # none — a simulation has to be the thing it simulates.
           MANIFEST_ARGS="--cwd $GITHUB_WORKSPACE --repository $GITHUB_REPOSITORY"
-          npm run start --silent --workspace @openspec-ui/cli -- release-manifest $MANIFEST_ARGS --commit "$GITHUB_SHA" --releases "$GITHUB_WORKSPACE/releases-input.json" > releases.json
-          npm run start --silent --workspace @openspec-ui/cli -- release-manifest $MANIFEST_ARGS --fingerprint > fingerprint.new
+          npm run start --silent --workspace @openspec-ui/cli -- write manifest $MANIFEST_ARGS --commit "$GITHUB_SHA" --releases "$GITHUB_WORKSPACE/releases-input.json" > releases.json
+          npm run start --silent --workspace @openspec-ui/cli -- write manifest $MANIFEST_ARGS --fingerprint > fingerprint.new
           # Refuse to carry anything but a usable document to the publish
           # step. Anything that reaches the branch is what the site
           # fetches, and a manifest it cannot parse leaves it showing its
@@ -384,7 +384,7 @@ jobs:
             # know what is published, which is a reason to publish — not
             # to fail. Without this the step would exit 2 forever on a
             # branch holding a corrupt file, unable to replace it.
-            npm run start --silent --workspace @openspec-ui/cli -- release-manifest --from "$GITHUB_WORKSPACE/published.json" --fingerprint > fingerprint.old \
+            npm run start --silent --workspace @openspec-ui/cli -- write manifest --from "$GITHUB_WORKSPACE/published.json" --fingerprint > fingerprint.old \
               || echo "(published manifest is unreadable)" > fingerprint.old
           else
             echo "(no published manifest)" > fingerprint.old

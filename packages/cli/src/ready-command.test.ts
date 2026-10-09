@@ -41,7 +41,7 @@ const REPORT: ChangeReadinessReport = {
       capabilities: [],
       canJoin: [],
       blockedFrom: [],
-      needsWorktree: "openspec-ui-cli worktree add gamma",
+      needsWorktree: "openspec-ui-cli create worktree gamma",
     },
     {
       changeName: "waiting",
@@ -126,7 +126,7 @@ describe("readyCommand", () => {
       { ...io, read: () => Promise.resolve(REPORT) },
     );
 
-    expect(io.out.join("\n")).toContain("openspec-ui-cli worktree add gamma");
+    expect(io.out.join("\n")).toContain("openspec-ui-cli create worktree gamma");
   });
 
   it("exits 0 when nothing is ready", async () => {

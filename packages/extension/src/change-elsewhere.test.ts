@@ -102,7 +102,7 @@ describe("the picker", () => {
       survey: async () => SURVEY,
     });
 
-    await vscodeMock._registeredCommands.get("openspec-ui.pickChange")?.();
+    await vscodeMock._registeredCommands.get("openspec-ui.findChange")?.();
 
     const [entries] = vscodeMock.window.showQuickPick.mock.calls[0] as [Array<{ label: string; description: string }>];
     expect(entries.map((entry) => entry.label)).toEqual(["mine", "theirs"]);
@@ -120,7 +120,7 @@ describe("the picker", () => {
       survey: async () => SURVEY,
     });
 
-    await vscodeMock._registeredCommands.get("openspec-ui.pickChange")?.();
+    await vscodeMock._registeredCommands.get("openspec-ui.findChange")?.();
 
     const [entries] = vscodeMock.window.showQuickPick.mock.calls[0] as [Array<{ label: string; description: string }>];
     expect(entries.map((entry) => entry.label)).toEqual(["mine", "theirs"]);
@@ -135,7 +135,7 @@ describe("opening a directory", () => {
       survey: async () => SURVEY,
     });
 
-    await vscodeMock._registeredCommands.get("openspec-ui.openChangeDirectory")?.({
+    await vscodeMock._registeredCommands.get("openspec-ui.openWorktree")?.({
       changeName: "mine",
       ownership: { kind: "here" },
     });
@@ -150,7 +150,7 @@ describe("opening a directory", () => {
       survey: async () => SURVEY,
     });
 
-    await vscodeMock._registeredCommands.get("openspec-ui.openChangeDirectory")?.({
+    await vscodeMock._registeredCommands.get("openspec-ui.openWorktree")?.({
       changeName: "theirs",
       ownership: { kind: "elsewhere", label: "theirs", path: "/wt/theirs" },
     });

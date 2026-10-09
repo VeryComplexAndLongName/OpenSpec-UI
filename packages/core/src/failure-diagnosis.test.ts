@@ -26,7 +26,7 @@ describe("diagnoseFailure", () => {
 
   it("reads a missing executable as not installed", () => {
     const diagnosis = diagnoseFailure({ agentId: "gemini-cli", reason: "spawn gemini ENOENT" });
-    expect(diagnosis).toMatchObject({ cause: "agent-not-installed", repeatHelps: "no", commands: ["openspec-ui-cli doctor"] });
+    expect(diagnosis).toMatchObject({ cause: "agent-not-installed", repeatHelps: "no", commands: ["openspec-ui-cli diagnose workspace"] });
     expect(diagnosis.remedy).toContain("`gemini`");
   });
 

@@ -1,4 +1,4 @@
-// `openspec-ui-cli status` — an agent says what it is doing.
+// `openspec-ui-cli show status` — an agent says what it is doing.
 //
 // Presentation only. Where a run's record lives is resolved by core
 // (`resolveAgentStatusDirectory`) and what a directory of them says is
@@ -157,7 +157,7 @@ export async function statusCommand(options: StatusOptions, deps: StatusDeps): P
     // person reading is (the-agent-asks-the-operator, ADR 0042).
     if (report.waiting?.kind === "question" && report.changeName) {
       for (const question of report.waiting.questions) {
-        deps.stdout(`    answer with: openspec-ui-cli answer ${report.changeName} ${question.questionId} "<answer>"`);
+        deps.stdout(`    answer with: openspec-ui-cli answer question ${report.changeName} ${question.questionId} "<answer>"`);
       }
     }
     deps.stdout(

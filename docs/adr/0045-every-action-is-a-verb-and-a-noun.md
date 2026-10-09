@@ -27,9 +27,10 @@ the new ones.
    one id in core (`configure.change-harness`), one title everywhere
    ("Configure Change Harness"), one icon and one group. Three dots end the
    title of an action that asks before it acts, as before.
-2. **The verb decides the group, the colour and the icon**, so an action
-   is recognised by its verb wherever it is shown, and a dangerous verb is
-   always red and always confirmed.
+2. **The verb decides the group and the colour**, so an action is
+   recognised by its verb wherever it is shown, and a dangerous verb is
+   always red and always confirmed. **The icon is the action's own**: no
+   two actions share one (amended on 2026-10-09).
 
    | Group | Verbs |
    | --- | --- |
@@ -50,7 +51,8 @@ the new ones.
    Worktree, Worktrees, Change Copy, Leftover, Template, Specs, Report, Rules,
    Instructions, Scoped Instructions, Dependabot, LLM Key, Key, Team,
    People, Owner, Implementer, Presence, Lock, Lease, Checks, Manifest,
-   Workspace, Pipeline, Dashboard, Views, Filter, Process, Implementation,
+   Workspace, Pipeline, Dashboard, Views, Archive, Archive Filter, Specs
+   Filter, Graph Filter, Changes, Process, Implementation,
    Typecheck, Tests, Lint, CLI View. A noun of two words is one noun.
 4. **VS Code**: the command id is `openspec-ui.<verb><Noun>` in camel case
    (`openspec-ui.configureChangeHarness`); the title is the pair; the
@@ -63,7 +65,7 @@ the new ones.
    vocabulary stays single.
 6. **A test holds it**: every contributed command and every CLI
    subcommand is a pair from the lists; a pair has one icon wherever it
-   appears; a Danger verb is confirmed.
+   appears, and no other pair has it; a Danger verb is confirmed.
 7. **Validate is strict.** "Validate Change" runs `openspec validate
    --strict`, as the merge gate does; the separate non-strict command goes.
 
@@ -123,7 +125,7 @@ the new ones.
 | Add Relation... | Add Relation... |
 | Remove Relation... | Remove Relation... |
 | Filter Archive... / Specs... / Change Graph... | Filter Archive... / Filter Specs... / Filter Graph... |
-| Clear Archive / Specs / Change Graph Filter | Clear Filter (one per view) |
+| Clear Archive / Specs / Change Graph Filter | Clear Archive Filter / Clear Specs Filter / Clear Graph Filter |
 | Show / Hide Landed Relations | Show Relations / Hide Relations |
 | Review Diff (tasks.md vs HEAD) | Show Diff |
 | Cancel Process | Stop Process |
@@ -166,6 +168,22 @@ the new ones.
 Where a title names its noun loosely (Show Change in the Graph view means
 "reveal this change in the Changes list"), the action's tooltip says what
 it does; the title stays the pair.
+
+### Amended on 2026-10-08
+
+Carrying this out (every-action-is-a-verb-and-a-noun) showed two gaps, and
+the tables above say what was done: three commands titled "Clear Filter"
+would read alike in the palette, so each names its filter; and the nouns
+gained Archive, the three filters, Changes and Change Copy.
+
+### Amended on 2026-10-09
+
+The icon was first the verb's. In the Changes view's title bar that put
+the same picture two and three times side by side (Open Dashboard and Open
+Pipeline; Run Typecheck, Run Tests and Run Lint), and the owner asked for
+every icon to be unique: a picture two actions share tells neither apart.
+So each action has its own icon, the verb gives the group and the colour,
+and the test refuses two commands with one glyph.
 
 ## Consequences
 

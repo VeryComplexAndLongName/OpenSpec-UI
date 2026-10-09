@@ -1,4 +1,4 @@
-// `openspec-ui-cli ready` — what can start now, and alongside what.
+// `openspec-ui-cli show readiness` — what can start now, and alongside what.
 //
 // Presentation only. Which changes are running, what blocks the rest,
 // and which pairs collide are all decided in core

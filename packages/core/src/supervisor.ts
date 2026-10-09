@@ -69,7 +69,7 @@ function aboutRuns(inputs: SuperviseInputs): Hint[] {
     const supervisor = inputs.supervisorFor(report.changeName);
     if (supervisor.mode === "off") continue;
     const span = describeSpan(report.activitySinceMs);
-    const status = `openspec-ui-cli status --cwd ${report.workingDirectory}`;
+    const status = `openspec-ui-cli show status --cwd ${report.workingDirectory}`;
 
     if (report.waiting !== null) {
       if (report.activitySinceMs <= supervisor.waitingAfterSeconds * 1000) continue;
@@ -87,7 +87,7 @@ function aboutRuns(inputs: SuperviseInputs): Hint[] {
           status,
           ...(report.waiting.kind === "question" && report.changeName !== null
             ? report.waiting.questions.map((question) =>
-              `openspec-ui-cli answer ${report.changeName} ${question.questionId} "<answer>" --cwd ${report.workingDirectory}`)
+              `openspec-ui-cli answer question ${report.changeName} ${question.questionId} "<answer>" --cwd ${report.workingDirectory}`)
             : []),
         ],
       });
@@ -105,7 +105,7 @@ function aboutRuns(inputs: SuperviseInputs): Hint[] {
         + " look at it before asking it to stop.",
       commands: [
         status,
-        `openspec-ui-cli stop ${report.instanceId} --reason ${quotedArgument(`said nothing new for ${span}`)}`
+        `openspec-ui-cli stop run ${report.instanceId} --reason ${quotedArgument(`said nothing new for ${span}`)}`
           + ` --cwd ${report.workingDirectory}`,
       ],
     });

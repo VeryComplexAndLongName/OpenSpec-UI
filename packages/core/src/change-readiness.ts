@@ -232,7 +232,7 @@ export async function readChangeReadiness(options: ChangeReadinessOptions): Prom
       canJoin: [],
       blockedFrom: [],
       ...(run.state === "ready" && !worktree
-        ? { needsWorktree: `openspec-ui-cli worktree add ${changeName}` }
+        ? { needsWorktree: `openspec-ui-cli create worktree ${changeName}` }
         : {}),
     });
   }

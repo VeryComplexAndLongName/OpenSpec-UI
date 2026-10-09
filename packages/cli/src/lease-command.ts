@@ -1,4 +1,4 @@
-// `openspec-ui-cli lease` and `lease release` — a-lease-says-who.
+// `openspec-ui-cli show lease` and `lease release` — a-lease-says-who.
 //
 // Presentation only. Who holds a workspace is read by core
 // (`readWorkspaceLeaseHolder`), and whether a lease may be cleared is

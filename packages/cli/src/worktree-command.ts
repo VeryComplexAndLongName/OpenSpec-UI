@@ -15,6 +15,7 @@ import {
   type HarvestResult,
   type WorktreeRootSources,
 } from "@openspec-ui/core";
+import { publicNameOf } from "./subcommands.js";
 
 export interface WorktreeOptions {
   repositoryRoot: string;
@@ -47,7 +48,7 @@ export async function worktreeCommand(options: WorktreeOptions, deps: WorktreeDe
   try {
     if (options.action === "list") return await listWorktrees({ git, repositoryRoot }, options, deps);
     if (!options.changeName) {
-      deps.stderr(`openspec-ui-cli: worktree ${options.action} requires a change name`);
+      deps.stderr(`openspec-ui-cli: ${publicNameOf("worktree", options.action)} requires a change name`);
       return 2;
     }
     if (options.action === "add") {
@@ -92,7 +93,7 @@ async function addWorktree(
   deps.stdout(`Created ${plan.path} on branch "${plan.branch}", cut from ${plan.base}.`);
   // The path is long and starting the chain is the next thing to happen.
   deps.stdout("");
-  deps.stdout(`  openspec-ui-cli run ${context.changeName} --cwd "${plan.path}"`);
+  deps.stdout(`  openspec-ui-cli run change ${context.changeName} --cwd "${plan.path}"`);
   return 0;
 }
 
@@ -122,7 +123,7 @@ async function listWorktrees(
     // pointing at the path it has (ADR 0027).
     if (worktree.belongsUnderRoot) {
       deps.stdout(`      not under the root — it would go at ${worktree.belongsUnderRoot}`);
-      deps.stdout(`      move it with: openspec-ui-cli worktree move ${worktree.changeName ?? ""}`.trimEnd());
+      deps.stdout(`      move it with: openspec-ui-cli move worktree ${worktree.changeName ?? ""}`.trimEnd());
     }
   }
   if (worktrees.length === 0) deps.stdout("No working directories.");

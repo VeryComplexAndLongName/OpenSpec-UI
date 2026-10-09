@@ -57,7 +57,7 @@ describe("ProcessTreeItem", () => {
   });
 
   // a-change-is-run-from-its-card 4.2, found by 7.6: a running chain's row
-  // offers Cancel Process, and a finished one does not.
+  // offers Stop Process, and a finished one does not.
   it("offers cancel on a queued or running chain, and not on a finished one", () => {
     expect(new ProcessTreeItem(process("chain", "running"), undefined).contextValue).toBe("openspec-ui.cancellableProcess");
     expect(new ProcessTreeItem(process("chain", "queued"), undefined).contextValue).toBe("openspec-ui.cancellableProcess");

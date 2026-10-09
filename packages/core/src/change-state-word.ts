@@ -2,7 +2,7 @@
 // 2026-09-13.
 //
 // The only code that picks a change's state word. The Changes tree, the
-// standalone Changes list, `openspec-ui-cli ready` and the Pipeline card all
+// standalone Changes list, `openspec-ui-cli show readiness` and the Pipeline card all
 // call `describeChangeState`, so a change never reads one way in one place
 // and another way in the next. A leaf with type imports only, so the browser
 // can have it. `change-state.ts` re-exports it for Node importers.

@@ -382,7 +382,7 @@ test.describe("editor documentation screenshots", () => {
 
     // The caption names two actions. Asserting only that a menu opened
     // would let a menu of different entries photograph under this caption.
-    for (const action of ["Customize Template", "Insert Template Into"]) {
+    for (const action of ["Edit Template", "Insert Template..."]) {
       await expect(window.locator(`.context-view .action-label:has-text("${action}")`).first()).toBeVisible();
     }
 
@@ -391,7 +391,7 @@ test.describe("editor documentation screenshots", () => {
 
   test("the global harness settings, in a panel of their own", async () => {
     await closeEditors();
-    await runCommand("OpenSpec Workbench: Configure Harness Settings");
+    await runCommand("OpenSpec Workbench: Configure Workspace Harness");
 
     // The panel's title is the editor's, the form is the webview's. A
     // picture taken on the title alone shows a panel reading nothing, which
@@ -413,7 +413,7 @@ test.describe("editor documentation screenshots", () => {
     // Hovered and chosen with Enter, not clicked: a click on the label
     // left the menu open and ran nothing, where a hover focuses the item
     // the way a person's pointer does.
-    const item = window.getByRole("menuitem", { name: "OpenSpec Workbench: Configure Harness for this Change" });
+    const item = window.getByRole("menuitem", { name: "OpenSpec Workbench: Configure Change Harness" });
     await item.hover();
     await window.keyboard.press("Enter");
 

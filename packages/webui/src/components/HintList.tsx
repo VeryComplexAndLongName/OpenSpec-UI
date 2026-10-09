@@ -3,7 +3,7 @@
 //
 // This file renders; it decides nothing. Every suggestion was derived by
 // `buildHints` in core from the readiness report the host already
-// fetched, so the shell, the extension and `openspec-ui-cli advise`
+// fetched, so the shell, the extension and `openspec-ui-cli show advice`
 // cannot disagree about what to suggest.
 //
 // Two rules the markup enforces:

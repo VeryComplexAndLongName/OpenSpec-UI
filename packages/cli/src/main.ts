@@ -27,6 +27,7 @@ import { claimCommand, presentCommand, rootOf, untilInterrupted } from "./coordi
 import { stopCommand } from "./stop-command.js";
 import { taskCommand } from "./task-command.js";
 import { answerCommand } from "./answer-command.js";
+import { publicNameOf, routeSubcommand, subcommandNames } from "./subcommands.js";
 import { worktreeCommand } from "./worktree-command.js";
 import { runValidateAll, type ValidateAllResult } from "./openspec-validate.js";
 import {
@@ -38,56 +39,66 @@ import {
 
 const USAGE = `openspec-ui-cli — OpenSpec changes from a terminal: validate them, run them, check them.
 
+Every subcommand is a verb and a noun (ADR 0045).
+
 Usage:
-  openspec-ui-cli validate [--cwd <path>] [--format json|text]
-  openspec-ui-cli run <change> [--cwd <path>] [--format text|json]
-  openspec-ui-cli update <change> [--note <text>] [--agent <id>] [--cwd <path>]
-                         [--format text|json]
-  openspec-ui-cli check <change> [--cwd <path>] [--format text|json]
-  openspec-ui-cli ready [--cwd <path>] [--base <ref>] [--format text|json]
-  openspec-ui-cli doctor [--cwd <path>] [--change <id>] [--format text|json]
-  openspec-ui-cli advise [--cwd <path>] [--base <ref>] [--format text|json]
-  openspec-ui-cli lease [--cwd <path>] [--format text|json]
-  openspec-ui-cli lease release [--cwd <path>] [--format text|json]
-  openspec-ui-cli status [--cwd <path>] [--format text|json]
-  openspec-ui-cli present [--change <id>] [--activity <text>] [--cwd <path>]
-  openspec-ui-cli claim <resource> [--wait <seconds>] [--cwd <path>]
-  openspec-ui-cli stop <instanceId> --reason <text> [--after <task>] [--cwd <path>]
-                       [--format text|json]
-  openspec-ui-cli enrol [<keyId>] [--label <text>] [--cwd <path>]
-                        [--format text|json]
-  openspec-ui-cli join --handle <handle> --name <text> [--email <address>]
-                       [--cwd <path>] [--format text|json]
-  openspec-ui-cli people [--cwd <path>] [--format text|json]
-  openspec-ui-cli history <change> [--cwd <path>] [--format text|json]
-  openspec-ui-cli stages [<change>] [--cwd <path>] [--format text|json]
-  openspec-ui-cli owner <change> [--to <handle>] [--agent <id>] [--cwd <path>]
-  openspec-ui-cli implementer <change> [--to <handle> | --none] [--agent <id>]
-                              [--cwd <path>]
-  openspec-ui-cli send-back <change> --stage <stage> --reason <text>
-                            [--reopen <task>:<why>]... [--agent <id>]
-                            [--cwd <path>]
-  openspec-ui-cli task done|reopen <change> <number> [--note <text>] [--cwd <path>]
-                                 [--format text|json]
-  openspec-ui-cli answer <change> [<Q-id> "<answer>"] [--cwd <path>] [--format text|json]
-  openspec-ui-cli task commit <change> [--cwd <path>] [--format text|json]
-  openspec-ui-cli worktree add <change> [--cwd <path>] [--path <dir>]
-                                        [--base <ref>]
-  openspec-ui-cli worktree list [--cwd <path>] [--format text|json]
-  openspec-ui-cli worktree move <change> [--cwd <path>]
-  openspec-ui-cli worktree remove <change> [--cwd <path>]
-  openspec-ui-cli change-graph [--cwd <path>] [--change <id>] [--all]
-  openspec-ui-cli release-manifest [--cwd <path>] [--repository <owner/name>]
-                                   [--ref <ref>] [--commit <sha>]
-                                   [--releases <file>] [--fingerprint]
-                                   [--from <file>]
+  openspec-ui-cli validate changes [--cwd <path>] [--format json|text]
+  openspec-ui-cli run change <change> [--cwd <path>] [--format text|json]
+  openspec-ui-cli update plan <change> [--note <text>] [--agent <id>] [--cwd <path>]
+                              [--format text|json]
+  openspec-ui-cli run checks <change> [--cwd <path>] [--format text|json]
+  openspec-ui-cli show readiness [--cwd <path>] [--base <ref>] [--format text|json]
+  openspec-ui-cli diagnose workspace [--cwd <path>] [--change <id>] [--format text|json]
+  openspec-ui-cli show advice [--cwd <path>] [--base <ref>] [--format text|json]
+  openspec-ui-cli show lease [--cwd <path>] [--format text|json]
+  openspec-ui-cli remove lease [--cwd <path>] [--format text|json]
+  openspec-ui-cli show status [--cwd <path>] [--format text|json]
+  openspec-ui-cli set presence [--change <id>] [--activity <text>] [--cwd <path>]
+  openspec-ui-cli set lock <resource> [--wait <seconds>] [--cwd <path>]
+  openspec-ui-cli stop run <instanceId> --reason <text> [--after <task>] [--cwd <path>]
+                           [--format text|json]
+  openspec-ui-cli confirm key [<keyId>] [--label <text>] [--cwd <path>]
+                              [--format text|json]
+  openspec-ui-cli join team --handle <handle> --name <text> [--email <address>]
+                            [--cwd <path>] [--format text|json]
+  openspec-ui-cli show people [--cwd <path>] [--format text|json]
+  openspec-ui-cli show history <change> [--cwd <path>] [--format text|json]
+  openspec-ui-cli show stages [<change>] [--cwd <path>] [--format text|json]
+  openspec-ui-cli set owner <change> [--to <handle>] [--agent <id>] [--cwd <path>]
+  openspec-ui-cli set implementer <change> [--to <handle> | --none] [--agent <id>]
+                                  [--cwd <path>]
+  openspec-ui-cli reopen change <change> --stage <stage> --reason <text>
+                                [--reopen <task>:<why>]... [--agent <id>]
+                                [--cwd <path>]
+  openspec-ui-cli complete task <change> <number> [--note <text>] [--cwd <path>]
+                                [--format text|json]
+  openspec-ui-cli reopen task <change> <number> [--note <text>] [--cwd <path>]
+                              [--format text|json]
+  openspec-ui-cli commit tasks <change> [--cwd <path>] [--format text|json]
+  openspec-ui-cli show questions <change> [--cwd <path>] [--format text|json]
+  openspec-ui-cli answer question <change> <Q-id> "<answer>" [--cwd <path>]
+                                  [--format text|json]
+  openspec-ui-cli create worktree <change> [--cwd <path>] [--path <dir>]
+                                  [--base <ref>]
+  openspec-ui-cli show worktrees [--cwd <path>] [--format text|json]
+  openspec-ui-cli move worktree <change> [--cwd <path>]
+  openspec-ui-cli delete worktree <change> [--cwd <path>]
+  openspec-ui-cli show graph [--cwd <path>] [--change <id>] [--all]
+  openspec-ui-cli write manifest [--cwd <path>] [--repository <owner/name>]
+                                 [--ref <ref>] [--commit <sha>]
+                                 [--releases <file>] [--fingerprint]
+                                 [--from <file>]
+
+A subcommand by its former name (validate, run, doctor, answer, ...) is
+refused with OSW-CLI-001, naming the pair that replaced it.
 
 Options:
   --cwd <path>        Repository root (default: current directory)
-  --format json|text  Output format. Default json for validate, whose
-                      output is one document made at the end; default
-                      text for run and check, which are watched. For
-                      run, json is one event per line, as it happens.
+  --format json|text  Output format. Default json for 'validate changes',
+                      whose output is one document made at the end;
+                      default text for 'run change' and 'run checks',
+                      which are watched. For 'run change', json is one
+                      event per line, as it happens.
   --path <dir>        Where a working directory goes (default: under one
                       root, <root>/<repo>/<change>; the root comes from
                       OPENSPEC_UI_WORKTREE_ROOT, then ~/.openspec-ui/
@@ -99,24 +110,25 @@ Options:
   --all               Include changes that state no relation
   --label <text>      The name an enrolled key's person is known by
                       (default: the run's git author)
-  --handle <handle>   The name 'join' files a person under: lower-case
-                      letters, digits and single hyphens
+  --handle <handle>   The name 'join team' files a person under:
+                      lower-case letters, digits and single hyphens
   --name <text>       A person's name as the team reads it
   --email <address>   A git e-mail address of the person's; optional
-  --to <handle>       Who 'owner' or 'implementer' names (default: you,
-                      as this machine's key says)
-  --none              'implementer': leave the change with nobody on it
-  --stage <stage>     Where 'send-back' returns a change: proposed,
+  --to <handle>       Who 'set owner' or 'set implementer' names
+                      (default: you, as this machine's key says)
+  --none              'set implementer': leave the change with nobody on it
+  --stage <stage>     Where 'reopen change' returns a change: proposed,
                       planned, in-progress or in-review
-  --reopen <task>:<why>  An item 'send-back' reopens, and why; repeatable
+  --reopen <task>:<why>  An item 'reopen change' reopens, and why; repeatable
   --agent <id>        The agent acting for you. Without it, the
                       environment says (OPENSPEC_UI_AGENT, AI_AGENT). For
-                      'update', the agent that runs it; without it, the
-                      change's review agent
+                      'update plan', the agent that runs it; without it,
+                      the change's review agent
   --reason <text>     Why a run is asked to stop; the run records it
-  --note <text>       What 'task done' or 'task reopen' writes under the task;
-                      required to close a Human-only or delegated task. For
-                      'update', the operator's notes the update answers
+  --note <text>       What 'complete task' or 'reopen task' writes under
+                      the task; required to close a Human-only or
+                      delegated task. For 'update plan', the operator's
+                      notes the update answers
   --after <task>      Let the run finish this task first, as tasks.md numbers
                       it (for example 4.6), then stop where the work is sound
   --repository        owner/name for the manifest's links
@@ -138,91 +150,93 @@ Exit codes:
      validation, a stage failed, a declared check failed, or a run was
      cancelled
   2  the CLI itself could not complete the check, or declined to start
-     (bad arguments, the openspec CLI missing, a filesystem error, an
-     unreadable package.json, a change whose configuration this terminal
-     cannot honour, another host holding the workspace)
+     (bad arguments, a former subcommand's name, the openspec CLI missing,
+     a filesystem error, an unreadable package.json, a change whose
+     configuration this terminal cannot honour, another host holding the
+     workspace)
 
-'lease' exits 0 whether or not the workspace is held: it answered the
-question either way. 'lease release' exits 0 when it cleared a lease and
-1 when it refused. It clears one only where the holder can be shown to be
-gone — its heartbeat is already stale, or it is on this machine and its
+'show lease' exits 0 whether or not the workspace is held: it answered
+the question either way. 'remove lease' exits 0 when it cleared a lease
+and 1 when it refused. It clears one only where the holder can be shown to
+be gone — its heartbeat is already stale, or it is on this machine and its
 process is not running. A live holder is refused: taking its lease would
 let a second mutating run start against files it still has open, which is
 what the lease exists to prevent.
 
-'advise' prints what the readiness report suggests — which changes can
-be started alongside each other, which is ready with nowhere to run —
-each with the fact it came from and the commands that act on it. It
-exits 0 whether or not there is anything to suggest, and creates
-nothing: the commands are printed, not run. A workspace that set
-hints.enabled to false computes none.
+'show advice' prints what the readiness report suggests — which changes
+can be started alongside each other, which is ready with nowhere to run —
+each with the fact it came from and the commands that act on it. It exits
+0 whether or not there is anything to suggest, and creates nothing: the
+commands are printed, not run. A workspace that set hints.enabled to false
+computes none.
 
-'status' prints what every run of this repository last said it was
+'show status' prints what every run of this repository last said it was
 doing, and how long ago it said it — never whether a run is stuck or
-healthy, which is a person's judgement a silent agent and a hung one
-look identical to. It exits 0 whether or not anything is running. Each
-run says whose it is only as far as its signature shows: signed by an
-enrolled person, not verified, or a signature that does not check out.
+healthy, which is a person's judgement a silent agent and a hung one look
+identical to. It exits 0 whether or not anything is running. Each run
+says whose it is only as far as its signature shows: signed by an enrolled
+person, not verified, or a signature that does not check out.
 
-'task' does what a Pipeline card does for a change in the worktree made
-for it, and only there: 'done' and 'reopen' tick or untick one task in that
-worktree's tasks.md, with the note written under it; 'commit' commits that
-tasks.md alone and pushes the worktree's branch. Each exits 1 when it is
-refused, saying why: no worktree of the change's own, a run working in it,
-or a Human-only or delegated task closed without a note.
+'complete task', 'reopen task' and 'commit tasks' do what a Pipeline card
+does for a change in the worktree made for it, and only there: the first
+two tick or untick one task in that worktree's tasks.md, with the note
+written under it; 'commit tasks' commits that tasks.md alone and pushes
+the worktree's branch. Each exits 1 when it is refused, saying why: no
+worktree of the change's own, a run working in it, or a Human-only or
+delegated task closed without a note.
 
-'stop' asks a live run to stop where its work is sound, through a request
-signed with this machine's key. The run reads it at its next renewal and
-acts on it only if the request is verified and fresh. It prints the
-request's message id, and exits 1 when no live run reports itself under
-that instance id.
+'stop run' asks a live run to stop where its work is sound, through a
+request signed with this machine's key. The run reads it at its next
+renewal and acts on it only if the request is verified and fresh. It
+prints the request's message id, and exits 1 when no live run reports
+itself under that instance id.
 
-'present' reports this agent into the status directory beside the
+'set presence' reports this agent into the status directory beside the
 repository and keeps the record alive until it is interrupted, so other
 agents on this machine - and the Pipeline - can see that somebody is
 working here and on what. It is not a run: no run id, nothing in the
 audit.
 
-'claim <resource>' holds something this machine has one of - the browser
-capture suite, a port, the editor under test - and releases it when it
-ends. Where somebody already holds it, it says who and waits, saying so
-while it waits, and exits 1 rather than proceeding when the wait runs
-out. Advisory: an agent that never asks holds nothing back.
+'set lock <resource>' holds something this machine has one of - the
+browser capture suite, a port, the editor under test - and releases it
+when it ends. Where somebody already holds it, it says who and waits,
+saying so while it waits, and exits 1 rather than proceeding when the wait
+runs out. Advisory: an agent that never asks holds nothing back.
 
-'enrol' lists the keys that sign a live run's record and are not
-enrolled, with where the run is, its machine and git author. 'enrol
+'confirm key' lists the keys that sign a live run's record and are not
+enrolled, with where the run is, its machine and git author. 'confirm key
 <keyId>' says a listed run was yours: its key is enrolled, and its runs
 read as signed by you. It exits 1 when the confirmation is refused.
 
-'join' writes openspec/people/<handle>.json with this machine's public
-key, or adds the key to the file the person already has. Nothing is
+'join team' writes openspec/people/<handle>.json with this machine's
+public key, or adds the key to the file the person already has. Nothing is
 committed: joining the team is the pull request that carries the file
 (ADR 0037). It exits 1 when the key is already somebody else's or the
-handle is not one. 'people' lists the people of the repository and what
-is wrong with their files; it exits 1 when anything is.
+handle is not one. 'show people' lists the people of the repository and
+what is wrong with their files; it exits 1 when anything is.
 
-'history <change>' prints who holds a change and every event of its
-history, with any that break a rule. 'owner', 'implementer' and
-'send-back' record an event, signed with this machine's key: only the
+'show history <change>' prints who holds a change and every event of its
+history, with any that break a rule. 'set owner', 'set implementer' and
+'reopen change' record an event, signed with this machine's key: only the
 Owner hands the ownership on, the Owner sets the Implementer, the
 Implementer may hand the work back with --none, and the Owner or the
-Implementer sends a change back, reopening the items it names in
-tasks.md with the reason under each. Nothing is committed. They exit 1
-when the rules refuse the event.
+Implementer sends a change back, reopening the items it names in tasks.md
+with the reason under each. Nothing is committed. They exit 1 when the
+rules refuse the event.
 
-'stages' prints where each active change is - Proposed, Planned, In
+'show stages' prints where each active change is - Proposed, Planned, In
 progress, In review, Landed or Archived - with its Owner and Implementer
-and how long it has been there. 'stages <change>' prints every stay in
-every stage, with the fact that began it, and the time in each stage over
-all its visits. A stage is derived from dated facts: commits, closed task
-lines, runs, the pull request's times, commits on the change's branch, and
-the change's history, whose send-backs move it back.
+and how long it has been there. 'show stages <change>' prints every stay
+in every stage, with the fact that began it, and the time in each stage
+over all its visits. A stage is derived from dated facts: commits, closed
+task lines, runs, the pull request's times, commits on the change's
+branch, and the change's history, whose send-backs move it back.
 
-'doctor' exits 0 when nothing it found would stop a run, 1 when
-something would, and 2 when it could not look. A workspace held by a
+'diagnose workspace' exits 0 when nothing it found would stop a run, 1
+when something would, and 2 when it could not look. A workspace held by a
 live run is reported and exits 0: being busy is not being broken.
-'--change <id>' adds the preflight's own answer for that change, from
-the same resolution a run would use.
+'--change <id>' adds the preflight's own answer for that change, from the
+same resolution a run would use.
 
 A run does only what the change's own harness configuration already
 permits. There is no flag that starts a chain for a change configured to
@@ -327,7 +341,12 @@ export interface MainDeps {
  * fork publishes its own links rather than this repository's. */
 const DEFAULT_REPOSITORY = "VeryComplexAndLongName/OpenSpec-UI";
 
-function parseArgs(argv: string[]): { command: string | undefined; options: MainOptions; error?: string } {
+function parseArgs(argv: string[]): {
+  command: string | undefined;
+  options: MainOptions;
+  error?: string;
+  renamed?: { former: string; replacement: string };
+} {
   const options: MainOptions = {};
   const positional: string[] = [];
 
@@ -388,10 +407,17 @@ function parseArgs(argv: string[]): { command: string | undefined; options: Main
     }
   }
 
-  if (positional[1] !== undefined) options.changeName = positional[1];
-  if (positional[2] !== undefined) options.worktreeChange = positional[2];
-  if (positional[3] !== undefined) options.taskNumber = positional[3];
-  return { command: positional[0], options };
+  // A verb and a noun name the handler; a former subcommand is refused,
+  // naming its replacement (ADR 0045).
+  const routed = routeSubcommand(positional);
+  if (routed.kind === "renamed") {
+    return { command: undefined, options, renamed: { former: routed.former, replacement: routed.replacement } };
+  }
+  const handler = routed.kind === "handler" ? routed.positionals : [positional.slice(0, 2).join(" ")];
+  if (handler[1] !== undefined) options.changeName = handler[1];
+  if (handler[2] !== undefined) options.worktreeChange = handler[2];
+  if (handler[3] !== undefined) options.taskNumber = handler[3];
+  return { command: routed.kind === "handler" ? handler[0] : positional.length > 0 ? handler[0] : undefined, options };
 }
 
 /** Whether a confirmation can actually be put to somebody, and how.
@@ -457,10 +483,14 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
     return 0;
   }
 
-  const { command, options, error } = parseArgs(argv);
+  const { command, options, error, renamed } = parseArgs(argv);
   if (error) {
     stderr(`openspec-ui-cli: ${error}`);
     stderr(USAGE);
+    return 2;
+  }
+  if (renamed) {
+    stderr(`error OSW-CLI-001: '${renamed.former}' was renamed: use 'openspec-ui-cli ${renamed.replacement}' (ADR 0045)`);
     return 2;
   }
   if (command === "change-graph") {
@@ -535,7 +565,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
   if (command === "claim") {
     const resource = options.changeName;
     if (!resource) {
-      stderr("openspec-ui-cli: claim requires a resource name");
+      stderr("openspec-ui-cli: set lock requires a resource name");
       stderr(USAGE);
       return 2;
     }
@@ -595,7 +625,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
 
   if (command === "join") {
     if (options.handle === undefined || options.name === undefined) {
-      stderr("openspec-ui-cli: join requires --handle and --name");
+      stderr("openspec-ui-cli: join team requires --handle and --name");
       stderr(USAGE);
       return 2;
     }
@@ -635,7 +665,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
   if (command === "history" || command === "owner" || command === "implementer" || command === "send-back") {
     const changeName = options.changeName;
     if (!changeName) {
-      stderr(`openspec-ui-cli: ${command} requires a change name`);
+      stderr(`openspec-ui-cli: ${publicNameOf(command)} requires a change name`);
       stderr(USAGE);
       return 2;
     }
@@ -648,7 +678,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
     let request: HistoryRequest;
     if (command === "send-back") {
       if (!isSendBackStage(options.stage) || options.reason === undefined) {
-        stderr("openspec-ui-cli: send-back requires --stage proposed|planned|in-progress|in-review and --reason <text>");
+        stderr("openspec-ui-cli: reopen change requires --stage proposed|planned|in-progress|in-review and --reason <text>");
         return 2;
       }
       const reopened = parseReopen(options.reopen ?? []);
@@ -726,7 +756,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
   if (command === "run" || command === "check") {
     const changeName = options.changeName;
     if (!changeName) {
-      stderr(`openspec-ui-cli: ${command} requires a change name`);
+      stderr(`openspec-ui-cli: ${publicNameOf(command)} requires a change name`);
       stderr(USAGE);
       return 2;
     }
@@ -751,7 +781,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
   if (command === "update") {
     const changeName = options.changeName;
     if (!changeName) {
-      stderr("openspec-ui-cli: update requires a change name");
+      stderr("openspec-ui-cli: update plan requires a change name");
       stderr(USAGE);
       return 2;
     }
@@ -775,7 +805,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
   if (command !== "validate") {
     stderr(
       `openspec-ui-cli: unknown command '${command ?? ""}'`
-      + " (supported: validate, run, update, answer, check, ready, doctor, advise, lease, status, enrol, join, people, history, stages, owner, implementer, send-back, worktree, release-manifest, change-graph)",
+      + ` (supported: ${subcommandNames().join(", ")})`,
     );
     stderr(USAGE);
     return 2;

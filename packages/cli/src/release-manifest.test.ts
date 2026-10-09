@@ -318,7 +318,7 @@ describe("the release-manifest command", () => {
 
   it("prints a manifest built from the repository", async () => {
     const root = await completeRepo("2.0.0");
-    const { code, out } = await run(["release-manifest", "--cwd", root, "--repository", "owner/name"]);
+    const { code, out } = await run(["write", "manifest", "--cwd", root, "--repository", "owner/name"]);
 
     expect(code).toBe(0);
     const parsed = JSON.parse(out) as { products: { id: string; version: string }[] };
@@ -327,14 +327,14 @@ describe("the release-manifest command", () => {
 
   it("prints only the fingerprint when asked, and reads one back from a published manifest", async () => {
     const root = await completeRepo("3.1.4");
-    const built = await run(["release-manifest", "--cwd", root, "--fingerprint"]);
+    const built = await run(["write", "manifest", "--cwd", root, "--fingerprint"]);
     expect(built.code).toBe(0);
     expect(built.out).toContain("core@3.1.4");
 
     // The same code computes both sides of the comparison the publish
     // step makes; a second implementation in YAML would be free to drift.
     const manifest = await buildReleaseManifest({ repoRoot: root, repository: "owner/name" });
-    const readBack = await run(["release-manifest", "--from", "published.json", "--fingerprint"], {
+    const readBack = await run(["write", "manifest", "--from", "published.json", "--fingerprint"], {
       readReleasesFile: async () => JSON.stringify(manifest),
     });
     expect(readBack.code).toBe(0);
@@ -343,7 +343,7 @@ describe("the release-manifest command", () => {
 
   it("exits 2 and prints nothing when the manifest cannot be built", async () => {
     const root = await fixtureRepo({ "packages/core": { version: "1.0.0" } });
-    const { code, out, err } = await run(["release-manifest", "--cwd", root]);
+    const { code, out, err } = await run(["write", "manifest", "--cwd", root]);
 
     // A manifest missing a product would read to the site as that
     // product having been withdrawn, so a partial document is never

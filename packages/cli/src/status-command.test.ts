@@ -71,7 +71,7 @@ describe("statusCommand", () => {
     expect(code).toBe(0);
     const text = io.out.join("\n");
     expect(text).toContain("Q-abc-1 Which database?");
-    expect(text).toContain(`openspec-ui-cli answer a-change Q-abc-1 "<answer>"`);
+    expect(text).toContain(`openspec-ui-cli answer question a-change Q-abc-1 "<answer>"`);
   });
 
   it("exits 0 with nothing running", async () => {

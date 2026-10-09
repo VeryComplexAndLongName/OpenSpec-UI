@@ -225,7 +225,7 @@ export interface PipelinePanelDeps {
   extensionUri: vscode.Uri;
   getWorkspaceRoot: () => string | undefined;
   /** Reveals an active change's row in the Changes tree, as
-   * `openspec-ui.revealInChanges` does. */
+   * `openspec-ui.showChange` does. */
   revealChange: (change: ActiveChange) => Promise<void>;
   /** The runs this extension host started and holds. A card offers its
    * controls only for these (a-change-is-run-from-its-card); without a

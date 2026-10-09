@@ -1,4 +1,4 @@
-// `openspec-ui-cli stop <instanceId> --reason <text>` — ask a run elsewhere to
+// `openspec-ui-cli stop run <instanceId> --reason <text>` — ask a run elsewhere to
 // stop, through ADR 0028's signed channel (a-run-elsewhere-can-be-asked-to-stop).
 //
 // Presentation only. Which runs are live is read by core (`readAgentStatuses`);
@@ -53,11 +53,11 @@ export async function stopCommand(options: StopOptions, deps: StopDeps): Promise
   const instanceId = options.instanceId?.trim();
   const reason = options.reason?.trim();
   if (!instanceId) {
-    deps.stderr("openspec-ui-cli: stop needs the instance id of the run to ask, as 'openspec-ui status' prints it");
+    deps.stderr("openspec-ui-cli: stop run needs the instance id of the run to ask, as 'openspec-ui-cli show status' prints it");
     return 2;
   }
   if (!reason) {
-    deps.stderr("openspec-ui-cli: stop needs a reason: --reason <text>");
+    deps.stderr("openspec-ui-cli: stop run needs a reason: --reason <text>");
     return 2;
   }
   const afterTask = options.afterTask?.trim();

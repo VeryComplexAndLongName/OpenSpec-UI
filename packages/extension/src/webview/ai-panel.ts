@@ -56,7 +56,7 @@ export interface AiPanelContext {
    * nothing in the webview enforces it — `HarnessChainRunner.checkBudget`
    * remains the only thing that does. */
   budget?: HarnessBudget;
-  /** Set by `openspec-ui.runWithHarness` (`agentic-harness-run-menu`) when
+  /** Set by `openspec-ui.runChange` (`agentic-harness-run-menu`) when
    * the caller already resolved (Node-side, before ever revealing a
    * panel) that this change's harness config targets `"chain"` rather
    * than `"picker"` — see `resolveRunWithHarnessTarget` in
@@ -66,7 +66,7 @@ export interface AiPanelContext {
    * `data-start-chain`), not delivered as a follow-up message. Absent (or
    * `false`) for every other reveal — the existing single-stage picker. */
   startChain?: boolean;
-  /** Set by `openspec-ui.runWithHarness` when this change's config
+  /** Set by `openspec-ui.runChange` when this change's config
    * resolves to the single-stage picker rather than a chain: the panel
    * was opened to run *this* change, so it starts on the stage the plan
    * says the run begins at, `apply` where the plan could not say, instead
@@ -80,7 +80,7 @@ export interface AiPanelContext {
    * whose review asked for changes (ADR 0041). Rides in the initial HTML,
    * like `runChange`. */
   commandKind?: "update";
-  /** The resolved run plan, set by `openspec-ui.runWithHarness`. Like
+  /** The resolved run plan, set by `openspec-ui.runChange`. Like
    * `startChain` it decides which component mounts, so it is baked into
    * the initial HTML rather than posted afterwards — a follow-up would
    * show the ordinary panel first and replace it. See
@@ -273,7 +273,7 @@ export class AiPanel {
       mutating: command.kind === "implement" || command.kind === "chain",
       execute: ({ report, signal }) =>
         new Promise<string | void>((resolve, reject) => {
-          // "Cancel Process" on a chain's entry cancels the chain itself,
+          // "Stop Process" on a chain's entry cancels the chain itself,
           // not only its row: the scheduler aborts this signal, and nothing
           // else would reach the chain (a-change-is-run-from-its-card).
           if (command.kind === "chain") {

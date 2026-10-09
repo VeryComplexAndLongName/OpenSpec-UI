@@ -42,7 +42,7 @@ describe("enrolCommand (a-run-is-signed-by-its-person 5.4)", () => {
     const text = io.out.join("\n");
     expect(text).toContain(KEY_ID);
     expect(text).toContain("alpha — /wt/repo/alpha, on ada-laptop, git author ada@example.com, last seen 2026-09-14T00:00:00.000Z");
-    expect(text).toContain("openspec-ui-cli enrol <keyId>");
+    expect(text).toContain("openspec-ui-cli confirm key <keyId>");
   });
 
   it("says nothing is waiting where nothing is", async () => {

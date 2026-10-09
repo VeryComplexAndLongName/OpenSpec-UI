@@ -245,7 +245,7 @@ const REPO_BOOTSTRAP_ACTIONS: Record<
   "generate-agent-instructions": {
     label: "Generate Agent Instructions",
     description: "CLAUDE.md / AGENTS.md",
-    command: "openspec-ui.generateAgentInstructions",
+    command: "openspec-ui.generateInstructions",
     icon: "book",
   },
   "configure-dependabot": {
@@ -257,7 +257,7 @@ const REPO_BOOTSTRAP_ACTIONS: Record<
   "generate-subtype-instructions": {
     label: "Generate Path-Scoped Copilot Instructions",
     description: ".github/instructions/<subtype>.instructions.md",
-    command: "openspec-ui.generateSubtypeInstructions",
+    command: "openspec-ui.generateScopedInstructions",
     icon: "file-code",
   },
 };
@@ -288,7 +288,7 @@ export class HarnessSettingsRootTreeItem extends vscode.TreeItem {
     this.description = "openspec/agent-harness.json";
     this.contextValue = "openspec-ui.harnessSettingsRoot";
     this.iconPath = new vscode.ThemeIcon("robot");
-    this.command = { command: "openspec-ui.configureHarness", title: "Harness Settings" };
+    this.command = { command: "openspec-ui.configureWorkspaceHarness", title: "Harness Settings" };
   }
 }
 
@@ -781,7 +781,7 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
         : new EmptyTreeItem(
           "Initialize OpenSpec",
           "Set up this workspace",
-          { command: "openspec-ui.initialize", title: "Initialize OpenSpec" },
+          { command: "openspec-ui.initializeWorkspace", title: "Initialize OpenSpec" },
         ));
     }
     return items;

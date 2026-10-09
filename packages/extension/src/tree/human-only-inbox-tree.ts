@@ -39,7 +39,7 @@ export class OperatorQuestionTreeItem extends vscode.TreeItem {
 }
 
 /** The `contextValue` of a key waiting to be enrolled. `package.json` binds
- * `openspec-ui.confirmEnrolment` to it, inline (a-run-is-signed-by-its-person). */
+ * `openspec-ui.confirmKey` to it, inline (a-run-is-signed-by-its-person). */
 export const ENROLMENT_REQUEST_CONTEXT = "openspec-ui.enrolmentRequest";
 
 /** A key that signs a live run's record and is not enrolled. Its one control
@@ -60,7 +60,7 @@ export class EnrolmentRequestTreeItem extends vscode.TreeItem {
 
 /** The `contextValue` of a row whose item names an agent this build
  * carries. `package.json`'s `view/item/context` binds
- * `openspec-ui.runDelegatedItem` to exactly this value, so a row
+ * `openspec-ui.runItem` to exactly this value, so a row
  * waiting on a person — or on an id nothing recognises — carries no run
  * control at all rather than one that refuses when clicked.
  *

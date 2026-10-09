@@ -32,13 +32,13 @@ an unfinished task.
 Where the run should finish part of the change first, name the task:
 
 ```bash
-openspec-ui-cli stop <instanceId> --reason "only up to 4.6" --after 4.6
+openspec-ui-cli stop run <instanceId> --reason "only up to 4.6" --after 4.6
 ```
 
 The run keeps working and ends the moment 4.6 is ticked, or the moment its
 agent says it is starting a task after it. It does not wait for a further
 sound point: the tick of 4.6 is one. In the editor, the same request is
-made from a change's row with **OpenSpec Workbench: Stop This Run After a Task...**.
+made from a change's row with **OpenSpec Workbench: Stop Run...**.
 
 The run learns that 4.6 was ticked by reading the task list twice a second
 while it holds the request, so there is a window of up to about half a
@@ -68,20 +68,20 @@ is waiting for the run to read it.
 
 If your own runs read as not verified, enrol this machine's key first:
 confirm **It was me** in the Human-Only Inbox, or run
-`openspec-ui-cli enrol`.
+`openspec-ui-cli confirm key`.
 
 ## From a terminal
 
 **1.** Find the run's instance id:
 
 ```bash
-openspec-ui-cli status
+openspec-ui-cli show status
 ```
 
 **2.** Ask it to stop:
 
 ```bash
-openspec-ui-cli stop <instanceId> --reason "wrong branch"
+openspec-ui-cli stop run <instanceId> --reason "wrong branch"
 ```
 
 It prints the request's message id. It exits `1` when no live run reports

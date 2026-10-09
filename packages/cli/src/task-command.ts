@@ -1,5 +1,5 @@
-// `openspec-ui-cli task done|reopen <change> <number> [--note <text>]` and
-// `openspec-ui-cli task commit <change>` — what a Pipeline card does in its
+// `openspec-ui-cli complete task|reopen task <change> <number> [--note <text>]` and
+// `openspec-ui-cli commit tasks <change>` — what a Pipeline card does in its
 // change's own worktree, from a terminal (a-card-works-its-own-tasks).
 //
 // Presentation only. Which directory is the change's own worktree, whether a
@@ -8,6 +8,7 @@
 // card's controls are.
 
 import { commitTaskList, findOwnTask, setTaskDone } from "@openspec-ui/core";
+import { publicNameOf } from "./subcommands.js";
 
 export type TaskAction = "done" | "reopen" | "commit";
 
@@ -36,11 +37,11 @@ export interface TaskDeps {
 export async function taskCommand(options: TaskOptions, deps: TaskDeps): Promise<number> {
   const { action, changeName } = options;
   if (action !== "done" && action !== "reopen" && action !== "commit") {
-    deps.stderr("openspec-ui-cli: task takes done, reopen or commit");
+    deps.stderr("openspec-ui-cli: complete task, reopen task or commit tasks");
     return 2;
   }
   if (!changeName) {
-    deps.stderr(`openspec-ui-cli: task ${action} needs a change name`);
+    deps.stderr(`openspec-ui-cli: ${publicNameOf("task", action)} needs a change name`);
     return 2;
   }
 
@@ -58,7 +59,7 @@ export async function taskCommand(options: TaskOptions, deps: TaskDeps): Promise
     }
 
     if (!options.number) {
-      deps.stderr(`openspec-ui-cli: task ${action} needs the task's number, as tasks.md numbers it (for example 6.4)`);
+      deps.stderr(`openspec-ui-cli: ${publicNameOf("task", action)} needs the task's number, as tasks.md numbers it (for example 6.4)`);
       return 2;
     }
     const found = await (deps.find ?? findOwnTask)({ repositoryRoot: options.repositoryRoot, changeName, number: options.number });
@@ -74,7 +75,7 @@ export async function taskCommand(options: TaskOptions, deps: TaskDeps): Promise
     return say(
       result as never,
       result.ok
-        ? [result.line.trim(), ...(result.noteLine !== undefined ? [result.noteLine] : []), "Not committed: 'openspec-ui-cli task commit' sends it."].join("\n")
+        ? [result.line.trim(), ...(result.noteLine !== undefined ? [result.noteLine] : []), "Not committed: 'openspec-ui-cli commit tasks' sends it."].join("\n")
         : "",
     );
   } catch (error) {

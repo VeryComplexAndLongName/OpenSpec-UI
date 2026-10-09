@@ -176,7 +176,7 @@ function remedyFor(cause: Exclude<FailureCause, "unknown">, agentId: string): Pi
         remedy: executable !== undefined
           ? `Install \`${executable}\` and make sure it is on the PATH, or choose another agent for this stage.`
           : "Install the agent and make sure it is on the PATH, or choose another agent for this stage.",
-        commands: ["openspec-ui-cli doctor"],
+        commands: ["openspec-ui-cli diagnose workspace"],
       };
     case "not-signed-in":
       if (local) {

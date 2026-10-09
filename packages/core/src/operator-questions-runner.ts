@@ -390,7 +390,7 @@ export function withOperatorQuestions(runner: AgentRunner, options: OperatorQues
           timestamp: at(),
           reason: `${change} has ${blocking.length === 1 ? "an open question" : `${blocking.length} open questions`} for the operator: `
             + `${question!.id} "${question!.text}". Answer ${blocking.length === 1 ? "it" : "them"} first - on the change's card, `
-            + `with \`openspec-ui-cli answer ${change} ${question!.id} "<answer>"\`, or in its decisions.md.`,
+            + `with \`openspec-ui-cli answer question ${change} ${question!.id} "<answer>"\`, or in its decisions.md.`,
         };
         return;
       }

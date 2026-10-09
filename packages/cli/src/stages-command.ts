@@ -1,4 +1,4 @@
-// `openspec-ui-cli stages [<change>]` - where each change is, and how long
+// `openspec-ui-cli show stages [<change>]` - where each change is, and how long
 // it spent in each stage (a-change-knows-its-stage, ADR 0037).
 //
 // Presentation only. The facts, the stages and the visits are core's

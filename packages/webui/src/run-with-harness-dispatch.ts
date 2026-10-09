@@ -1,6 +1,6 @@
 // "Run with Agentic Harness" dispatch (agentic-harness-run-menu) — the
 // standalone shell's counterpart to the VS Code extension's
-// `openspec-ui.runWithHarness` command handler. Extracted from
+// `openspec-ui.runChange` command handler. Extracted from
 // `standalone-entry.tsx` (a bootstrap script, not independently unit
 // tested — see its own header comment) into its own testable module,
 // matching this package's existing convention of separating client/logic

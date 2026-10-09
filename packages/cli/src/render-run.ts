@@ -114,7 +114,7 @@ export class RunTextRenderer {
       case "awaitingAnswers":
         return this.line([
           `· waiting for your answer to ${event.questions.length === 1 ? "a question" : `${event.questions.length} questions`}; answer with`,
-          ...event.questions.map((question) => `    openspec-ui-cli answer <change> ${question.questionId} "<answer>"`),
+          ...event.questions.map((question) => `    openspec-ui-cli answer question <change> ${question.questionId} "<answer>"`),
         ].join("\n"));
       case "questionAnswered":
         return this.line(`· ${event.questionId} answered${event.by ? ` by ${event.by}` : ""}: ${event.answer}`);

@@ -145,7 +145,7 @@ function leaseFinding(holder: WorkspaceLeaseConflict | undefined): Finding | und
     statement:
       `${hostKindLabel(holder.hostKind)} on ${holder.hostname}, pid ${holder.pid}${author}`
       + ` holds this workspace (last reported itself ${Math.round(holder.heartbeatAgeMs / 1000)}s ago).`,
-    remedy: "Wait for it, or stop that process. `openspec-ui-cli lease` describes it.",
+    remedy: "Wait for it, or stop that process. `openspec-ui-cli show lease` describes it.",
   };
 }
 

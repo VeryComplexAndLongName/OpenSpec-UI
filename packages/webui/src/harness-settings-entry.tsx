@@ -58,7 +58,7 @@ function HarnessSettingsApp({ scope, changeName }: { scope: "global" | "change";
             <h2>Harness settings</h2>
             <p className="openspec-shell-note">
               The global defaults every change starts from. A change's own settings open from that change:
-              Configure Harness for this Change, in the Changes tree.
+              Configure Change Harness, in the Changes tree.
             </p>
             <GlobalHarnessSettingsView api={api} />
           </>

@@ -387,7 +387,7 @@ export async function readChangeTaskRows(options: OwnWorktreeOptions): Promise<C
 export interface OwnDelegatedRunOptions extends OwnWorktreeOptions, RunWorkingOptions {
   lineNumber: number;
   /** The runners for a working directory. A host builds them for the own
-   * worktree as `openspec-ui-cli run --cwd` does, so the run's allowlist,
+   * worktree as `openspec-ui-cli run change --cwd` does, so the run's allowlist,
    * sandbox and audit are that directory's. */
   runnersFor: (workspaceRoot: string) => (agentId: string) => AgentRunner | undefined;
   auditLog?: AuditLog;

@@ -510,7 +510,7 @@ async function runMechanicalChecksForVerify(workspaceRoot: string, changeDir: st
 
   // The writing is what makes this the `verify` stage's version rather
   // than `runDeclaredChecks` itself: a checkbox records what a check
-  // found during a run, and `openspec-ui-cli check` — which asks the same
+  // found during a run, and `openspec-ui-cli run checks` — which asks the same
   // question outside a run — deliberately writes nothing.
   await writeTaskCheckStates(
     workspaceRoot,

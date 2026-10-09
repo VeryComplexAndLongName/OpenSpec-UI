@@ -171,21 +171,21 @@ it may be a change you have not written yet.
   with a reason. A run held elsewhere offers Stop only when it is signed by
   the same enrolled person as this machine's key.
 - See each change's standing word beside it in the Changes tree — the same
-  word the Pipeline, the standalone app and `openspec-ui-cli ready` use —
+  word the Pipeline, the standalone app and `openspec-ui-cli show readiness` use —
   with where each part of it was read from on hover.
 - Say that a run signed by an unenrolled key was yours with **It was me** in
   the Human-Only Inbox; its runs then read as signed by you.
-- Ask a change what it follows — "Show What This Change Follows" walks
+- Ask a change what it follows — "Show Ancestry" walks
   back to the changes it grew out of and opens any of them. This is how a
   decision is traced to the reason for it once the change that made it is
   archived.
 - Move between the Changes/Archive trees and the Change Graph on request.
-  "Reveal in Change Graph", on a change in either tree, expands and selects
+  "Show Graph", on a change in either tree, expands and selects
   every row it occupies (a change following more than one other change has
   one row per parent) and reports the count when there is more than one; if
   the change states no relation it says so rather than appearing to do
   nothing — most changes are not in the graph, since it shows only what
-  states a relation. "Reveal in Changes", on a graph row, opens the Archive
+  states a relation. "Show Change", on a graph row, opens the Archive
   tree for an archived change and Changes otherwise. Both are off unless
   invoked: `openspec-ui.followSelectionInChangeGraph` (default `false`)
   turns on following the Changes/Archive selection into the graph
@@ -253,7 +253,7 @@ it may be a change you have not written yet.
    Copilot) to make the change instead, use **OpenSpec Workbench: Open Process
    Dashboard** and its own agent picker instead — see "Agents" below.
 5. Follow the run in **Processes**. When Agent work is done, choose
-   **Finish Implementation & Review**.
+   **Finish Implementation**.
 6. Review native diffs, roll back the checkpoint if needed, or archive the
    completed change. Archiving creates or updates canonical specs.
 
@@ -272,7 +272,7 @@ To run `plan`/`implement`/`review` through a specific CLI agent (Claude
 CLI, GitHub Copilot CLI, Codex CLI, Gemini CLI, or a local
 OpenAI-compatible LLM) instead of VS Code's native Chat/Agent handoff:
 
-1. Run **OpenSpec Workbench: Open Process Dashboard** from the Command Palette
+1. Run **OpenSpec Workbench: Open Dashboard** from the Command Palette
    (or the toolbar button on a change in **Changes**).
 2. In the panel, pick `implement` (or `plan`/`review`) from the command
    dropdown.
@@ -297,7 +297,7 @@ how this differs from the `@openspec` Chat Participant above.
 
 ## Agentic Harness
 
-**OpenSpec Workbench: Configure Harness Settings** and **OpenSpec Workbench: Configure
+**OpenSpec Workbench: Configure Workspace Harness** and **OpenSpec Workbench: Configure
 Harness for this Change** set the per-stage agent, autonomy level, and
 review gate the commands above (and a chain run) use by default. Each opens
 a panel of its own: the first for the workspace's global file, the second
