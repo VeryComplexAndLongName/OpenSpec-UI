@@ -514,6 +514,10 @@ test("starts a chain from its card, answers it there, and asks it to stop", asyn
     await expect(chain).toBeFocused();
     await chain.getByTestId("start-chain-button").click();
     await expect(chain.getByTestId("checkpoint-confirmation")).toBeVisible({ timeout: 15000 });
+    // The chain's dialog is modal (ADR 0047): nothing behind it takes a
+    // press, so it is closed to act on the card. The run goes on.
+    await chain.getByTestId("pipeline-run-close").click();
+    await expect(layer).toBeHidden();
 
     // 2. Continue, on the card, at every checkpoint until a stage runs.
     // What stages come before verify is the harness's own default; the

@@ -209,6 +209,11 @@ test("records the tour: a run started from a card, answered there, and asked to 
     const chain = layer.getByTestId("pipeline-run-chain");
     await chain.getByTestId("start-chain-button").click();
     await expect(chain.getByTestId("checkpoint-confirmation")).toBeVisible({ timeout: 15000 });
+    await photograph(2000, chain);
+    // The chain's dialog is modal (ADR 0047): it is closed to act on the
+    // card, and the run goes on.
+    await chain.getByTestId("pipeline-run-close").click();
+    await expect(layer).toBeHidden();
     await photograph(2500, page.getByTestId(`pipeline-node-${CHANGE_NAME}`));
 
     // 4. Continue, on the card, at every checkpoint until a stage runs. The
