@@ -16,7 +16,7 @@
     "test": "vitest run --project core && vitest run --project core-git-subprocess"
   },
   "dependencies": {
-    "@agentclientprotocol/sdk": "^1.5.1",
+    "@agentclientprotocol/sdk": "^1.7.0",
     "cheerio": "1.0.0",
     "cross-spawn": "^7.0.6",
     "simple-git": "^4.0.2",
