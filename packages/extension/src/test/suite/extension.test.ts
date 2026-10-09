@@ -196,10 +196,11 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
       "expected the raw JSON not to be opened as well — one surface for this, not two",
     );
 
-    assert.ok(api.changesTree, "expected changesTree to be registered for a workspace with openspec/");
-    const roots = await api.changesTree.getChildren();
+    // A row of the Workspace view, since the-side-panel-is-the-workspace.
+    assert.ok(api.workspaceTree, "expected workspaceTree to be registered for a workspace with openspec/");
+    const roots = await api.workspaceTree.getChildren();
     const harnessSettingsRoot = roots.find((item) => item.contextValue === "openspec-ui.harnessSettingsRoot");
-    assert.ok(harnessSettingsRoot, `expected a Harness Settings root item, got: ${roots.map((r) => r.label).join(", ")}`);
+    assert.ok(harnessSettingsRoot, `expected a Workspace Harness row, got: ${roots.map((r) => r.label).join(", ")}`);
     assert.equal(harnessSettingsRoot.command?.command, "openspec-ui.configureWorkspaceHarness");
   });
 
