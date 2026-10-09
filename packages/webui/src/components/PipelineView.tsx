@@ -83,6 +83,7 @@ import {
 } from "@openspec-ui/core/browser";
 import { CardActions, ConfirmActionForm, cardActionRows, cardActionStates, type ChangeActionsHost } from "./CardActions.js";
 import { HintList } from "./HintList.js";
+import { ModalLayer } from "./ModalLayer.js";
 import { Icon } from "./Icon.js";
 import {
   TaskCardContext,
@@ -876,6 +877,12 @@ export function PipelineView({
           </label>
         </div>
       </div>
+      <WaitingBanner
+        cards={[...cards.values()]}
+        heldRuns={heldRuns}
+        {...(onAnswerQuestion !== undefined ? { onAnswer: setAnswerFor } : {})}
+        {...(sendRunControl !== undefined ? { onRunControl: sendRunControl } : {})}
+      />
       {refs ? <p className="openspec-shell-note" data-testid="pipeline-refs">{refs}</p> : null}
       {refreshError !== undefined
         ? <p className="openspec-shell-error" role="alert" data-testid="pipeline-refresh-error">{`Refresh failed: ${refreshError}`}</p>
@@ -1005,6 +1012,7 @@ export function PipelineView({
         ? <p className="openspec-shell-note" data-testid="pipeline-survey-error">The other working directories could not be read: {others.error}</p>
         : null}
       {answerTarget !== undefined && !nothingLeftToAnswer && onAnswerQuestion !== undefined ? (
+        <ModalLayer onCancel={() => setAnswerFor(undefined)}>
         <AnswerQuestionsForm
           target={answerTarget}
           onAnswer={(questionId, answer) => {
@@ -1019,8 +1027,10 @@ export function PipelineView({
           }}
           onClose={() => setAnswerFor(undefined)}
         />
+        </ModalLayer>
       ) : null}
       {confirmFor !== undefined && changeActions !== undefined ? (
+        <ModalLayer onCancel={() => setConfirmFor(undefined)}>
         <ConfirmActionForm
           action={confirmFor.action}
           changeName={confirmFor.changeName}
@@ -1030,8 +1040,10 @@ export function PipelineView({
           }}
           onCancel={() => setConfirmFor(undefined)}
         />
+        </ModalLayer>
       ) : null}
       {stopFor !== undefined && ("runId" in stopFor ? sendRunControl !== undefined : onAskToStop !== undefined) ? (
+        <ModalLayer onCancel={() => setStopFor(undefined)}>
         <StopReasonForm
           changeName={stopFor.changeName}
           onAsk={(reason) => {
@@ -1058,8 +1070,10 @@ export function PipelineView({
           }}
           onCancel={() => setStopFor(undefined)}
         />
+        </ModalLayer>
       ) : null}
       {chosen !== undefined ? (
+        <ModalLayer onCancel={() => setChosen(undefined)}>
         <TaskPanel
           selection={currentSelection(chosen)}
           {...(taskActions !== undefined ? { actions: taskActions } : {})}
@@ -1069,6 +1083,7 @@ export function PipelineView({
           // the task as it now reads.
           onChanged={() => void Promise.all([local.read(), others.read(), ended.read()])}
         />
+        </ModalLayer>
       ) : null}
     </div>
     </TaskCardContext.Provider>
@@ -1771,6 +1786,39 @@ function cardControls(card: ChangeCard, handlers: CardControlHandlers): ReactNod
   return buttons;
 }
 
+/** What a card's Answer opens: the change's open questions as its
+ * decisions.md has them, or, before the survey has read them, those its
+ * waiting run names (the-agent-asks-the-operator, ADR 0042). `undefined`
+ * where nothing is asked. */
+function answerTargetOf(card: ChangeCard): AnswerTarget | undefined {
+  const run = card.run;
+  const questions = card.openQuestions
+    ?? (run?.waiting?.kind === "question" ? run.waiting.questions : undefined);
+  if (questions === undefined || questions.length === 0) return undefined;
+  return {
+    changeName: card.changeName,
+    ...(run !== undefined && run.ownedHere && run.runId !== null ? { runId: run.runId } : {}),
+    workingDirectory: card.where.path || run?.workingDirectory || "",
+    questions,
+  };
+}
+
+/** The oldest permission request still open on a run this host holds, and
+ * how many are: an agent running tool calls side by side asks for several
+ * at once (live, 2026-10-08). A host that does not list them names the one
+ * it holds. */
+function permissionAskedOf(card: ChangeCard, heldRuns: Map<string, LiveRun>): { runId: string; requestId: string; description: string; count: number } | undefined {
+  const run = card.run;
+  const held = run !== undefined && run.ownedHere && run.runId !== null ? heldRuns.get(run.runId) : undefined;
+  if (run === undefined || held === undefined) return undefined;
+  const pendingHere = held.pendingPermissions ?? [];
+  const oldest = pendingHere[0]
+    ?? (run.waiting?.kind === "permission" && held.permissionRequestId !== null
+      ? { requestId: held.permissionRequestId, description: run.waiting.description }
+      : undefined);
+  return oldest === undefined ? undefined : { runId: held.runId, ...oldest, count: Math.max(1, pendingHere.length) };
+}
+
 function runControls(card: ChangeCard, handlers: CardControlHandlers): ReactNode[] {
   const name = card.changeName;
   const buttons: ReactNode[] = [];
@@ -1779,18 +1827,10 @@ function runControls(card: ChangeCard, handlers: CardControlHandlers): ReactNode
   // A run waiting on the operator's answer is answered from its card,
   // wherever it runs: the answer is written to its change's decisions.md
   // (the-agent-asks-the-operator, ADR 0042).
-  // The change's open questions as its decisions.md has them, or, before
-  // the survey has read them, those its waiting run names.
-  const questions = card.openQuestions
-    ?? (run?.waiting?.kind === "question" ? run.waiting.questions : undefined);
-  if (questions !== undefined && questions.length > 0 && handlers.onAnswer !== undefined) {
+  const target = answerTargetOf(card);
+  if (target !== undefined && handlers.onAnswer !== undefined) {
     const open = handlers.onAnswer;
-    const target: AnswerTarget = {
-      changeName: name,
-      ...(run !== undefined && run.ownedHere && run.runId !== null ? { runId: run.runId } : {}),
-      workingDirectory: card.where.path || run?.workingDirectory || "",
-      questions,
-    };
+    const questions = target.questions;
     buttons.push(
       <button key="answer" type="button" className={forward} data-testid={`pipeline-answer-${name}`} aria-label={`Answer ${name}: ${questions.map((question) => question.text).join("; ")}`} onClick={() => open(target)}><Icon meaning="run" />Answer...</button>,
     );
@@ -1880,6 +1920,52 @@ function runControls(card: ChangeCard, handlers: CardControlHandlers): ReactNode
   return buttons;
 }
 
+/** What waits for a person, said at the top of the Pipeline whatever the
+ * number of changes, so nothing that blocks a run is found by scrolling
+ * (ADR 0047). An agent's question is announced here and not opened by
+ * itself: it would take the keyboard from whatever the person was typing.
+ * Answer opens the same dialog the card's Answer does; a permission is
+ * allowed or denied here as on the card. */
+function WaitingBanner({ cards, heldRuns, onAnswer, onRunControl }: {
+  cards: readonly ChangeCard[];
+  heldRuns: Map<string, LiveRun>;
+  onAnswer?: (target: AnswerTarget) => void;
+  onRunControl?: (control: RunControl) => void;
+}) {
+  const rows: ReactNode[] = [];
+  for (const card of cards) {
+    const name = card.changeName;
+    const target = answerTargetOf(card);
+    if (target !== undefined && onAnswer !== undefined) {
+      const count = target.questions.length;
+      rows.push(
+        <li key={`${name} questions`} data-testid={`pipeline-waiting-${name}`}>
+          <span><strong>{name}</strong>{` asks ${count === 1 ? "a question" : `${count} questions`}`}</span>
+          <button type="button" className="openspec-pipeline-button openspec-pipeline-button--forward" data-testid={`pipeline-waiting-answer-${name}`} aria-label={`Answer the questions of ${name}`} onClick={() => onAnswer(target)}>Answer...</button>
+        </li>,
+      );
+    }
+    const asked = permissionAskedOf(card, heldRuns);
+    if (asked !== undefined && onRunControl !== undefined) {
+      const more = asked.count > 1 ? ` (1 of ${asked.count})` : "";
+      const send = (outcome: "allow" | "deny") => onRunControl({ changeName: name, runId: asked.runId, kind: "resolvePermission", permissionRequestId: asked.requestId, permissionOutcome: outcome });
+      rows.push(
+        <li key={`${name} permission`} data-testid={`pipeline-waiting-permission-${name}`}>
+          <span><strong>{name}</strong>{` asks permission${more}: ${asked.description}`}</span>
+          <button type="button" className="openspec-pipeline-button openspec-pipeline-button--forward" aria-label={`Allow, for ${name}: ${asked.description}`} onClick={() => send("allow")}>Allow</button>
+          <button type="button" className="openspec-pipeline-button openspec-pipeline-button--stop" aria-label={`Deny, for ${name}: ${asked.description}`} onClick={() => send("deny")}>Deny</button>
+        </li>,
+      );
+    }
+  }
+  if (rows.length === 0) return null;
+  return (
+    <section className="openspec-waiting-banner" role="status" aria-label="Waiting for you" data-testid="pipeline-waiting">
+      <h2>Waiting for you</h2>
+      <ul>{rows}</ul>
+    </section>
+  );
+}
 /** The questions a run waits on, each with its answer (ADR 0042). An answer
  * is sent as it is given; the form closes once every question has one. */
 function AnswerQuestionsForm({ target, onAnswer, onClose }: {
@@ -1892,6 +1978,7 @@ function AnswerQuestionsForm({ target, onAnswer, onClose }: {
   return (
     <form
       role="dialog"
+      aria-modal="true"
       aria-label={`Answer ${target.changeName}`}
       className="openspec-pipeline-stop-form"
       data-testid="pipeline-answer-form"
@@ -1904,6 +1991,7 @@ function AnswerQuestionsForm({ target, onAnswer, onClose }: {
         if (target.questions.every((question) => now.has(question.questionId))) onClose();
       }}
     >
+      <h3>{`Answer ${target.changeName}: ${target.questions.length === 1 ? "a question" : `${target.questions.length} questions`}`}</h3>
       {target.questions.map((question) => (
         <label key={question.questionId}>
           {`${question.questionId}: ${question.text}`}
@@ -1943,6 +2031,7 @@ function StopReasonForm({ changeName, onAsk, onCancel }: {
   return (
     <form
       role="dialog"
+      aria-modal="true"
       aria-label={`Ask ${changeName} to stop`}
       className="openspec-pipeline-stop-form"
       data-testid="pipeline-stop-form"

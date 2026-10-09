@@ -136,6 +136,7 @@ import {
 import type { CatalogTemplate, ChangeReadinessReport, CommandKind, Event, HarnessBudget, HarnessStepAgents, HarnessTemplate, HumanOnlyInboxState, RunPathId, WorkspaceRunStats } from "@openspec-ui/core/browser";
 import { CHANGE_ACTIONS, type ChangeActionAnswer } from "@openspec-ui/core/browser";
 import { ChangeActionDialog, type ChangeActionTarget, type PerformChangeAction } from "./components/ChangeActionDialog.js";
+import { ModalLayer } from "./components/ModalLayer.js";
 import type { ChangeActionsHost } from "./components/CardActions.js";
 import { toChangeState, toChangeSummary } from "./overview-mapping.js";
 
@@ -2830,7 +2831,13 @@ function StandaloneApp() {
                 changeActions={pipelineChangeActions}
               />
               {actionFor !== null ? (
-                <div className="openspec-pipeline-run-layer" data-testid="pipeline-action-layer">
+                <ModalLayer
+                  testId="pipeline-action-layer"
+                  onCancel={() => {
+                    setActionFor(null);
+                    void pipelineRefresh().catch(() => undefined);
+                  }}
+                >
                   <ChangeActionDialog
                     key={`${actionFor.action} ${actionFor.changeName}`}
                     target={actionFor}
@@ -2841,11 +2848,13 @@ function StandaloneApp() {
                       void pipelineRefresh().catch(() => undefined);
                     }}
                   />
-                </div>
+                </ModalLayer>
               ) : null}
-              {logsFor !== null
-                ? <RunLogsView changeName={logsFor} load={logsLoad} read={logsRead} onClose={() => setLogsFor(null)} />
-                : null}
+              {logsFor !== null ? (
+                <ModalLayer onCancel={() => setLogsFor(null)}>
+                  <RunLogsView changeName={logsFor} load={logsLoad} read={logsRead} onClose={() => setLogsFor(null)} />
+                </ModalLayer>
+              ) : null}
               {runOpenedFrom === "pipeline" && runHarnessMessage
                 ? <p className="openspec-shell-note" data-testid="pipeline-run-message">{runHarnessMessage}</p>
                 : null}
@@ -2853,7 +2862,8 @@ function StandaloneApp() {
                   was pressed: its dialog, and then the chain it started
                   (a-change-is-run-from-its-card). */}
               {(runDispatch && runOpenedFrom === "pipeline") || pipelineChain ? (
-                <div className="openspec-pipeline-run-layer" ref={pipelineRunLayer} data-testid="pipeline-run-layer">
+                <ModalLayer onCancel={closePipelineRun} testId="pipeline-run-layer">
+                <div ref={pipelineRunLayer}>
                   {runDispatch && runOpenedFrom === "pipeline" ? (
                     <RunDialog
                       changeName={runChangeName}
@@ -2874,6 +2884,7 @@ function StandaloneApp() {
                       className="openspec-shell-panel"
                       data-testid="pipeline-run-chain"
                       role="dialog"
+                      aria-modal="true"
                       aria-label={`Run ${runChangeName}`}
                       tabIndex={-1}
                     >
@@ -2883,6 +2894,7 @@ function StandaloneApp() {
                     </section>
                   ) : null}
                 </div>
+                </ModalLayer>
               ) : null}
             </>
           )

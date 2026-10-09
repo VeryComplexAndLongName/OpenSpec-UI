@@ -149,6 +149,7 @@ export function TaskPanel({ selection, actions, copyText, onClose, onChanged }: 
       ref={panel}
       className="openspec-run-logs openspec-task-panel"
       role="dialog"
+      aria-modal="true"
       aria-label={row !== undefined ? `Task ${row.number ?? ""} of ${changeName}` : `Tasks of ${changeName}`}
       data-testid="task-panel"
       tabIndex={-1}

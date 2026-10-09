@@ -174,6 +174,24 @@ describe("HarnessChainPanel", () => {
     expect(screen.getByTestId("start-chain-button")).not.toBeDisabled();
   });
 
+  // what-waits-for-a-person-is-a-dialog (ADR 0047): what the chain waits for
+  // stands first in its panel, not after its controls and its status.
+  it("puts what the chain waits for first in its panel, and nothing there while nothing waits", () => {
+    const { transport, emit } = createFakeTransport();
+    const { container } = render(<HarnessChainPanel transport={transport} cwd={cwd} changeDir={changeDir} generateRunId={() => "chain-1"} />);
+    fireEvent.click(screen.getByTestId("start-chain-button"));
+    emit({ kind: "started", runId: "chain-1", timestamp: "t1", command: "chain", cwd });
+    expect(screen.queryByTestId("run-waiting")).toBeNull();
+
+    emit({ kind: "permissionRequest", runId: "chain-1", timestamp: "t2", requestId: "req-run", description: "Running command" });
+    emit({ kind: "question", runId: "chain-1", timestamp: "t3", questionId: "Q-1", text: "CSV or vCard?" });
+
+    const panel = container.querySelector(".openspec-harness-chain-panel");
+    expect(panel?.firstElementChild).toBe(screen.getByTestId("run-waiting"));
+    expect(screen.getByTestId("run-waiting")).toContainElement(screen.getByTestId("permission-request"));
+    expect(screen.getByTestId("run-waiting")).toContainElement(screen.getByTestId("operator-questions"));
+  });
+
   // Live on 2026-10-08: requests the agent stopped waiting on stayed on
   // screen at the checkpoint, and each Allow seemed to add a row.
   it("drops a request the agent withdrew, and every request of a stage that has ended", () => {

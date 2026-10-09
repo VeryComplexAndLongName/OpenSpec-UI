@@ -235,6 +235,13 @@ export function PermissionRequestPrompt(props: {
   );
 }
 
+/** What a run waits for - its permission requests and its questions - at the
+ * top of the run's panel, where it stays in sight as the run's output grows
+ * (ADR 0047). Nothing at all where nothing waits. */
+export function WaitingForYou({ shown, children }: { shown: boolean; children: ReactNode }): JSX.Element | null {
+  return shown ? <div className="openspec-waiting-for-you" data-testid="run-waiting">{children}</div> : null;
+}
+
 /** The questions a run's agent asked that are not answered yet, in the order
  * asked (the-agent-asks-the-operator, ADR 0042). Exported for the chain
  * panel, which shows them the same way. */
@@ -1364,6 +1371,20 @@ export function AiPanel({
 
   return (
     <div className="openspec-ai-panel">
+      {/* What the run waits for, first and kept in sight however long the
+          run's output grows (ADR 0047). A request the run can no longer be
+          waiting on is not offered: once it has ended, nothing is there to
+          answer. */}
+      <WaitingForYou shown={(isRunning && pendingPermissionRequests.length > 0) || openQuestions.length > 0}>
+        {isRunning ? pendingPermissionRequests.map((request) => (
+          <PermissionRequestPrompt
+            key={request.requestId}
+            request={request}
+            onResolve={(outcome) => handleResolvePermission(request.requestId, outcome)}
+          />
+        )) : null}
+        <OperatorQuestionsPrompt questions={openQuestions} onAnswer={handleAnswerQuestion} />
+      </WaitingForYou>
       <div className="openspec-controls openspec-ai-panel-controls">
         <button className="button" type="button" data-testid="load-changes-button" onClick={handleLoadChanges} disabled={isRunning}>
           Reload changes
@@ -1457,16 +1478,6 @@ export function AiPanel({
           <div className="openspec-panel-body openspec-md-preview">{renderMarkdown(latestEvent.summary)}</div>
         </section>
       ) : null}
-      {/* A request the run can no longer be waiting on is not offered:
-          once it has ended, nothing is there to answer. */}
-      {isRunning ? pendingPermissionRequests.map((request) => (
-        <PermissionRequestPrompt
-          key={request.requestId}
-          request={request}
-          onResolve={(outcome) => handleResolvePermission(request.requestId, outcome)}
-        />
-      )) : null}
-      <OperatorQuestionsPrompt questions={openQuestions} onAnswer={handleAnswerQuestion} />
       {collapsedEvents.length > 0 ? (
         <section className="openspec-panel openspec-run-insights" data-testid="run-insights">
           <div className="openspec-panel-head">

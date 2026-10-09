@@ -138,6 +138,7 @@ export function RunDialog(
       data-testid="run-dialog"
       ref={container}
       role="dialog"
+      aria-modal="true"
       aria-label={`Run ${changeName}`}
       tabIndex={-1}
     >

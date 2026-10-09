@@ -114,6 +114,7 @@ export function ConfirmActionForm({ action, changeName, onConfirm, onCancel }: {
   return (
     <form
       role="dialog"
+      aria-modal="true"
       aria-label={`${verb} ${changeName}`}
       className="openspec-pipeline-stop-form"
       data-testid="pipeline-confirm-action"

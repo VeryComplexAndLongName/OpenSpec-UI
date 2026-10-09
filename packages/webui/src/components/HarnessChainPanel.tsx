@@ -21,6 +21,7 @@ import {
   isShownInEventLog,
   isTerminal,
   PermissionRequestPrompt,
+  WaitingForYou,
   eventLogClass, renderEventBody,
 } from "./AiPanel.js";
 import { FailureDiagnosisNote } from "./FailureDiagnosisNote.js";
@@ -138,6 +139,19 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
 
   return (
     <div className="openspec-harness-chain-panel">
+      {/* What the chain waits for, first and kept in sight (ADR 0047).
+          Every request still pending, each answered on its own: an agent
+          running tool calls side by side asks for each at once. */}
+      <WaitingForYou shown={(isRunning && pendingPermissionRequests.length > 0) || openQuestions.length > 0}>
+        {isRunning ? pendingPermissionRequests.map((request) => (
+          <PermissionRequestPrompt
+            key={request.requestId}
+            request={request}
+            onResolve={(outcome) => handleResolvePermission(request, outcome)}
+          />
+        )) : null}
+        <OperatorQuestionsPrompt questions={openQuestions} onAnswer={handleAnswerQuestion} />
+      </WaitingForYou>
       <div className="openspec-controls">
         {/* Named for what it does, not for how the harness is entered.
             It used to read "Run with Agentic Harness", which is also the
@@ -177,16 +191,6 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
           </div>
         </div>
       ) : null}
-      {/* Every request still pending, each answered on its own: an agent
-          running tool calls side by side asks for each at once. */}
-      {isRunning ? pendingPermissionRequests.map((request) => (
-        <PermissionRequestPrompt
-          key={request.requestId}
-          request={request}
-          onResolve={(outcome) => handleResolvePermission(request, outcome)}
-        />
-      )) : null}
-      <OperatorQuestionsPrompt questions={openQuestions} onAnswer={handleAnswerQuestion} />
       <UsageSummaryView events={collapsedEvents} budget={budget} timeout={timeout} />
       {/* Focusable and named: the log scrolls once a chain has said enough,
           and a region that scrolls has to be reachable by keyboard (axe
