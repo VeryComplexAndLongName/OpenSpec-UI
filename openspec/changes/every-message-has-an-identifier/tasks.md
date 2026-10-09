@@ -40,6 +40,9 @@ From ADR 0046, accepted by the owner on 2026-10-08.
 - [x] 3.2 The panels: `MessageCode`, a label linking to the entry, before a
   failure's words in the Run and chain panels' status; the event lines
   lead with the identifier. Tests in `HarnessChainPanel.test.tsx`.
+  The log's lines link it too: on 2026-10-09 the Pipeline's run, which
+  shows the log and not the status, showed the identifier as text. Test in
+  `AiPanel.test.tsx`.
 
 ## 4. Documents
 

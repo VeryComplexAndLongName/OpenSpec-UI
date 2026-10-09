@@ -997,6 +997,16 @@ export function renderEventBody(event: Event, index: number): ReactNode {
       return renderStructuredText(event.chunk, index);
     case "completed":
       return event.summary ? renderStructuredText(`completed: ${event.summary}`, index) : "completed";
+    // A message in the register is said by its identifier, a link to what
+    // it means (ADR 0046); the log is where the Pipeline's run shows it.
+    case "progress":
+      return event.code === undefined ? describeEvent(event) : <><MessageCode code={event.code} />{event.message}</>;
+    case "failed":
+      return event.code === undefined ? describeEvent(event) : <>failed: <MessageCode code={event.code} />{event.reason}</>;
+    case "cancelled":
+      return event.code === undefined || event.reason === undefined
+        ? describeEvent(event)
+        : <>cancelled: <MessageCode code={event.code} />{event.reason}</>;
     case "agentUpdate": {
       const text = extractAgentUpdateText(event.update);
       if (text === undefined) return describeEvent(event);

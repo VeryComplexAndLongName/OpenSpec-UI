@@ -150,7 +150,7 @@ describe("HarnessChainPanel", () => {
     emit({ kind: "failed", runId: "chain-1", timestamp: "t3", reason: "budget exceeded", code: "OSW-RUN-201" });
 
     expect(screen.getByTestId("chain-status-label").textContent).toBe("Failed: OSW-RUN-201: budget exceeded");
-    expect(screen.getByTestId("message-code").getAttribute("href")).toMatch(/docs\/messages\.md#osw-run-201$/u);
+    expect(screen.getByTestId("chain-status-label").querySelector("a[data-testid='message-code']")?.getAttribute("href")).toMatch(/docs\/messages\.md#osw-run-201$/u);
   });
 
   it("says a failure not yet in the register by its words alone", () => {
