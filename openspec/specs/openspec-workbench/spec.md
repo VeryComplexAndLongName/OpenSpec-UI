@@ -110,7 +110,7 @@ built-in `spec-driven` artifacts and SHALL say why.
 
 #### Scenario: User opens the Processes dashboard from Changes
 
-- **WHEN** the user invokes Open Process Dashboard from the Changes view title
+- **WHEN** the user invokes Open Dashboard from the Changes view title
 - **THEN** Workspace root contains the active VS Code workspace path
 - **AND** Change directory contains that workspace's `openspec/changes` path
 

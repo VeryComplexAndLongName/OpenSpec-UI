@@ -509,14 +509,14 @@ run this flow.
 
 #### Scenario: Initializing a workspace with no existing harness config suggests the flow
 
-- **WHEN** `openspec-ui.initialize` completes successfully and
+- **WHEN** `openspec-ui.initializeWorkspace` completes successfully and
   `openspec/agent-harness.json` does not already exist
 - **THEN** a dismissible suggestion to run "Set Up Agentic Harness"
   appears
 
 #### Scenario: Initializing an already-configured workspace does not re-suggest
 
-- **WHEN** `openspec-ui.initialize` completes successfully and
+- **WHEN** `openspec-ui.initializeWorkspace` completes successfully and
   `openspec/agent-harness.json` already exists
 - **THEN** no suggestion appears
 

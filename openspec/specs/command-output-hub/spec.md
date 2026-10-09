@@ -4,7 +4,9 @@
 Improve command usability in UI by replacing raw line-oriented output with
 structured rendering and by exposing high-value OpenSpec utility actions in the
 extension command menu.
+
 ## Requirements
+
 ### Requirement: AI panel renders structured command output
 The system SHALL render event payloads using structured UI blocks when output
 matches known shapes (JSON, checklist, key-value lines, bullet lists), and
@@ -66,7 +68,7 @@ The extension SHALL provide command palette actions for:
 - **AND** opens a readable Markdown summary document instead of raw CLI text
 
 #### Scenario: User runs openspec view from command palette
-- **WHEN** user executes `openspec-ui.openspecView`
+- **WHEN** user executes `openspec-ui.openCliView`
 - **THEN** extension starts interactive `openspec view` in integrated terminal
 - **AND** opens a parsed markdown overview of changes/specs as a visual companion
 
@@ -144,4 +146,3 @@ a reading per change would give.
 - **WHEN** archived-change summaries are built from a workspace reading whose
   root no longer exists but whose change directories do
 - **THEN** each change's counts come from its own `tasks.md`
-
