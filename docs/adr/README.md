@@ -53,5 +53,6 @@ Alternatives / Consequences.
 | [0044](0044-the-pipeline-is-where-changes-are-worked.md) | The Pipeline is where changes are worked, and the side panel becomes the Workspace | Accepted |
 | [0045](0045-every-action-is-a-verb-and-a-noun.md) | Every action is a verb and a noun | Accepted |
 | [0046](0046-every-message-has-an-identifier.md) | Every message has an identifier | Accepted |
+| [0047](0047-what-waits-for-a-person-is-a-dialog.md) | What waits for a person is a dialog | Accepted |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.
