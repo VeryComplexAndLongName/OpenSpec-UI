@@ -5,7 +5,7 @@
 // not library code reused in the extension.
 
 import { createRoot } from "react-dom/client";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { FetchTransport } from "./transport/fetch-transport.js";
 import { AiPanel, OperatorQuestionsPrompt } from "./components/AiPanel.js";
 import { describeRunCompletionNotification } from "./notify-run-completion.js";
@@ -56,6 +56,7 @@ import { AppBar } from "./components/AppBar.js";
 import { PageHead } from "./components/PageHead.js";
 import { PAGE_HEADS } from "./page-heads.js";
 import { VSCODE_LOCAL_SERVER_EMBED_SIGNAL, computeVisibleTabs, embedTheme, initialTab, readEmbedSignal } from "./host-embed.js";
+import { shownCardOf } from "./show-card.js";
 import { renderMarkdown } from "./markdown.js";
 import {
   ChangeEditorSaveConflictError,
@@ -274,6 +275,26 @@ const visibleTabIds = new Set(visibleTabs.map((tab) => tab.id));
 // keeps its own extension version visible via VS Code's Extensions view.
 const isStandaloneHost = readEmbedSignal(window.location.search) !== VSCODE_LOCAL_SERVER_EMBED_SIGNAL;
 
+// Framed by the editor, the Pipeline shows the card of a change chosen in
+// the editor's Workspace navigator (the-side-panel-is-the-workspace). The
+// request is listened for from the start, since the frame tells the editor
+// it has loaded before the page is drawn, and it is kept until the view is.
+let shownCard: { changeName: string; at: number } | undefined;
+const shownCardListeners = new Set<() => void>();
+if (!isStandaloneHost) {
+  window.addEventListener("message", (event) => {
+    if (window.parent === window || event.source !== window.parent) return;
+    const changeName = shownCardOf(event.data);
+    if (changeName === undefined) return;
+    shownCard = { changeName, at: Date.now() };
+    for (const listener of shownCardListeners) listener();
+  });
+}
+function subscribeShownCard(listener: () => void): () => void {
+  shownCardListeners.add(listener);
+  return () => shownCardListeners.delete(listener);
+}
+
 // Injected at build time by packages/server/scripts/client-build-options.mjs
 // (esbuild `define`) from packages/webui/package.json — the browser bundle
 // has no filesystem access to read its own package.json at runtime.
@@ -353,6 +374,7 @@ async function loadWorkspaceRoot(): Promise<string> {
 }
 
 function StandaloneApp() {
+  const pipelineFocus = useSyncExternalStore(subscribeShownCard, () => shownCard);
   // Framed by the editor, the editor's light or dark comes with the address.
   const { theme, toggle: toggleTheme } = useStandaloneTheme(undefined, embedTheme(window.location.search));
   const [activeTab, setActiveTab] = useState<string>(() => initialTab(window.location.search, visibleTabs));
@@ -2833,6 +2855,7 @@ function StandaloneApp() {
                 onReadingChange={setPipelineReading}
                 taskActions={pipelineTaskActions}
                 changeActions={pipelineChangeActions}
+                {...(pipelineFocus !== undefined ? { focus: pipelineFocus } : {})}
               />
               {actionFor !== null ? (
                 <ModalLayer

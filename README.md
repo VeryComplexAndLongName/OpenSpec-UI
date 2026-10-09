@@ -65,7 +65,15 @@ and streamed output.
 
 ### VS Code extension
 
-![The VS Code OpenSpec Workbench's seven views: Changes, Archive, Specs, Processes, Templates, Change Graph and the Human-Only Inbox](docs/images/extension/overview-expanded.png)
+![The VS Code OpenSpec Workbench's eight views: Workspace, the Human-Only Inbox, Changes, Specs, Archive, Templates, Processes and Change Graph](docs/images/extension/overview-expanded.png)
+
+The side panel is the **Workspace**: its first view holds what belongs to no
+one change - Open Pipeline and Open Dashboard, the workspace harness, the
+agents found on this machine with the stages each runs, OpenSpec's
+configuration, Repository Setup and the checks. The **Changes** view lists
+the changes and goes to them: choosing one shows its card in the Pipeline,
+where everything is done to it, and its one menu entry, **Show Actions...**,
+lists the same actions (ADR 0044).
 
 The **Change Graph** view nests each change under the ones it
 follows, marks anything waiting on a change that has not landed, folds

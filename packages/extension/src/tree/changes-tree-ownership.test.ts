@@ -158,7 +158,7 @@ describe("ChangesTreeProvider - whose each change is", () => {
     expect((free?.iconPath as { id: string }).id).not.toBe("repo-forked");
   });
 
-  it("says how many changes are worked in directories this checkout does not have", async () => {
+  it("gives each change worked only in another directory a row of its own, which shows its card", async () => {
     // Cut before `theirs` was proposed: no row above can carry it.
     const provider = providerOver([], ["mine", "nobodys"]);
 
@@ -168,10 +168,12 @@ describe("ChangesTreeProvider - whose each change is", () => {
       await drawn;
       return provider.getChildren();
     })();
-    const pointer = items.find((item) => String(item.label).includes("other working directories"));
+    const row = items.find((item) => item.id === "change-elsewhere:theirs");
 
-    expect(String(pointer?.label)).toBe("1 change is worked in other working directories, and not in this one");
-    expect(String(pointer?.description)).toContain("theirs (theirs)");
-    expect(pointer?.command?.command).toBe("openspec-ui.openPipeline");
+    // With a worktree for each change, most are here (ADR 0043, 0044).
+    expect(row?.label).toBe("theirs");
+    expect(row?.description).toBe("in theirs");
+    expect(row?.contextValue).toBe("openspec-ui.changeElsewhere");
+    expect(row?.command).toMatchObject({ command: "openspec-ui.openPipeline", arguments: ["theirs"] });
   });
 });

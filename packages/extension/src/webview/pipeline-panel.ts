@@ -106,6 +106,15 @@ export const ARCHIVE_CHANGES_MESSAGE_TYPE = "openspec-ui/archive-changes";
  * (ADR 0044, a-change-is-acted-on-from-its-card). */
 export const CHANGE_ACTION_MESSAGE_TYPE = "openspec-ui/change-action";
 
+/** Host to webview: show this change's card - a change chosen in the
+ * Workspace's navigator (the-side-panel-is-the-workspace). */
+export const SHOW_CARD_MESSAGE_TYPE = "openspec-ui/show-card";
+
+/** Webview to host: the page runs and can show a card. A page loads anew
+ * each time the panel is shown, so a card asked for meanwhile waits for
+ * this. */
+export const PIPELINE_READY_MESSAGE_TYPE = "openspec-ui/pipeline-ready";
+
 /** Host to webview: what became of a request to stop. */
 export const ASK_TO_STOP_RESULT_MESSAGE_TYPE = "openspec-ui/ask-to-stop-result";
 
@@ -309,16 +318,27 @@ export class PipelinePanel {
    * is. */
   private embedOrigin: string | undefined;
   private readonly testMessageListeners = new Set<(message: unknown) => void>();
+  /** The change whose card is to be shown, until a page can show it: a
+   * panel being created, or loaded again after it was hidden, says when
+   * its page runs (the-side-panel-is-the-workspace). */
+  private pendingFocus: string | undefined;
 
   constructor(private readonly deps: PipelinePanelDeps) {
     this.readers = { ...DEFAULT_READERS, ...deps.readers };
     this.now = deps.now ?? (() => Date.now());
   }
 
-  /** One panel per window, revealed when it is already open. */
-  show(): void {
+  /** One panel per window, revealed when it is already open. With a
+   * change, its card is shown: scrolled to and marked
+   * (the-side-panel-is-the-workspace). */
+  show(changeName?: string): void {
+    this.pendingFocus = changeName !== undefined && isValidChangeName(changeName) ? changeName : undefined;
     if (this.panel) {
+      // A panel not in sight has no page: shown, it loads one, which says
+      // when it runs. One in sight is told now.
+      const running = this.panel.visible;
       this.panel.reveal();
+      if (running) this.showPendingCard(this.panel);
       return;
     }
     // Not retained while hidden: everything it shows can be read again,
@@ -398,6 +418,18 @@ export class PipelinePanel {
     }, () => undefined);
   }
 
+  /** Tells the page to show the change's card, once. */
+  private showPendingCard(panel: vscode.WebviewPanel): void {
+    const changeName = this.pendingFocus;
+    this.pendingFocus = undefined;
+    if (changeName !== undefined) this.post(panel, { type: SHOW_CARD_MESSAGE_TYPE, changeName });
+  }
+
+  private post(panel: vscode.WebviewPanel, message: unknown): void {
+    for (const listener of this.testMessageListeners) listener(message);
+    void panel.webview.postMessage(message);
+  }
+
   private stopWatching(): void {
     this.watchGeneration += 1;
     for (const watcher of this.watchers) watcher.dispose();
@@ -427,6 +459,10 @@ export class PipelinePanel {
   }
 
   private async handleMessage(panel: vscode.WebviewPanel, message: unknown): Promise<void> {
+    if (typeof message === "object" && message !== null && (message as { type?: unknown }).type === PIPELINE_READY_MESSAGE_TYPE) {
+      this.showPendingCard(panel);
+      return;
+    }
     if (typeof message === "object" && message !== null && (message as { type?: unknown }).type === OPEN_CHANGE_MESSAGE_TYPE) {
       const { changeName, origin, target, line } = message as { changeName?: unknown; origin?: unknown; target?: unknown; line?: unknown };
       // In embed mode, only a message carrying this embed's own origin is
@@ -890,8 +926,18 @@ export class PipelinePanel {
     <iframe src="${iframeSrc}"></iframe>
     <script nonce="${nonce}">
       const vscodeApi = acquireVsCodeApi();
+      const frame = document.querySelector("iframe");
+      // The page runs: a card asked for while it loaded can be shown.
+      frame.addEventListener("load", () => vscodeApi.postMessage({ type: ${JSON.stringify(PIPELINE_READY_MESSAGE_TYPE)} }));
       window.addEventListener("message", (event) => {
-        if (event.origin !== ${JSON.stringify(serverOrigin)}) return;
+        // The host's own message to show a card goes on to the page, and
+        // to its origin alone (the-side-panel-is-the-workspace).
+        if (event.origin !== ${JSON.stringify(serverOrigin)}) {
+          if (event.data && event.data.type === ${JSON.stringify(SHOW_CARD_MESSAGE_TYPE)} && typeof event.data.changeName === "string" && frame && frame.contentWindow) {
+            frame.contentWindow.postMessage({ type: event.data.type, changeName: event.data.changeName }, ${JSON.stringify(serverOrigin)});
+          }
+          return;
+        }
         if (!event.data || (event.data.type !== ${JSON.stringify(OPEN_CHANGE_MESSAGE_TYPE)} && event.data.type !== ${JSON.stringify(CHANGE_ACTION_MESSAGE_TYPE)})) return;
         vscodeApi.postMessage({ ...event.data, origin: event.origin });
       });

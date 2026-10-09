@@ -65,13 +65,12 @@ describe("which rows may take a relation back (relations-and-leftovers-explain-t
   // a-change-is-acted-on-from-its-card: a change's own row offers it in its
   // Set Up submenu, and a row worked in another directory too, whose
   // relations are read there.
-  it("offers Remove Relation only on a row that states one, or whose relations are read elsewhere", () => {
-    const remove = [...contextMenu(), ...(manifestMenus()["openspec-ui.changeSetUp"] ?? [])]
-      .filter((entry) => entry.command === "openspec-ui.removeRelation");
+  it("offers Remove Relation only on a row that states one", () => {
+    // A change's own row offers Show Actions... alone, which lists it
+    // where it applies (the-side-panel-is-the-workspace).
+    const remove = contextMenu().filter((entry) => entry.command === "openspec-ui.removeRelation");
 
     expect(remove.flatMap((entry) => namedRows(entry.when)).sort()).toEqual([
-      "openspec-ui.activeChange.elsewhere",
-      "openspec-ui.activeChange.related",
       "openspec-ui.graphActiveChange.related",
       "openspec-ui.unwrittenChange.related",
     ]);

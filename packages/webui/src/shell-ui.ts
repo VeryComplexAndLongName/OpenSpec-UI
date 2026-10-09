@@ -3736,6 +3736,9 @@ export const shellThemeCss = `
 
   /* A card waiting on somebody is edged in the badge's amber too. */
   .openspec-pipeline-node[data-state="waiting"] { border-color: var(--amber); }
+  /* A card the editor's navigator asked to show, for a moment
+     (the-side-panel-is-the-workspace). */
+  .openspec-pipeline-node[data-focused="true"] { outline: 3px solid var(--primary); outline-offset: 2px; }
 
   /* The card's heading row: its name, which opens the change, and where it
      has tasks, the control that shows them. */

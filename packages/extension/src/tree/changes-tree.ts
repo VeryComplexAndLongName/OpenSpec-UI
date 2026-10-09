@@ -6,7 +6,6 @@ import {
   readChangeReadiness,
   changeOwnerships,
   changesOnlyElsewhere,
-  describeChangesOnlyElsewhere,
   describeOwnership,
   isOursToWrite,
   ownChangeOf,
@@ -26,7 +25,6 @@ import {
   type WorkbenchArtifact,
   type WorktreeSurvey,
 } from "@openspec-ui/core";
-import { readRepoSetupFacts } from "../repo-setup-facts.js";
 import { statingRelation } from "../relations-context.js";
 import { changeUri, standingThemeColour, type ChangeStandingDecorations } from "./change-standing-decorations.js";
 
@@ -73,6 +71,10 @@ export class ChangeTreeItem extends vscode.TreeItem {
     const stands = standing ? `${state} — ${standing.word}` : state;
     this.description = whose === undefined ? stands : `${stands} - ${whose}`;
     if (!archived) this.resourceUri = changeUri(changeName);
+    // The list is a navigator: a change is worked on its card, so choosing
+    // one shows its card in the Pipeline (ADR 0044,
+    // the-side-panel-is-the-workspace). Its files are beneath it.
+    if (!archived) this.command = { command: "openspec-ui.openPipeline", title: "Show Card", arguments: [changeName] };
     const lines = standing
       ? [standing.word, ...standing.lines.map((line) => `${line.text} (${line.source})`)]
       : [];
@@ -284,12 +286,12 @@ export function getRepoBootstrapActions(facts: RepoSetupFacts = {}): RepoBootstr
  * openspec/changes/agentic-harness/. */
 export class HarnessSettingsRootTreeItem extends vscode.TreeItem {
   constructor() {
-    super("Harness Settings", vscode.TreeItemCollapsibleState.None);
+    super("Workspace Harness", vscode.TreeItemCollapsibleState.None);
     this.id = "harness-settings-root";
     this.description = "openspec/agent-harness.json";
     this.contextValue = "openspec-ui.harnessSettingsRoot";
-    this.iconPath = new vscode.ThemeIcon("robot");
-    this.command = { command: "openspec-ui.configureWorkspaceHarness", title: "Harness Settings" };
+    this.iconPath = new vscode.ThemeIcon("settings-gear");
+    this.command = { command: "openspec-ui.configureWorkspaceHarness", title: "Configure Workspace Harness" };
   }
 }
 
@@ -367,7 +369,23 @@ export class LeftoverTreeItem extends vscode.TreeItem {
   }
 }
 
+/** A change worked only in another working directory: this checkout was
+ * cut before it was proposed. Choosing it shows its card, which says where
+ * it is and offers what can be done to it (ADR 0044). */
+export class ChangeElsewhereTreeItem extends vscode.TreeItem {
+  constructor(public readonly changeName: string, where: string, public readonly directory: string) {
+    super(changeName, vscode.TreeItemCollapsibleState.None);
+    this.id = `change-elsewhere:${changeName}`;
+    this.description = `in ${where}`;
+    this.tooltip = `Worked in ${directory}`;
+    this.contextValue = "openspec-ui.changeElsewhere";
+    this.iconPath = new vscode.ThemeIcon("repo-forked", new vscode.ThemeColor("disabledForeground"));
+    this.command = { command: "openspec-ui.openPipeline", title: "Show Card", arguments: [changeName] };
+  }
+}
+
 export type WorkbenchTreeItem =
+  | ChangeElsewhereTreeItem
   | ChangeTreeItem
   | ArtifactTreeItem
   | TasksArtifactTreeItem
@@ -714,14 +732,6 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
     if (element instanceof TasksArtifactTreeItem) {
       return getTasksArtifactChildren(this.workspaceRoot, element);
     }
-    if (element instanceof RepoBootstrapRootTreeItem) {
-      // Detection happens here and nowhere else: this branch is reached
-      // only when the section is expanded, and the facts are cached for
-      // the session so a tree refresh — which happens on every
-      // workspace change — spawns nothing.
-      return getRepoBootstrapActions(await readRepoSetupFacts(this.workspaceRoot));
-    }
-
     if (element) return [];
     if (this.stale) {
       this.stale = false;
@@ -733,17 +743,10 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
     // archive on every file event was most of each redraw's cost
     // (the-pipeline-reads-each-workspace-once).
     const workspace = await discoverOpenSpecWorkspace(this.workspaceRoot, { changes: "active" });
+    // What is about the workspace rather than a change - its configuration,
+    // setup and harness - is in the Workspace view
+    // (the-side-panel-is-the-workspace).
     const items: WorkbenchTreeItem[] = [];
-    items.push(
-      new ArtifactTreeItem(
-        "OpenSpec Configuration",
-        workspace.configPath,
-        workspace.configExists,
-        "openspec-ui.config",
-      ),
-    );
-    items.push(new RepoBootstrapRootTreeItem());
-    items.push(new HarnessSettingsRootTreeItem());
     if (this.leftovers.cleared.length > 0) items.push(new LeftoversClearedTreeItem(this.leftovers.cleared));
     for (const kept of this.leftovers.kept) {
       items.push(this.markStatingRelation(new LeftoverTreeItem(kept.name, kept.path, kept.files, kept.archived), kept.name));
@@ -767,16 +770,13 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
     }
     // Changes that exist only in another working directory: this checkout
     // was cut before they were proposed, so no row above can carry them.
-    const onlyElsewhere = changesOnlyElsewhere(survey, new Set(workspace.changes.map((change) => change.name)));
-    const line = describeChangesOnlyElsewhere(onlyElsewhere);
-    if (line !== undefined) {
-      items.push(new EmptyTreeItem(
-        line,
-        onlyElsewhere.map((found) => `${found.changeName} (${found.label})`).join(", "),
-        { command: "openspec-ui.openPipeline", title: "Open the Pipeline" },
-      ));
+    // Each is a row of its own, which shows its card: with a worktree for
+    // each change, most changes are here (ADR 0043, 0044).
+    const elsewhere = changesOnlyElsewhere(survey, new Set(workspace.changes.map((change) => change.name)));
+    for (const found of elsewhere) {
+      items.push(new ChangeElsewhereTreeItem(found.changeName, found.label, found.path));
     }
-    if (workspace.changes.length === 0) {
+    if (workspace.changes.length === 0 && elsewhere.length === 0) {
       items.push(workspace.initialized
         ? new EmptyTreeItem("No active changes in this checkout", "Create an OpenSpec change to begin")
         : new EmptyTreeItem(
