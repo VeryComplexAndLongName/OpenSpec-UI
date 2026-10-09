@@ -2247,6 +2247,10 @@ function StandaloneApp() {
                           <button className="button"
                             type="button"
                             data-testid={`run-delegated-${key}`}
+                            // The pair is the label; which agent runs it is
+                            // in the name and on hover (ADR 0045).
+                            aria-label={item.waitingOn.kind === "agent" ? `Run Item on ${item.waitingOn.agent}` : undefined}
+                            title={item.waitingOn.kind === "agent" ? `Run on ${item.waitingOn.agent}` : undefined}
                             disabled={runningDelegated !== null}
                             onClick={() => void runDelegatedItem(item)}
                           >
