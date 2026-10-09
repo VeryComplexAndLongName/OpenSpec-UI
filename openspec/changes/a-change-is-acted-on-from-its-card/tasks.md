@@ -69,10 +69,14 @@ where the change is worked, chosen on 2026-10-09.
   and the merge gate with the worktree's absolute path as `--cwd`.
   2026-10-09: valid under `--strict`; the gate named only 6.3 and 6.4 as
   open.
-- [ ] 6.3 **Human-only**: in VS Code, on the Pipeline, a change's card shows
+- [x] 6.3 **Human-only**: in VS Code, on the Pipeline, a change's card shows
   its actions as grouped, coloured icons; a dimmed one says why; Delete
   Change asks first; Configure Change Harness on a change worked in its own
   worktree opens that worktree's settings; the Changes tree's menu starts
   with Show Actions... and has Inspect and Set Up submenus.
-- [ ] 6.4 **Human-only**: in the standalone app, a card's Show Ancestry and
+  2026-10-09, the owner, on the extension 0.98.0 built from this branch:
+  confirmed, all as described.
+- [x] 6.4 **Human-only**: in the standalone app, a card's Show Ancestry and
   Add Relation work over the Pipeline.
+  2026-10-09, the owner, on the standalone server built from this branch
+  over the demo repository: confirmed, all as described.
