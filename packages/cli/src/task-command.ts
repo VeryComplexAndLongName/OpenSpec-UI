@@ -7,7 +7,7 @@
 // (`findOwnTask`, `setTaskDone`, `commitTaskList`), under the same rules a
 // card's controls are.
 
-import { commitTaskList, findOwnTask, setTaskDone } from "@openspec-ui/core";
+import { commitTaskList, findOwnTask, setTaskDone, formatMessage, say } from "@openspec-ui/core";
 import { publicNameOf } from "./subcommands.js";
 
 export type TaskAction = "done" | "reopen" | "commit";
@@ -37,15 +37,15 @@ export interface TaskDeps {
 export async function taskCommand(options: TaskOptions, deps: TaskDeps): Promise<number> {
   const { action, changeName } = options;
   if (action !== "done" && action !== "reopen" && action !== "commit") {
-    deps.stderr("openspec-ui-cli: complete task, reopen task or commit tasks");
+    deps.stderr(formatMessage(say("OSW-CLI-014")));
     return 2;
   }
   if (!changeName) {
-    deps.stderr(`openspec-ui-cli: ${publicNameOf("task", action)} needs a change name`);
+    deps.stderr(formatMessage(say("OSW-CLI-005", { subcommand: publicNameOf("task", action) })));
     return 2;
   }
 
-  const say = (result: { ok: boolean } & Record<string, unknown>, words: string): number => {
+  const report = (result: { ok: boolean } & Record<string, unknown>, words: string): number => {
     if (options.format === "json") deps.stdout(JSON.stringify(result, null, 2));
     else if (result.ok) deps.stdout(words);
     else deps.stderr(`openspec-ui-cli: ${String(result.reason)}`);
@@ -55,15 +55,15 @@ export async function taskCommand(options: TaskOptions, deps: TaskDeps): Promise
   try {
     if (action === "commit") {
       const result = await (deps.commit ?? commitTaskList)({ repositoryRoot: options.repositoryRoot, changeName });
-      return say(result as never, result.ok ? `Committed ${result.commit.slice(0, 8)} (${result.message}) and pushed to ${result.pushedTo}.` : "");
+      return report(result as never, result.ok ? `Committed ${result.commit.slice(0, 8)} (${result.message}) and pushed to ${result.pushedTo}.` : "");
     }
 
     if (!options.number) {
-      deps.stderr(`openspec-ui-cli: ${publicNameOf("task", action)} needs the task's number, as tasks.md numbers it (for example 6.4)`);
+      deps.stderr(formatMessage(say("OSW-CLI-013", { subcommand: publicNameOf("task", action) })));
       return 2;
     }
     const found = await (deps.find ?? findOwnTask)({ repositoryRoot: options.repositoryRoot, changeName, number: options.number });
-    if (!found.ok) return say(found as never, "");
+    if (!found.ok) return report(found as never, "");
     const result = await (deps.set ?? setTaskDone)({
       repositoryRoot: options.repositoryRoot,
       changeName,
@@ -72,7 +72,7 @@ export async function taskCommand(options: TaskOptions, deps: TaskDeps): Promise
       done: action === "done",
       ...(options.note !== undefined ? { note: options.note } : {}),
     });
-    return say(
+    return report(
       result as never,
       result.ok
         ? [result.line.trim(), ...(result.noteLine !== undefined ? [result.noteLine] : []), "Not committed: 'openspec-ui-cli commit tasks' sends it."].join("\n")

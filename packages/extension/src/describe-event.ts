@@ -1,4 +1,4 @@
-import { describeAcpUpdate, readAcpStreamedText, type Event } from "@openspec-ui/core";
+import { describeAcpUpdate, readAcpStreamedText, withMessageCode, type Event } from "@openspec-ui/core";
 
 /** One output-channel line for an event, or `undefined` for an event with
  * nothing a person can read in it. */
@@ -11,13 +11,13 @@ export function describeEvent(event: Event): string | undefined {
     case "stderr":
       return event.chunk;
     case "progress":
-      return `[progress] ${event.message}`;
+      return `[progress] ${withMessageCode(event.message, event.code)}`;
     case "completed":
       return event.summary ? `[completed] ${event.summary}` : "[completed]";
     case "failed":
-      return `[failed] ${event.reason}`;
+      return `[failed] ${withMessageCode(event.reason, event.code)}`;
     case "cancelled":
-      return "[cancelled]";
+      return event.reason ? `[cancelled] ${withMessageCode(event.reason, event.code)}` : "[cancelled]";
     case "cancelling":
       return event.attempted === "nothing-to-cancel"
         ? "[cancelling] nothing was running"

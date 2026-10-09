@@ -15,6 +15,8 @@ import {
   defaultWorktreePath,
   openQuestions,
   type WorktreeRootSources,
+  formatMessage,
+  say,
 } from "@openspec-ui/core";
 
 export interface AnswerOptions {
@@ -54,7 +56,7 @@ async function changeDirectoryOf(repositoryRoot: string, changeName: string, roo
 export async function answerCommand(options: AnswerOptions, deps: AnswerDeps): Promise<number> {
   const root = path.resolve(options.repositoryRoot);
   if (options.changeName === undefined) {
-    deps.stderr("openspec-ui-cli: show questions and answer question require a change name");
+    deps.stderr(formatMessage(say("OSW-CLI-005", { subcommand: "show questions or answer question" })));
     return 2;
   }
   const changeDir = await changeDirectoryOf(root, options.changeName, deps.rootSources);
@@ -84,7 +86,7 @@ export async function answerCommand(options: AnswerOptions, deps: AnswerDeps): P
 
   const answer = options.answer?.trim();
   if (answer === undefined || answer.length === 0) {
-    deps.stderr(`openspec-ui-cli: answer question ${options.changeName} ${options.questionId} needs the answer, in quotes`);
+    deps.stderr(formatMessage(say("OSW-CLI-016", { change: options.changeName, question: options.questionId })));
     return 2;
   }
   let by = "the operator";
@@ -98,8 +100,8 @@ export async function answerCommand(options: AnswerOptions, deps: AnswerDeps): P
     deps.stdout(`Answered ${options.questionId} in ${path.join(changeDir, "decisions.md")}; a run waiting on it goes on.`);
     return 0;
   }
-  deps.stderr(outcome === "already-answered"
-    ? `openspec-ui-cli: ${options.questionId} was already answered; the first answer stands`
-    : `openspec-ui-cli: ${options.questionId} is not a question of ${options.changeName}`);
+  deps.stderr(formatMessage(outcome === "already-answered"
+    ? say("OSW-QST-002", { question: options.questionId })
+    : say("OSW-QST-003", { question: options.questionId, change: options.changeName })));
   return 1;
 }

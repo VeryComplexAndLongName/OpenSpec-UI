@@ -10,6 +10,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Command, CheckpointEvent, Event, HarnessBudget, HarnessTimeout } from "@openspec-ui/core/browser";
+import { MessageCode } from "./MessageCode.js";
 import type { Transport } from "../transport/types.js";
 import {
   collapseStreamEvents,
@@ -128,7 +129,7 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
       : isRunning
       ? "Running..."
       : latestEvent?.kind === "failed"
-        ? `Failed: ${latestEvent.reason}`
+        ? <>Failed: <MessageCode code={latestEvent.code} />{latestEvent.reason}</>
         : latestEvent?.kind === "completed"
           ? `Completed${latestEvent.summary ? `: ${latestEvent.summary}` : ""}`
           : latestEvent?.kind === "cancelled"

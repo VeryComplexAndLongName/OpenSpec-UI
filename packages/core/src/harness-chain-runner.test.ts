@@ -1167,6 +1167,8 @@ describe("HarnessChainRunner — an implementing run that ticked nothing (a-done
     const last = events.at(-1) as Extract<Event, { kind: "failed" }>;
     expect(last.kind).toBe("failed");
     expect(last.reason).toContain(`"apply" changed no file and ticked no task, and 2 task(s) it could do are still open`);
+    // Said by its identifier, so a host acts on it without reading it (ADR 0046).
+    expect(last.code).toBe("OSW-RUN-104");
     expect(last.reason).toContain(`"2.1 not done", "2.2 not done"`);
     expect(events.some((event) => event.kind === "stageStarted" && event.stage === "verify")).toBe(false);
   });

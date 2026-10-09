@@ -16,6 +16,8 @@ import {
   releaseWorkspaceLease,
   type LeaseReleaseOutcome,
   type WorkspaceLeaseConflict,
+  formatMessage,
+  say,
 } from "@openspec-ui/core";
 
 export interface LeaseOptions {
@@ -36,7 +38,7 @@ export interface LeaseDeps {
 export async function leaseCommand(options: LeaseOptions, deps: LeaseDeps): Promise<number> {
   if (options.action === "release") return await releaseLease(options, deps);
   if (options.action !== undefined) {
-    deps.stderr(`openspec-ui-cli: unknown lease action '${options.action}' (supported: release)`);
+    deps.stderr(formatMessage(say("OSW-CLI-015", { action: String(options.action) })));
     return 2;
   }
   return await describeHolder(options, deps);

@@ -29,6 +29,7 @@ import { LineCollector, readOperatorQuestion } from "./operator-question.js";
 import type { AgentRunner } from "./agent-runner.js";
 import type { Command, CommandKind, CompletedEvent, Event } from "./protocol.js";
 import type { AuditLog } from "./security.js";
+import { say } from "./message-register.js";
 
 /** The agent stages: the commands that ask, and that a question stops. */
 const ASKING_KINDS: ReadonlySet<CommandKind> = new Set<CommandKind>(["plan", "implement", "review", "update", "verify"]);
@@ -322,17 +323,14 @@ export function withOperatorQuestions(runner: AgentRunner, options: OperatorQues
 
       const waiter: Waiter = { cancelled: false };
       waiters.set(command.runId, waiter);
-      yield {
-        kind: "progress",
-        runId: command.runId,
-        timestamp: at(),
-        message: `waiting for the operator's answer to ${stillOpen.length} question${stillOpen.length === 1 ? "" : "s"}`,
-      };
+      const waiting = say("OSW-QST-101", { questions: `${stillOpen.length} question${stillOpen.length === 1 ? "" : "s"}` });
+      yield { kind: "progress", runId: command.runId, timestamp: at(), message: waiting.text, code: waiting.code };
       yield { kind: "awaitingAnswers", runId: command.runId, timestamp: at(), questions: stillOpen };
       const ids = stillOpen.map((question) => question.questionId);
       const waited = yield* waitForAnswers(command, ids, waiter, announced);
       if (waited === "cancelled") {
-        yield { kind: "cancelled", runId: command.runId, timestamp: at(), reason: "cancelled while waiting for the operator's answer; the questions stay open in decisions.md" };
+        const unanswered = say("OSW-QST-201");
+        yield { kind: "cancelled", runId: command.runId, timestamp: at(), reason: unanswered.text, code: unanswered.code };
         return;
       }
       const recorded = await readQuestions(changeDir).catch(() => []);
@@ -351,7 +349,8 @@ export function withOperatorQuestions(runner: AgentRunner, options: OperatorQues
           ...(question.answeredBy !== undefined ? { by: question.answeredBy } : {}),
         };
       }
-      yield { kind: "progress", runId: command.runId, timestamp: at(), message: `answered; going on as ${goOnWith(command.kind)}` };
+      const goingOn = say("OSW-QST-102", { kind: goOnWith(command.kind) });
+      yield { kind: "progress", runId: command.runId, timestamp: at(), message: goingOn.text, code: goingOn.code };
       pass = { ...command, kind: goOnWith(command.kind), context: { ...command.context, answers: [...answers] } };
       first = false;
     }
@@ -384,14 +383,14 @@ export function withOperatorQuestions(runner: AgentRunner, options: OperatorQues
       if (blocking.length > 0) {
         const [question] = blocking;
         const change = changeNameOf(command.context.changeDir);
-        yield {
-          kind: "failed",
-          runId: command.runId,
-          timestamp: at(),
-          reason: `${change} has ${blocking.length === 1 ? "an open question" : `${blocking.length} open questions`} for the operator: `
-            + `${question!.id} "${question!.text}". Answer ${blocking.length === 1 ? "it" : "them"} first - on the change's card, `
-            + `with \`openspec-ui-cli answer question ${change} ${question!.id} "<answer>"\`, or in its decisions.md.`,
-        };
+        const unanswered = say("OSW-QST-001", {
+          change,
+          open: blocking.length === 1 ? "an open question" : `${blocking.length} open questions`,
+          question: question!.id,
+          text: question!.text,
+          them: blocking.length === 1 ? "it" : "them",
+        });
+        yield { kind: "failed", runId: command.runId, timestamp: at(), reason: unanswered.text, code: unanswered.code };
         return;
       }
       yield* runAsking(command);

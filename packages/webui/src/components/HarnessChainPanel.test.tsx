@@ -141,6 +141,28 @@ describe("HarnessChainPanel", () => {
     expect(screen.queryByTestId("cancel-chain-button")).toBeNull();
   });
 
+  // every-message-has-an-identifier (ADR 0046): the identifier before the
+  // words, as a label that links to its entry in docs/messages.md.
+  it("says a failure by its identifier, linked to what it means", () => {
+    const { transport, emit } = createFakeTransport();
+    render(<HarnessChainPanel transport={transport} cwd={cwd} changeDir={changeDir} generateRunId={() => "chain-1"} />);
+    fireEvent.click(screen.getByTestId("start-chain-button"));
+    emit({ kind: "failed", runId: "chain-1", timestamp: "t3", reason: "budget exceeded", code: "OSW-RUN-201" });
+
+    expect(screen.getByTestId("chain-status-label").textContent).toBe("Failed: OSW-RUN-201: budget exceeded");
+    expect(screen.getByTestId("message-code").getAttribute("href")).toMatch(/docs\/messages\.md#osw-run-201$/u);
+  });
+
+  it("says a failure not yet in the register by its words alone", () => {
+    const { transport, emit } = createFakeTransport();
+    render(<HarnessChainPanel transport={transport} cwd={cwd} changeDir={changeDir} generateRunId={() => "chain-1"} />);
+    fireEvent.click(screen.getByTestId("start-chain-button"));
+    emit({ kind: "failed", runId: "chain-1", timestamp: "t3", reason: "git stage failed" });
+
+    expect(screen.getByTestId("chain-status-label").textContent).toBe("Failed: git stage failed");
+    expect(screen.queryByTestId("message-code")).toBeNull();
+  });
+
   it("shows a completed summary and re-enables starting a new chain", () => {
     const { transport, emit } = createFakeTransport();
     render(<HarnessChainPanel transport={transport} cwd={cwd} changeDir={changeDir} generateRunId={() => "chain-1"} />);

@@ -14,6 +14,7 @@ import {
   type AcpTextChunkKind,
   type Event,
   type FailureDiagnosis,
+  withMessageCode,
 } from "@openspec-ui/core";
 
 /** What is known about why a run failed, beneath the failure
@@ -87,7 +88,7 @@ export class RunTextRenderer {
         return this.line(event.chunk.replace(/\r?\n$/, ""));
       case "progress":
         this.lastProgress = event.message;
-        return this.line(`· ${event.message}`);
+        return this.line(`· ${withMessageCode(event.message, event.code)}`);
       case "usageReported": {
         const parts: string[] = [];
         if (event.usage.costUsd !== undefined) parts.push(`$${event.usage.costUsd.toFixed(2)}`);
@@ -121,9 +122,9 @@ export class RunTextRenderer {
       case "completed":
         return this.line(`\n✓ ${event.summary ?? "completed"}`);
       case "failed":
-        return this.line([`\n✗ ${event.reason}`, ...diagnosisLines(event.diagnosis)].join("\n"));
+        return this.line([`\n✗ ${withMessageCode(event.reason, event.code)}`, ...diagnosisLines(event.diagnosis)].join("\n"));
       case "cancelled":
-        return this.line(`\n■ cancelled${event.reason ? `: ${event.reason}` : ""}`);
+        return this.line(`\n■ cancelled${event.reason ? `: ${withMessageCode(event.reason, event.code)}` : ""}`);
       // `started` announces a stage the chain already announced through
       // `stageStarted`, and `checkpoint`/`permissionRequest` are answered
       // rather than printed — the caller asks the question itself,

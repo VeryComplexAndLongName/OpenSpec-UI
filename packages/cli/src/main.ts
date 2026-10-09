@@ -4,7 +4,7 @@
 // cli.ts so it can be unit-tested without spawning a real process —
 // cli.ts is just this function wired to process.argv/exit.
 
-import { personOfThisMachine, readChangeGraph, type HistoryRequest } from "@openspec-ui/core";
+import { personOfThisMachine, readChangeGraph, type HistoryRequest, formatMessage, say, type SaidMessage } from "@openspec-ui/core";
 
 /** The handle this machine's key is filed under, where it is. */
 async function handleOfThisMachine(workspaceRoot: string): Promise<string | undefined> {
@@ -344,7 +344,7 @@ const DEFAULT_REPOSITORY = "VeryComplexAndLongName/OpenSpec-UI";
 function parseArgs(argv: string[]): {
   command: string | undefined;
   options: MainOptions;
-  error?: string;
+  error?: SaidMessage;
   renamed?: { former: string; replacement: string };
 } {
   const options: MainOptions = {};
@@ -354,7 +354,7 @@ function parseArgs(argv: string[]): {
     const arg = argv[i];
     if (arg === "--cwd") {
       const value = argv[i + 1];
-      if (!value) return { command: undefined, options, error: "--cwd requires a value" };
+      if (!value) return { command: undefined, options, error: say("OSW-CLI-003", { option: "--cwd" }) };
       options.cwd = value;
       i += 1;
     } else if (
@@ -380,13 +380,13 @@ function parseArgs(argv: string[]): {
       arg === "--note"
     ) {
       const value = argv[i + 1];
-      if (!value) return { command: undefined, options, error: `${arg} requires a value` };
+      if (!value) return { command: undefined, options, error: say("OSW-CLI-003", { option: String(arg) }) };
       const key = arg.slice(2) as "repository" | "ref" | "commit" | "releases" | "from" | "path" | "base" | "change" | "label" | "reason" | "after" | "activity" | "wait" | "handle" | "name" | "email" | "to" | "stage" | "agent" | "note";
       options[key] = value;
       i += 1;
     } else if (arg === "--reopen") {
       const value = argv[i + 1];
-      if (!value) return { command: undefined, options, error: "--reopen requires a value" };
+      if (!value) return { command: undefined, options, error: say("OSW-CLI-003", { option: "--reopen" }) };
       options.reopen = [...(options.reopen ?? []), value];
       i += 1;
     } else if (arg === "--none") {
@@ -398,7 +398,7 @@ function parseArgs(argv: string[]): {
     } else if (arg === "--format") {
       const value = argv[i + 1];
       if (value !== "json" && value !== "text") {
-        return { command: undefined, options, error: "--format must be 'json' or 'text'" };
+        return { command: undefined, options, error: say("OSW-CLI-004") };
       }
       options.format = value;
       i += 1;
@@ -485,12 +485,12 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
 
   const { command, options, error, renamed } = parseArgs(argv);
   if (error) {
-    stderr(`openspec-ui-cli: ${error}`);
+    stderr(formatMessage(error));
     stderr(USAGE);
     return 2;
   }
   if (renamed) {
-    stderr(`error OSW-CLI-001: '${renamed.former}' was renamed: use 'openspec-ui-cli ${renamed.replacement}' (ADR 0045)`);
+    stderr(formatMessage(say("OSW-CLI-001", { former: renamed.former, replacement: renamed.replacement })));
     return 2;
   }
   if (command === "change-graph") {
@@ -565,13 +565,13 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
   if (command === "claim") {
     const resource = options.changeName;
     if (!resource) {
-      stderr("openspec-ui-cli: set lock requires a resource name");
+      stderr(formatMessage(say("OSW-CLI-006")));
       stderr(USAGE);
       return 2;
     }
     const waitSeconds = options.wait === undefined ? undefined : Number.parseInt(options.wait, 10);
     if (waitSeconds !== undefined && !Number.isFinite(waitSeconds)) {
-      stderr("openspec-ui-cli: --wait takes a number of seconds");
+      stderr(formatMessage(say("OSW-CLI-007")));
       return 2;
     }
     return await (deps.claimCommand ?? claimCommand)(
@@ -625,7 +625,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
 
   if (command === "join") {
     if (options.handle === undefined || options.name === undefined) {
-      stderr("openspec-ui-cli: join team requires --handle and --name");
+      stderr(formatMessage(say("OSW-CLI-008")));
       stderr(USAGE);
       return 2;
     }
@@ -665,7 +665,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
   if (command === "history" || command === "owner" || command === "implementer" || command === "send-back") {
     const changeName = options.changeName;
     if (!changeName) {
-      stderr(`openspec-ui-cli: ${publicNameOf(command)} requires a change name`);
+      stderr(formatMessage(say("OSW-CLI-005", { subcommand: publicNameOf(command) })));
       stderr(USAGE);
       return 2;
     }
@@ -678,7 +678,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
     let request: HistoryRequest;
     if (command === "send-back") {
       if (!isSendBackStage(options.stage) || options.reason === undefined) {
-        stderr("openspec-ui-cli: reopen change requires --stage proposed|planned|in-progress|in-review and --reason <text>");
+        stderr(formatMessage(say("OSW-CLI-009")));
         return 2;
       }
       const reopened = parseReopen(options.reopen ?? []);
@@ -756,7 +756,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
   if (command === "run" || command === "check") {
     const changeName = options.changeName;
     if (!changeName) {
-      stderr(`openspec-ui-cli: ${publicNameOf(command)} requires a change name`);
+      stderr(formatMessage(say("OSW-CLI-005", { subcommand: publicNameOf(command) })));
       stderr(USAGE);
       return 2;
     }
@@ -781,7 +781,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
   if (command === "update") {
     const changeName = options.changeName;
     if (!changeName) {
-      stderr("openspec-ui-cli: update plan requires a change name");
+      stderr(formatMessage(say("OSW-CLI-005", { subcommand: "update plan" })));
       stderr(USAGE);
       return 2;
     }
@@ -803,10 +803,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
   }
 
   if (command !== "validate") {
-    stderr(
-      `openspec-ui-cli: unknown command '${command ?? ""}'`
-      + ` (supported: ${subcommandNames().join(", ")})`,
-    );
+    stderr(formatMessage(say("OSW-CLI-002", { command: command ?? "", supported: subcommandNames().join(", ") })));
     stderr(USAGE);
     return 2;
   }

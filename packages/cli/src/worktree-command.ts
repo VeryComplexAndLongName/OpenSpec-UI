@@ -14,6 +14,8 @@ import {
   type GitWrapper,
   type HarvestResult,
   type WorktreeRootSources,
+  formatMessage,
+  say,
 } from "@openspec-ui/core";
 import { publicNameOf } from "./subcommands.js";
 
@@ -48,7 +50,7 @@ export async function worktreeCommand(options: WorktreeOptions, deps: WorktreeDe
   try {
     if (options.action === "list") return await listWorktrees({ git, repositoryRoot }, options, deps);
     if (!options.changeName) {
-      deps.stderr(`openspec-ui-cli: ${publicNameOf("worktree", options.action)} requires a change name`);
+      deps.stderr(formatMessage(say("OSW-CLI-005", { subcommand: publicNameOf("worktree", options.action) })));
       return 2;
     }
     if (options.action === "add") {

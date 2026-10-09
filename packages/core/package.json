@@ -12,6 +12,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint src",
+    "messages": "tsx scripts/write-messages-page.ts",
     "test": "vitest run --project core && vitest run --project core-git-subprocess"
   },
   "dependencies": {

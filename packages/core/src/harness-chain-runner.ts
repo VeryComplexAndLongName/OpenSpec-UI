@@ -60,7 +60,8 @@ import { DEFAULT_AGENT_ID } from "./agents/registry.js";
 import { checkAllowlist, type AllowlistConfig, type AuditEntry, type AuditLog } from "./security.js";
 import type { AgentUsage } from "./agent-usage.js";
 import { readTaskChecklist, TASK_CHECKBOX_LINE_RE, writeTaskCheckStates } from "./task-checklist.js";
-import { buildUsageReport, unitKey, type UsageTotal } from "./usage-report.js";
+import { buildUsageReport, unitKey, type UsageTotal } from "./usage-report.js";
+import { say, type SaidMessage } from "./message-register.js";
 
 /** The subsequence of `HarnessStage` a chain drives. Each entry's
  * `AgentRunner` `CommandKind`, where one exists — `"archive"` and `"git"`
@@ -191,6 +192,8 @@ interface ChainState {
    * `cancelled` event can name the rule that fired; left unset by a
    * person's cancel, which is what an absent reason has always meant. */
   cancelReason?: string;
+  /** `cancelReason`'s identifier, where it is in the register (ADR 0046). */
+  cancelCode?: string;
   /** Why the chain came back to an earlier stage, set just before it
    * does. Consumed by the next attempt's `stageStarted`, so a stage
    * appearing twice says why rather than looking like a duplicate. */
@@ -317,12 +320,11 @@ function describeStageOverspend(
   config: HarnessConfig,
   usage: AgentUsage | undefined,
   stage: ChainStage,
-): string | undefined {
+): SaidMessage | undefined {
   if (!usage) return undefined;
   const maxCostUsd = config.budget?.maxStageCostUsd;
   if (maxCostUsd !== undefined && usage.costUsd !== undefined && usage.costUsd > maxCostUsd) {
-    return `stopped after "${stage}": it reported $${usage.costUsd.toFixed(2)},`
-      + ` over budget.maxStageCostUsd of $${maxCostUsd.toFixed(2)}`;
+    return say("OSW-RUN-204", { stage, spent: usage.costUsd.toFixed(2), ceiling: maxCostUsd.toFixed(2) });
   }
   const maxTokens = config.budget?.maxStageTokens;
   if (maxTokens !== undefined) {
@@ -330,8 +332,7 @@ function describeStageOverspend(
     if ((usage.inputTokens !== undefined || usage.outputTokens !== undefined) && used > maxTokens) {
       // Explicitly grouped: a bare `toLocaleString` made this one line of
       // text read two ways, by whose machine wrote it.
-      return `stopped after "${stage}": it reported ${formatTokenCount(used)} tokens,`
-        + ` over budget.maxStageTokens of ${formatTokenCount(maxTokens)}`;
+      return say("OSW-RUN-205", { stage, spent: formatTokenCount(used), ceiling: formatTokenCount(maxTokens) });
     }
   }
   return undefined;
@@ -340,17 +341,16 @@ function describeStageOverspend(
 /** Names the ceiling that fired and the value it was set to, rather than
  * blaming the stage that happened to be running — the posture
  * `checkBudget` already takes when it stops a chain. */
-function describeTimeout(config: HarnessConfig, state: ChainState, stage: ChainStage): string {
+function describeTimeout(config: HarnessConfig, state: ChainState, stage: ChainStage): SaidMessage {
   const runSeconds = config.timeout?.maxRunSeconds;
   const stageSeconds = config.timeout?.maxStageSeconds;
   const remainingRunMs = runSeconds === undefined ? undefined : Math.max(0, runSeconds * 1000 - state.elapsedMs);
   const stageMs = stageSeconds === undefined ? undefined : stageSeconds * 1000;
   const runFiredFirst = remainingRunMs !== undefined && (stageMs === undefined || remainingRunMs <= stageMs);
   if (runFiredFirst) {
-    return `stopped at the run time limit: timeout.maxRunSeconds is ${runSeconds}s`
-      + `, and this chain's stages had already spent ${formatSeconds(state.elapsedMs)} before "${stage}" started`;
+    return say("OSW-RUN-207", { seconds: String(runSeconds), spent: formatSeconds(state.elapsedMs), stage });
   }
-  return `stopped "${stage}" at the stage time limit: timeout.maxStageSeconds is ${stageSeconds}s`;
+  return say("OSW-RUN-208", { stage, seconds: String(stageSeconds) });
 }
 
 function changeNameFromDir(changeDir: string): string {
@@ -358,8 +358,19 @@ function changeNameFromDir(changeDir: string): string {
   return segments[segments.length - 1] ?? "";
 }
 
-function failedEvent(runId: string, reason: string): Event {
-  return { kind: "failed", runId, timestamp: nowIso(), reason };
+/** A failure, with its identifier where the reason is in the register
+ * (ADR 0046). */
+function failedEvent(runId: string, reason: string | SaidMessage): Event {
+  return typeof reason === "string"
+    ? { kind: "failed", runId, timestamp: nowIso(), reason }
+    : { kind: "failed", runId, timestamp: nowIso(), reason: reason.text, code: reason.code };
+}
+
+/** A cancellation's reason and identifier, where a rule caused it rather
+ * than a person. */
+function cancelledBy(state: ChainState): { reason?: string; code?: string } {
+  if (!state.cancelReason) return {};
+  return { reason: state.cancelReason, ...(state.cancelCode !== undefined ? { code: state.cancelCode } : {}) };
 }
 
 /** Which agent this chain's `apply` stage runs as — the agent whose work
@@ -444,14 +455,14 @@ async function describeApplyThatTickedNothing(
   before: TaskCounts | undefined,
   changeDir: string,
   delta: VerifiedDeltaEntry[] | undefined,
-): Promise<string | undefined> {
+): Promise<SaidMessage | undefined> {
   if (!before || !delta || delta.length === 0) return undefined;
   const after = await countTasks(changeDir);
   if (!after) return undefined;
   const tickedBefore = before.total - before.unchecked;
   const tickedAfter = after.total - after.unchecked;
   if (tickedAfter > tickedBefore) return undefined;
-  return `"apply" changed ${delta.length} file(s) and ticked no task in tasks.md`;
+  return say("OSW-RUN-103", { count: delta.length });
 }
 
 /** The reason a chain ends after an implementing run that did nothing: it
@@ -470,7 +481,7 @@ async function describeApplyThatDidNothing(
   changeDir: string,
   workspaceRoot: string,
   changeName: string,
-): Promise<string | undefined> {
+): Promise<SaidMessage | undefined> {
   if (!before) return undefined;
   const after = await countTasks(changeDir);
   if (!after) return undefined;
@@ -486,9 +497,7 @@ async function describeApplyThatDidNothing(
   if (its.length === 0) return undefined;
   const shown = its.slice(0, 5).map((item) => `"${item.text}"`).join(", ");
   const more = its.length > 5 ? `, and ${its.length - 5} more` : "";
-  return `"apply" changed no file and ticked no task, and ${its.length} task(s) it could do are still open (${shown}${more}); `
-    + "the chain stops here rather than verify and archive work that was not done. "
-    + "Read the run's reply and the questions it asked, then start the change again";
+  return say("OSW-RUN-104", { count: its.length, tasks: `${shown}${more}` });
 }
 
 type MechanicalCheckOutcomeEntry = DeclaredCheckOutcomeEntry;
@@ -695,7 +704,7 @@ export class HarnessChainRunner {
    * immediately without side effects. */
   async *run(command: Command): AsyncGenerator<Event> {
     if (command.kind !== "chain") {
-      yield failedEvent(command.runId, `HarnessChainRunner.run only accepts "chain" commands, got "${command.kind}"`);
+      yield failedEvent(command.runId, say("OSW-RUN-004", { kind: command.kind }));
       return;
     }
 
@@ -1068,7 +1077,7 @@ export class HarnessChainRunner {
 
     const changeName = changeNameFromDir(context.changeDir);
     if (!changeName) {
-      yield failedEvent(runId, "failed to resolve change name from command.context.changeDir");
+      yield failedEvent(runId, say("OSW-RUN-001"));
       return;
     }
 
@@ -1081,10 +1090,7 @@ export class HarnessChainRunner {
     }
 
     if (harnessConfig.autonomyLevel === "assisted") {
-      yield failedEvent(
-        runId,
-        `this change's Agentic Harness autonomyLevel is "assisted" — start each stage individually instead of running a chain`,
-      );
+      yield failedEvent(runId, say("OSW-RUN-002"));
       return;
     }
 
@@ -1100,10 +1106,7 @@ export class HarnessChainRunner {
         return;
       }
       if (changeOverride?.autonomyLevel !== "autonomous") {
-        yield failedEvent(
-          runId,
-          `autonomyLevel "autonomous" is only reachable when this change's own openspec/changes/${changeName}/harness.json sets it directly — it is not settable globally, and inheriting it from elsewhere is refused`,
-        );
+        yield failedEvent(runId, say("OSW-RUN-003", { change: changeName }));
         return;
       }
     }
@@ -1180,13 +1183,8 @@ export class HarnessChainRunner {
       // above fails. The two differ deliberately; see design.md.
       const runSeconds = harnessConfig.timeout?.maxRunSeconds;
       if (runSeconds !== undefined && state.elapsedMs >= runSeconds * 1000) {
-        yield {
-          kind: "cancelled",
-          runId,
-          timestamp: nowIso(),
-          reason: `stopped at the run time limit: timeout.maxRunSeconds is ${runSeconds}s`
-            + `, and this chain's stages had spent ${formatSeconds(state.elapsedMs)} before "${stage}" could start`,
-        };
+        const spent = say("OSW-RUN-206", { seconds: runSeconds, spent: formatSeconds(state.elapsedMs), stage });
+        yield { kind: "cancelled", runId, timestamp: nowIso(), reason: spent.text, code: spent.code };
         return;
       }
 
@@ -1254,6 +1252,7 @@ export class HarnessChainRunner {
         attempt += 1;
         state.attemptsByStage.set(stage, attempt);
         state.cancelReason = undefined;
+        state.cancelCode = undefined;
         state.lastStageUsage = undefined;
         const stageStartedAt = Date.now();
         state.operatorWaitMs = 0;
@@ -1271,7 +1270,9 @@ export class HarnessChainRunner {
               armStageTimer(deadlineMs, deadlineMs - worked);
               return;
             }
-            state.cancelReason = describeTimeout(harnessConfig, state, stage);
+            const timedOut = describeTimeout(harnessConfig, state, stage);
+            state.cancelReason = timedOut.text;
+            state.cancelCode = timedOut.code;
             this.cancel(runId);
           }, inMs);
         };
@@ -1311,13 +1312,8 @@ export class HarnessChainRunner {
         // cancel leaves it set and ends the chain.
         state.cancelRequested = false;
         if (attempt >= maxAttempts) {
-          yield {
-            kind: "cancelled",
-            runId,
-            timestamp: nowIso(),
-            reason: `stopped "${stage}" after ${attempt} attempt(s), the maximum configured`
-              + ` (maxStageAttempts: ${maxAttempts}); the last ended because it was ${state.cancelReason}`,
-          };
+          const spentAttempts = say("OSW-RUN-209", { stage, attempts: attempt, max: maxAttempts, reason: state.cancelReason ?? "" });
+          yield { kind: "cancelled", runId, timestamp: nowIso(), reason: spentAttempts.text, code: spentAttempts.code };
           return;
         }
         yield {
@@ -1354,7 +1350,7 @@ export class HarnessChainRunner {
         verifiedDelta = finalized.delta;
         const tickedNothing = await describeApplyThatTickedNothing(tasksBeforeApply, context.changeDir, verifiedDelta);
         if (tickedNothing !== undefined) {
-          yield { kind: "progress", runId, timestamp: nowIso(), message: tickedNothing };
+          yield { kind: "progress", runId, timestamp: nowIso(), message: tickedNothing.text, code: tickedNothing.code };
         }
         // Nothing changed and nothing ticked, with work of its own open: the
         // chain ends here, before verify and archive run for nothing.
@@ -1454,10 +1450,8 @@ export class HarnessChainRunner {
             yield failedEvent(
               runId,
               applyIndex === -1
-                ? `verification left ${tasks.unchecked} task(s) unchecked, and this chain did not run "apply"`
-                  + ` to send them back to: ${unfinished}`
-                : `verification left ${tasks.unchecked} task(s) unchecked after "apply" used all`
-                  + ` ${applyMaxAttempts} of its attempts: ${unfinished}`,
+                ? say("OSW-RUN-101", { count: tasks.unchecked, tasks: unfinished })
+                : say("OSW-RUN-102", { count: tasks.unchecked, attempts: applyMaxAttempts, tasks: unfinished }),
             );
             return;
           }
@@ -1485,7 +1479,7 @@ export class HarnessChainRunner {
       }
 
       if (state.cancelRequested) {
-        yield { kind: "cancelled", runId, timestamp: nowIso(), ...(state.cancelReason ? { reason: state.cancelReason } : {}) };
+        yield { kind: "cancelled", runId, timestamp: nowIso(), ...cancelledBy(state) };
         return;
       }
 
@@ -1527,7 +1521,7 @@ export class HarnessChainRunner {
         };
         const checkpointOutcome = await checkpointPromise;
         if (checkpointOutcome === "cancelled") {
-          yield { kind: "cancelled", runId, timestamp: nowIso(), ...(state.cancelReason ? { reason: state.cancelReason } : {}) };
+          yield { kind: "cancelled", runId, timestamp: nowIso(), ...cancelledBy(state) };
           return;
         }
         if (checkpointOutcome === "stopped") {
@@ -1582,7 +1576,7 @@ export class HarnessChainRunner {
     return candidates.length === 0 ? undefined : Math.min(...candidates);
   }
 
-  private async checkBudget(harnessConfig: HarnessConfig, changeDir: string): Promise<string | undefined> {
+  private async checkBudget(harnessConfig: HarnessConfig, changeDir: string): Promise<SaidMessage | undefined> {
     const budget = harnessConfig.budget;
     const perUnit = Object.entries(budget?.maxCost ?? {});
     if (!budget || (budget.maxCostUsd === undefined && budget.maxTokens === undefined && perUnit.length === 0)) {
@@ -1595,12 +1589,12 @@ export class HarnessChainRunner {
     if (!total) return undefined;
 
     if (budget.maxCostUsd !== undefined && total.costUsd >= budget.maxCostUsd) {
-      return `budget exceeded: recorded cost $${total.costUsd.toFixed(2)} for this change has reached the configured ceiling ($${budget.maxCostUsd.toFixed(2)}) — stopping before the next stage, not because a stage failed`;
+      return say("OSW-RUN-201", { spent: total.costUsd.toFixed(2), ceiling: budget.maxCostUsd.toFixed(2) });
     }
     if (budget.maxTokens !== undefined) {
       const totalTokens = total.inputTokens + total.outputTokens;
       if (totalTokens >= budget.maxTokens) {
-        return `budget exceeded: recorded tokens (${totalTokens}) for this change have reached the configured ceiling (${budget.maxTokens}) — stopping before the next stage, not because a stage failed`;
+        return say("OSW-RUN-202", { spent: totalTokens, ceiling: budget.maxTokens });
       }
     }
     // A ceiling per unit of account, each against its own unit's total:
@@ -1609,7 +1603,7 @@ export class HarnessChainRunner {
     for (const [unit, ceiling] of perUnit) {
       const spent = total.costByUnit[unitKey(unit)] ?? 0;
       if (spent >= ceiling) {
-        return `budget exceeded: recorded cost ${spent} ${unit} for this change has reached the configured ceiling (${ceiling} ${unit}) — stopping before the next stage, not because a stage failed`;
+        return say("OSW-RUN-203", { spent, unit, ceiling });
       }
     }
     return undefined;
@@ -1951,10 +1945,7 @@ export class HarnessChainRunner {
           autonomousPermissionFailure = true;
           outcome = "failed";
           yield event;
-          yield failedEvent(
-            runId,
-            `a permission request cannot be answered under autonomyLevel "autonomous": ${event.description}`,
-          );
+          yield failedEvent(runId, say("OSW-PRM-101", { request: event.description }));
           // Ends the stage's process rather than abandoning the generator
           // (the rejected alternative in design.md) — `break`ing here would
           // leave the ACP driver's permission handler parked on a promise
@@ -1995,6 +1986,7 @@ export class HarnessChainRunner {
           const gauge = ceiling === undefined ? undefined : readAcpContextGauge(event.update);
           if (ceiling !== undefined && gauge !== undefined && gauge.share > ceiling && state.cancelReason === undefined) {
             state.cancelReason = describeContextShare(gauge, ceiling);
+            state.cancelCode = undefined;
             this.cancel(runId);
           }
         }
@@ -2012,7 +2004,7 @@ export class HarnessChainRunner {
           // The runner reports that its process is gone; only the chain
           // knows a rule caused that rather than a person, so the reason
           // is attached here rather than invented downstream.
-          yield state.cancelReason ? { ...event, reason: state.cancelReason } : event;
+          yield state.cancelReason ? { ...event, ...cancelledBy(state) } : event;
           continue;
         }
         yield event;

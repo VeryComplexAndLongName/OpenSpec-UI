@@ -1180,6 +1180,15 @@ export const shellThemeCss = `
     color: var(--muted);
   }
 
+  /* A message's identifier before its words, linking to its entry in
+     docs/messages.md (ADR 0046). */
+  .openspec-message-code {
+    font-family: var(--vscode-editor-font-family, ui-monospace, monospace);
+    font-size: 11px;
+    color: inherit;
+    text-decoration: underline dotted;
+  }
+
   /* A panel like every other, since that is what it is now: its own
      tinted box read as a notice rather than as a section
      (the-remaining-tabs-wear-metro 1.4). What is left is the spacing of

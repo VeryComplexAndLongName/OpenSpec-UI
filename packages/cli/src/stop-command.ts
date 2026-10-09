@@ -19,6 +19,8 @@ import {
   resolveAgentStatusDirectory,
   type GitWrapper,
   type MachineKey,
+  formatMessage,
+  say,
 } from "@openspec-ui/core";
 
 export interface StopOptions {
@@ -53,11 +55,11 @@ export async function stopCommand(options: StopOptions, deps: StopDeps): Promise
   const instanceId = options.instanceId?.trim();
   const reason = options.reason?.trim();
   if (!instanceId) {
-    deps.stderr("openspec-ui-cli: stop run needs the instance id of the run to ask, as 'openspec-ui-cli show status' prints it");
+    deps.stderr(formatMessage(say("OSW-CLI-010")));
     return 2;
   }
   if (!reason) {
-    deps.stderr("openspec-ui-cli: stop run needs a reason: --reason <text>");
+    deps.stderr(formatMessage(say("OSW-CLI-011")));
     return 2;
   }
   const afterTask = options.afterTask?.trim();
@@ -65,7 +67,7 @@ export async function stopCommand(options: StopOptions, deps: StopDeps): Promise
   // task no list can name is one the run would have to refuse later, and
   // by then the operator has stopped watching.
   if (options.afterTask !== undefined && (afterTask === undefined || !isTaskNumber(afterTask))) {
-    deps.stderr(`openspec-ui-cli: --after takes a task number, such as 4.6; it was given ${JSON.stringify(options.afterTask)}`);
+    deps.stderr(formatMessage(say("OSW-CLI-012", { given: JSON.stringify(options.afterTask) })));
     return 2;
   }
 

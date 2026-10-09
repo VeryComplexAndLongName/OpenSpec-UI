@@ -237,7 +237,7 @@ describe("withOperatorQuestions", () => {
     await drainAll(events, seen);
 
     expect(cancelling).toEqual([expect.objectContaining({ kind: "cancelling", attempted: "termination-requested" })]);
-    expect(seen.at(-1)).toMatchObject({ kind: "cancelled" });
+    expect(seen.at(-1)).toMatchObject({ kind: "cancelled", code: "OSW-QST-201" });
     expect(await openQuestions(dir)).toHaveLength(1);
   });
 
@@ -251,6 +251,7 @@ describe("withOperatorQuestions", () => {
     for await (const event of wrapped.run(command(dir, "implement", "run-new"))) refused.push(event);
     expect(refused).toEqual([expect.objectContaining({ kind: "failed" })]);
     expect((refused[0] as Extract<Event, { kind: "failed" }>).reason).toContain('demo has an open question for the operator: Q-other-1 "Which database?"');
+    expect((refused[0] as Extract<Event, { kind: "failed" }>).code).toBe("OSW-QST-001");
     expect(commands).toEqual([]);
 
     const read: Event[] = [];

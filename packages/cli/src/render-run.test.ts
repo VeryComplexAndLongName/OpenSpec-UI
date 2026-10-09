@@ -58,6 +58,22 @@ describe("RunTextRenderer", () => {
     expect(unknown).toBe("\n✗ ACP connection closed\n");
   });
 
+  // every-message-has-an-identifier (ADR 0046): the identifier leads the
+  // reason, after the mark that says how the run ended, and rides the JSON.
+  it("says a failure, a cancellation and a progress line by their identifiers", () => {
+    const failed: Event = { kind: "failed", runId: "r", timestamp: at, reason: "budget exceeded", code: "OSW-RUN-201" };
+    const output = render([
+      { kind: "progress", runId: "r", timestamp: at, message: "waiting for the operator's answer to 1 question", code: "OSW-QST-101" },
+      failed,
+      { kind: "cancelled", runId: "r", timestamp: at, reason: "stopped at the stage time limit", code: "OSW-RUN-208" },
+    ]);
+
+    expect(output).toContain("· OSW-QST-101: waiting for the operator's answer to 1 question");
+    expect(output).toContain("✗ OSW-RUN-201: budget exceeded");
+    expect(output).toContain("■ cancelled: OSW-RUN-208: stopped at the stage time limit");
+    expect(JSON.parse(renderRunEventAsJsonLine(failed))).toMatchObject({ code: "OSW-RUN-201", reason: "budget exceeded" });
+  });
+
   it("joins a streamed reply with nothing between the slices", () => {
     const output = render([
       chunkEvent("I'll inspect the change dir", "agent_message_chunk"),

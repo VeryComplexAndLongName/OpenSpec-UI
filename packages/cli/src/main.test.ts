@@ -66,7 +66,7 @@ describe("runMain", () => {
     const code = await runMain(["validate", "changes", "--cwd"], { validateAll: vi.fn(), ...io });
 
     expect(code).toBe(2);
-    expect(io.errLines[0]).toContain("--cwd requires a value");
+    expect(io.errLines[0]).toBe("error OSW-CLI-003: --cwd requires a value");
   });
 
   it("passes --cwd through to validateAll", async () => {

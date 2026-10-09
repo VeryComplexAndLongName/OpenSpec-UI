@@ -161,3 +161,4 @@ export * from "./operator-questions-runner.js";
 
 // Every action is a verb and a noun (ADR 0045).
 export * from "./action-vocabulary.js";
+export * from "./message-register.js";

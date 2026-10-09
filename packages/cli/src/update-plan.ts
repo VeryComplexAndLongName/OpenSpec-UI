@@ -24,6 +24,8 @@ import {
   withWorkspaceLease,
   type AgentRunner,
   type Command,
+  formatMessage,
+  say,
 } from "@openspec-ui/core";
 import { RunTextRenderer, renderRunEventAsJsonLine } from "./render-run.js";
 import type { CheckpointPrompt } from "./run-change.js";
@@ -97,7 +99,7 @@ export async function updatePlan(options: UpdatePlanOptions, deps: UpdatePlanDep
       if (event.kind === "permissionRequest") {
         const ask = deps.permission?.ask;
         const allowed = ask !== undefined ? await ask(`The agent asks: ${event.description}. Allow?`) : false;
-        if (ask === undefined) deps.stderr(`openspec-ui-cli: denied, nobody at this terminal to ask: ${event.description}`);
+        if (ask === undefined) deps.stderr(formatMessage(say("OSW-PRM-102", { request: event.description })));
         for await (const _answered of runner.run({
           ...command,
           kind: "resolvePermission",
