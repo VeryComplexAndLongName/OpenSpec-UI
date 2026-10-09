@@ -58,6 +58,9 @@ From ADR 0045, amended; the table of labels approved by the owner on
   and the merge gate with the worktree's absolute path as `--cwd`.
   2026-10-09: valid under `--strict`; the gate, run as `openspec-ui-cli
   validate changes`, named only 4.2 and 4.3 as open.
-- [ ] 4.3 **Human-only**: in VS Code and in the standalone app, the
+- [x] 4.3 **Human-only**: in VS Code and in the standalone app, the
   Pipeline's toolbar and a card read as verb-noun pairs, and Archive
   Landed Changes... asks in a dialog before it archives.
+  2026-10-09, the owner, on the extension 0.100.0 and the standalone app
+  built from this branch: "All fine". A deletion opened its confirmation
+  dialog, and confirming it deleted with no further window.
