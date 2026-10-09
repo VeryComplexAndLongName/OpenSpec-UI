@@ -67,6 +67,12 @@ From ADR 0045, accepted by the owner on 2026-10-08.
   the merge gate with the worktree's absolute path as `--cwd`.
   2026-10-08: valid under `--strict`; the gate, run as `openspec-ui-cli
   validate changes`, named only 5.2 and 5.3 as open.
-- [ ] 5.3 **Human-only**: in VS Code, the context menu of a change and the
+- [x] 5.3 **Human-only**: in VS Code, the context menu of a change and the
   palette read as verb-noun pairs, and "Validate Change" from the palette
   asks for a change.
+  2026-10-09, the owner, on the extension 0.96.1 built from this branch:
+  "All OK". The palette under "OpenSpec Workbench" lists Validate Change,
+  Open Pipeline, Archive Change, Add Relation..., Answer Question..., the
+  three Clear ... Filter commands, Configure Change Harness, Confirm Key...,
+  Create Change..., Delete Leftover and the rest as verb-noun pairs, with no
+  former title among them.
