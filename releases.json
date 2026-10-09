@@ -1,35 +1,35 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-09T07:45:08.407Z",
+  "generated_at": "2026-10-09T09:41:18.644Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "8043a5eb64eab00ed5e2475ca5ef425b03b08dda",
+  "commit": "a8d9021427a4c56df4481b042d4ac9de36995a7d",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.98.0",
-      "released_at": "2026-10-09T07:45:08.407Z",
-      "tag": "openspec-ui-vscode@0.98.0",
+      "version": "0.99.0",
+      "released_at": "2026-10-09T09:41:18.644Z",
+      "tag": "openspec-ui-vscode@0.99.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.98.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.99.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.98.0/openspec-ui-vscode-0.98.0.vsix",
-          "size_bytes": 9820203
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.99.0/openspec-ui-vscode-0.99.0.vsix",
+          "size_bytes": 9922450
         }
       ],
       "changes": [
         {
           "kind": "minor",
-          "summary": "**Every message has an identifier** (every-message-has-an-identifier, ADR 0046). Core gains one register of what the product says to a person: each message's identifier `OSW-<GROUP>-<NNN>`, its level, its words, why it is said and what to do, and [docs/messages.md](../docs/messages.md) is generated from it. The first groups are in it: the CLI's argument errors (`CLI`), the chain's refusals, limits and endings (`RUN`), the operator's questions (`QST`) and the permission requests nobody can answer (`PRM`). Their words are unchanged; the CLI now prints them as `error OSW-CLI-003: --cwd requires a value` rather than `openspec-ui-cli: --cwd requires a value`, with the same exit codes. `progress`, `failed` and `cancelled` events carry `code` beside their words, and so does the CLI's JSON; the CLI, the output channel and the panels put the identifier before the words (`✗ OSW-RUN-104: \"apply\" changed no file ...`), and the panels show it as a link to its entry. A test counts the messages still said in place - 290, from 323 - and lets the number only fall."
+          "summary": "**A change is acted on from its card** (a-change-is-acted-on-from-its-card, ADR 0044). A change's card in the Pipeline now offers every action on the change, from one list in core: under its name, in two rows of icons grouped and coloured by kind - what runs, what reads, what sets up, and what cannot be taken back - each the icon its command has in VS Code's menus. An action that cannot run now is dimmed and says why; Archive, Rollback and Delete ask first. An action runs where the change is worked: a change in its own worktree is configured, archived, related or deleted there, rather than refused - only a directory whose records do not check out is still refused. In VS Code the card runs the same command a Changes row does, and the Changes tree's menu now opens with **Show Actions...** (also an icon on the row), then what runs, **Inspect** and **Set Up** submenus, and the Danger actions last; a change worked in another worktree offers everything, with a branch icon instead of a lock. In the standalone app every action works too, through one server route, with a dialog over the Pipeline; a change's harness settings are read and written where the change is worked."
         }
       ]
     },
@@ -38,8 +38,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.57.3",
-      "released_at": "2026-10-09T07:45:08.407Z",
+      "version": "1.58.0",
+      "released_at": "2026-10-09T09:41:18.644Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -47,15 +47,20 @@
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/server/README.md"
       },
       "artifacts": [],
-      "changes": []
+      "changes": [
+        {
+          "kind": "minor",
+          "summary": "**A change is acted on from its card** (a-change-is-acted-on-from-its-card, ADR 0044). A change's card in the Pipeline now offers every action on the change, from one list in core: under its name, in two rows of icons grouped and coloured by kind - what runs, what reads, what sets up, and what cannot be taken back - each the icon its command has in VS Code's menus. An action that cannot run now is dimmed and says why; Archive, Rollback and Delete ask first. An action runs where the change is worked: a change in its own worktree is configured, archived, related or deleted there, rather than refused - only a directory whose records do not check out is still refused. In VS Code the card runs the same command a Changes row does, and the Changes tree's menu now opens with **Show Actions...** (also an icon on the row), then what runs, **Inspect** and **Set Up** submenus, and the Danger actions last; a change worked in another worktree offers everything, with a branch icon instead of a lock. In the standalone app every action works too, through one server route, with a dialog over the Pipeline; a change's harness settings are read and written where the change is worked."
+        }
+      ]
     },
     {
       "id": "core",
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.141.0",
-      "released_at": "2026-10-09T07:45:08.407Z",
+      "version": "0.142.0",
+      "released_at": "2026-10-09T09:41:18.644Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -66,7 +71,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "**Every message has an identifier** (every-message-has-an-identifier, ADR 0046). Core gains one register of what the product says to a person: each message's identifier `OSW-<GROUP>-<NNN>`, its level, its words, why it is said and what to do, and [docs/messages.md](../docs/messages.md) is generated from it. The first groups are in it: the CLI's argument errors (`CLI`), the chain's refusals, limits and endings (`RUN`), the operator's questions (`QST`) and the permission requests nobody can answer (`PRM`). Their words are unchanged; the CLI now prints them as `error OSW-CLI-003: --cwd requires a value` rather than `openspec-ui-cli: --cwd requires a value`, with the same exit codes. `progress`, `failed` and `cancelled` events carry `code` beside their words, and so does the CLI's JSON; the CLI, the output channel and the panels put the identifier before the words (`✗ OSW-RUN-104: \"apply\" changed no file ...`), and the panels show it as a link to its entry. A test counts the messages still said in place - 290, from 323 - and lets the number only fall."
+          "summary": "**A change is acted on from its card** (a-change-is-acted-on-from-its-card, ADR 0044). A change's card in the Pipeline now offers every action on the change, from one list in core: under its name, in two rows of icons grouped and coloured by kind - what runs, what reads, what sets up, and what cannot be taken back - each the icon its command has in VS Code's menus. An action that cannot run now is dimmed and says why; Archive, Rollback and Delete ask first. An action runs where the change is worked: a change in its own worktree is configured, archived, related or deleted there, rather than refused - only a directory whose records do not check out is still refused. In VS Code the card runs the same command a Changes row does, and the Changes tree's menu now opens with **Show Actions...** (also an icon on the row), then what runs, **Inspect** and **Set Up** submenus, and the Danger actions last; a change worked in another worktree offers everything, with a branch icon instead of a lock. In the standalone app every action works too, through one server route, with a dialog over the Pipeline; a change's harness settings are read and written where the change is worked."
         }
       ]
     },
@@ -75,8 +80,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.87.0",
-      "released_at": "2026-10-09T07:45:08.407Z",
+      "version": "1.88.0",
+      "released_at": "2026-10-09T09:41:18.644Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -86,7 +91,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "**Every message has an identifier** (every-message-has-an-identifier, ADR 0046). Core gains one register of what the product says to a person: each message's identifier `OSW-<GROUP>-<NNN>`, its level, its words, why it is said and what to do, and [docs/messages.md](../docs/messages.md) is generated from it. The first groups are in it: the CLI's argument errors (`CLI`), the chain's refusals, limits and endings (`RUN`), the operator's questions (`QST`) and the permission requests nobody can answer (`PRM`). Their words are unchanged; the CLI now prints them as `error OSW-CLI-003: --cwd requires a value` rather than `openspec-ui-cli: --cwd requires a value`, with the same exit codes. `progress`, `failed` and `cancelled` events carry `code` beside their words, and so does the CLI's JSON; the CLI, the output channel and the panels put the identifier before the words (`✗ OSW-RUN-104: \"apply\" changed no file ...`), and the panels show it as a link to its entry. A test counts the messages still said in place - 290, from 323 - and lets the number only fall."
+          "summary": "**A change is acted on from its card** (a-change-is-acted-on-from-its-card, ADR 0044). A change's card in the Pipeline now offers every action on the change, from one list in core: under its name, in two rows of icons grouped and coloured by kind - what runs, what reads, what sets up, and what cannot be taken back - each the icon its command has in VS Code's menus. An action that cannot run now is dimmed and says why; Archive, Rollback and Delete ask first. An action runs where the change is worked: a change in its own worktree is configured, archived, related or deleted there, rather than refused - only a directory whose records do not check out is still refused. In VS Code the card runs the same command a Changes row does, and the Changes tree's menu now opens with **Show Actions...** (also an icon on the row), then what runs, **Inspect** and **Set Up** submenus, and the Danger actions last; a change worked in another worktree offers everything, with a branch icon instead of a lock. In the standalone app every action works too, through one server route, with a dialog over the Pipeline; a change's harness settings are read and written where the change is worked."
         }
       ]
     },
@@ -96,7 +101,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.29.0",
-      "released_at": "2026-10-09T07:45:08.407Z",
+      "released_at": "2026-10-09T09:41:18.644Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
