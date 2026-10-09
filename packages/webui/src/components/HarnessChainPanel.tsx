@@ -158,11 +158,11 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
             dispatch entry rendered directly above it in the standalone
             UI — two buttons, one label, different actions. */}
         <button type="button" className="button primary" data-testid="start-chain-button" onClick={startChain} disabled={isRunning}>
-          Start chain
+          Run Chain
         </button>
         {isRunning && !pendingCheckpoint ? (
           <button type="button" className="button alert" data-testid="cancel-chain-button" onClick={() => sendOnCurrentRun("cancel")}>
-            Cancel
+            Stop Run
           </button>
         ) : null}
       </div>
@@ -183,10 +183,10 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
               data-testid="confirm-checkpoint-button"
               onClick={() => sendOnCurrentRun("confirmCheckpoint")}
             >
-              Continue
+              Continue Run
             </button>
             <button type="button" className="button alert" data-testid="cancel-checkpoint-button" onClick={() => sendOnCurrentRun("cancel")}>
-              Cancel
+              Stop Run
             </button>
           </div>
         </div>

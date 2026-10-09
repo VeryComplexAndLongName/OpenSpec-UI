@@ -85,7 +85,7 @@ export function TasksPage({ changeName, load, actions, copyText, line }: TasksPa
           data-testid="tasks-page-list"
           onClick={() => setChosen({ changeName, directory: reading.path, where, own })}
         >
-          Commit and push, or open the change's files
+          Show Actions...
         </button>
       ) : null}
       <ol className="openspec-tasks-page-list" ref={list}>

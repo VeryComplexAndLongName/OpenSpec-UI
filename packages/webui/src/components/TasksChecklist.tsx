@@ -28,7 +28,7 @@ export function TasksChecklist({ tasks, onRunTask }: TasksChecklistProps) {
             <span>{task.description}</span>
             {!task.done && (
               <button className="button" type="button" data-testid={`run-task-${task.id}`} onClick={() => onRunTask?.(task)}>
-                Run
+                Run Task
               </button>
             )}
           </li>

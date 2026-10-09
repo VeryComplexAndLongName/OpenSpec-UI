@@ -139,7 +139,7 @@ test.describe("standalone harness screenshots", () => {
         .getByRole("combobox")
         .first()
         .selectOption(CHANGE_NAME);
-      await page.getByRole("button", { name: "Load change", exact: true }).click();
+      await page.getByRole("button", { name: "Open Change", exact: true }).click();
       await expect(page.getByText(`Loaded ${CHANGE_NAME}.`)).toBeVisible({ timeout: 15000 });
       await page.getByTestId("change-editor-tab-harness").click();
       await expect(page.getByTestId("change-harness-settings")).toBeVisible();
@@ -179,7 +179,7 @@ test.describe("standalone harness screenshots", () => {
         .screenshot({ path: path.join(IMAGES_DIR, "run-dialog.png") });
       await page.getByTestId("run-dialog-path-chain").click();
       // Choosing the path reveals HarnessChainPanel, which has its own
-      // "Start chain" button that must be clicked to actually start the
+      // "Run Chain" button that must be clicked to actually start the
       // run.
       await page.getByTestId("start-chain-button").click();
       await expect(page.getByTestId("checkpoint-confirmation")).toBeVisible({ timeout: 15000 });

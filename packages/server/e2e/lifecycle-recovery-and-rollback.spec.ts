@@ -30,7 +30,7 @@ test("an interrupted run's recovery and rollback are reviewable in the browser",
 
       const row = page.locator("tr", { hasText: CHANGE_NAME });
       await expect(row).toContainText("interrupted", { timeout: 15000 });
-      await row.getByRole("button", { name: "Review" }).click();
+      await row.getByRole("button", { name: "Show Process" }).click();
 
       // The run being reviewed opens under its own row, so what it says is
       // read against the row that asked for it: the operation and the state
@@ -41,11 +41,13 @@ test("an interrupted run's recovery and rollback are reviewable in the browser",
       await expect(details).toBeVisible();
       await expect(details).toContainText(RELATIVE_FILE_PATH);
       await expect(details).toContainText("modified");
-      await expect(row.getByRole("button", { name: "Review" })).toHaveAttribute("aria-expanded", "true");
+      await expect(row.getByRole("button", { name: "Show Process" })).toHaveAttribute("aria-expanded", "true");
 
-      const rollbackButton = details.getByRole("button", { name: "Rollback files" });
+      const rollbackButton = details.getByRole("button", { name: "Rollback Process..." });
       await expect(rollbackButton).toBeEnabled();
       await rollbackButton.click();
+      // A Danger action asks first (ADR 0045), in a dialog (ADR 0047).
+      await page.getByTestId("processes-confirm-yes").click();
 
       // Named, not "the" status region: the shell has more than one
       // since the schedule got its own live region, and an assertion

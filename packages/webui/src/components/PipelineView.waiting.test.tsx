@@ -44,7 +44,7 @@ describe("PipelineView - what waits for a person", () => {
     expect(within(banner).getByTestId("pipeline-waiting-alpha")).toHaveTextContent("alpha asks 2 questions");
     expect(within(banner).queryByTestId("pipeline-waiting-beta")).toBeNull();
 
-    fireEvent.click(within(banner).getByRole("button", { name: "Answer the questions of alpha" }));
+    fireEvent.click(within(banner).getByRole("button", { name: "Answer Questions for alpha" }));
 
     const dialog = screen.getByRole("dialog", { name: "Answer alpha" });
     expect(dialog).toHaveAttribute("aria-modal", "true");

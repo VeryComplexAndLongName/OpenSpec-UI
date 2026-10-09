@@ -56,7 +56,7 @@ test.describe("standalone sprint report", () => {
       await expect(changes.getByTestId("change-checklist-count")).toHaveText("2 of 2 chosen");
 
       const opening = context.waitForEvent("page");
-      await page.getByRole("button", { name: "Open the report" }).click();
+      await page.getByRole("button", { name: "Generate Report" }).click();
       const report = await opening;
 
       // Before the answer: the tab exists and says what it waits for.
@@ -71,7 +71,7 @@ test.describe("standalone sprint report", () => {
       await expect(report.locator("body")).toContainText("2026-03-02-first-change");
       await expect(report.locator("body")).toContainText("2026-03-03-second-change");
       await expect(report.locator("body")).not.toContainText("Reading 2 changes.");
-      await expect(page.getByRole("button", { name: "Open the report" })).toBeEnabled();
+      await expect(page.getByRole("button", { name: "Generate Report" })).toBeEnabled();
     } finally {
       await server.close();
     }

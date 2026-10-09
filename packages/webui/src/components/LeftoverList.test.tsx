@@ -29,6 +29,10 @@ describe("LeftoverList", () => {
 
     expect(screen.getByTestId("leftovers-kept").textContent).toContain("no change of this name is archived");
     fireEvent.click(screen.getByTestId("remove-leftover-my-idea"));
+    // A deletion asks first (ADR 0045), in a dialog (ADR 0047).
+    expect(onRemove).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Delete Leftover my-idea" })).toHaveAttribute("aria-modal", "true");
+    fireEvent.click(screen.getByTestId("leftover-confirm-yes"));
     expect(onRemove).toHaveBeenCalledWith({ name: "my-idea" });
   });
 
@@ -47,6 +51,7 @@ describe("LeftoverList", () => {
     expect(text).toContain("its branch is merged");
     expect(text).toContain("its tree is clean");
     fireEvent.click(screen.getByTestId("remove-directory-change-b"));
+    fireEvent.click(screen.getByTestId("leftover-confirm-yes"));
     expect(onRemove).toHaveBeenCalledWith({ path: "C:/wt/change-b" });
   });
 

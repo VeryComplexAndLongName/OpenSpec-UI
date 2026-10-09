@@ -29,7 +29,7 @@ function createApi(overrides: Partial<HarnessSettingsApi> = {}): HarnessSettings
   };
 }
 
-const saveButton = () => screen.getByRole("button", { name: "Save change settings" });
+const saveButton = () => screen.getByRole("button", { name: "Save Settings" });
 
 /** The radios of a named choice. */
 function radios(group: string): HTMLInputElement[] {
@@ -118,7 +118,7 @@ describe("ChangeHarnessSettingsView — knowing its change", () => {
     render(<ChangeHarnessSettingsView api={createApi()} changeName="demo" onEditGlobal={onEditGlobal} />);
     await screen.findByLabelText("change propose agent");
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit global defaults" }));
+    fireEvent.click(screen.getByRole("button", { name: "Configure Workspace Harness" }));
 
     expect(onEditGlobal).toHaveBeenCalledOnce();
   });
@@ -405,7 +405,7 @@ describe("ChangeHarnessSettingsView — saving", () => {
     await renderLoaded(api);
 
     choose("Named configuration", "balanced");
-    fireEvent.click(screen.getByRole("button", { name: "Apply to the form" }));
+    fireEvent.click(screen.getByRole("button", { name: "Set Configuration" }));
     expect(screen.getByText(/The supervisor's Act is off: it acts only under Autonomous, and "Balanced" sets Semi-autonomous/)).toBeTruthy();
     fireEvent.click(saveButton());
 
@@ -439,7 +439,7 @@ describe("ChangeHarnessSettingsView — a named configuration", () => {
     await renderLoaded(api);
 
     choose("Named configuration", "economy");
-    fireEvent.click(screen.getByRole("button", { name: "Apply to the form" }));
+    fireEvent.click(screen.getByRole("button", { name: "Set Configuration" }));
     fireEvent.click(saveButton());
 
     await waitFor(() => expect(api.writeChangeOverride).toHaveBeenCalled());
@@ -462,7 +462,7 @@ describe("ChangeHarnessSettingsView — a named configuration", () => {
     async function applyEconomy(api: HarnessSettingsApi) {
       await renderLoaded(api);
       choose("Named configuration", "economy");
-      fireEvent.click(screen.getByRole("button", { name: "Apply to the form" }));
+      fireEvent.click(screen.getByRole("button", { name: "Set Configuration" }));
     }
 
     it("writes an effort for each stage whose inherited agent accepts one", async () => {

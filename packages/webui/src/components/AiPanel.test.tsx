@@ -1102,7 +1102,7 @@ describe("AiPanel auto-loads the change list", () => {
         emit({ kind: "completed", runId: "run-auto", timestamp: "t" });
 
         const reloadButton = screen.getByTestId("load-changes-button");
-        expect(reloadButton).toHaveTextContent("Reload changes");
+        expect(reloadButton).toHaveTextContent("Refresh Changes");
         fireEvent.click(reloadButton);
 
         expect(send).toHaveBeenCalledTimes(2);

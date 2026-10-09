@@ -78,14 +78,14 @@ describe("NamedConfigurationPicker", () => {
     choose("economy");
     expect(onApply).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    fireEvent.click(screen.getByRole("button", { name: "Set Configuration" }));
     expect(onApply).toHaveBeenCalledWith(expect.objectContaining({ id: "economy" }));
   });
 
   it("says what applying did beside the button, and clears it when another is chosen", () => {
     const { rerender } = renderPicker();
     choose("economy");
-    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    fireEvent.click(screen.getByRole("button", { name: "Set Configuration" }));
 
     rerender(
       <NamedConfigurationPicker

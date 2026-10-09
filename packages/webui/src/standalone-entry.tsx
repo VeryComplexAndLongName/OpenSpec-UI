@@ -1937,7 +1937,7 @@ function StandaloneApp() {
           head={pageHead}
           action={activeTab === "overview" ? (
             <button className="button openspec-button-quiet" type="button" data-testid="summary-refresh" onClick={handleLoadOverview} disabled={overviewLoading || cwd.trim().length === 0}>
-              <Icon meaning="refresh" />Refresh
+              <Icon meaning="refresh" />Refresh Summary
             </button>
           ) : activeTab === "harness-settings" ? (
             <button
@@ -2051,7 +2051,7 @@ function StandaloneApp() {
             </div>
             <div className="openspec-panel-foot">
               <button className="button primary" type="button" onClick={handleInitializeOpenSpec} disabled={initLoading || cwd.trim().length === 0}>
-                {initLoading ? "Initializing..." : "Initialize OpenSpec"}
+                {initLoading ? "Initializing..." : "Initialize Workspace"}
               </button>
               {initMessage ? <span className="openspec-shell-note">{initMessage}</span> : null}
             </div>
@@ -2115,7 +2115,7 @@ function StandaloneApp() {
             onClick={() => void loadDiff(diffChangeName)}
             disabled={diffLoading || diffChangeName.length === 0}
           >
-            <Icon meaning="refresh" />Refresh
+            <Icon meaning="refresh" />Refresh Diff
           </button>
           {diffError ? <span className="openspec-shell-note" data-testid="change-diff-error">{diffError}</span> : null}
         </div>
@@ -2247,12 +2247,16 @@ function StandaloneApp() {
                           <button className="button"
                             type="button"
                             data-testid={`run-delegated-${key}`}
+                            // The pair is the label; which agent runs it is
+                            // in the name and on hover (ADR 0045).
+                            aria-label={item.waitingOn.kind === "agent" ? `Run Item on ${item.waitingOn.agent}` : undefined}
+                            title={item.waitingOn.kind === "agent" ? `Run on ${item.waitingOn.agent}` : undefined}
                             disabled={runningDelegated !== null}
                             onClick={() => void runDelegatedItem(item)}
                           >
                             {runningDelegated === key
                               ? "Running..."
-                              : `Run ${item.waitingOn.kind === "agent" ? item.waitingOn.agent : ""}`}
+                              : "Run Item"}
                           </button>
                         </>
                       ) : null}
@@ -2334,7 +2338,7 @@ function StandaloneApp() {
           </div>
           <div className="openspec-panel-foot">
             <button className="button primary" type="button" onClick={handleCreateChange} disabled={editorCreating || cwd.trim().length === 0}>
-              {editorCreating ? "Creating..." : "Create change"}
+              {editorCreating ? "Creating..." : "Create Change"}
             </button>
           </div>
         </section>
@@ -2361,7 +2365,7 @@ function StandaloneApp() {
             onClick={() => void loadChangeEditor(editorChangeName)}
             disabled={editorLoading || editorChangeName.trim().length === 0}
           >
-            {editorLoading ? "Loading..." : "Load change"}
+            {editorLoading ? "Loading..." : "Open Change"}
           </button>
 
           <button className="button primary"
@@ -2370,7 +2374,7 @@ function StandaloneApp() {
             onClick={() => void handleRunWithHarness()}
             disabled={runHarnessLoading || cwd.trim().length === 0 || editorChangeName.trim().length === 0}
           >
-            {runHarnessLoading ? "Resolving..." : "Run with Agentic Harness..."}
+            {runHarnessLoading ? "Resolving..." : "Run Change..."}
           </button>
           {editorMessage ? <span className="openspec-shell-note">{editorMessage}</span> : null}
           {runHarnessMessage ? <span className="openspec-shell-note" data-testid="run-with-harness-message">{runHarnessMessage}</span> : null}
@@ -2466,7 +2470,7 @@ function StandaloneApp() {
                 editorChangeName.trim().length === 0
               }
             >
-              {archivedTemplateLoading ? "Inserting..." : "Insert as template"}
+              {archivedTemplateLoading ? "Inserting..." : "Copy Tasks"}
             </button>
           </div>
         ) : null}
@@ -2507,7 +2511,7 @@ function StandaloneApp() {
             onClick={handleSaveEditor}
             disabled={editorSaving || editorChangeName.trim().length === 0 || editorRevision.length === 0}
           >
-            {editorSaving ? "Saving..." : "Save markdown"}
+            {editorSaving ? "Saving..." : "Save Change"}
           </button>
         </div>
         </section>
@@ -2528,7 +2532,7 @@ function StandaloneApp() {
       <div className="openspec-templates-screen">
         <div className="openspec-controls">
           <button className="button primary" type="button" onClick={() => void handleLoadTemplates()} disabled={templatesLoading || cwd.trim().length === 0}>
-            {templatesLoading ? "Loading..." : "Load templates"}
+            {templatesLoading ? "Loading..." : "Show Templates"}
           </button>
           {templatesError ? <span className="openspec-overview-error">Failed to load templates: {templatesError}</span> : null}
           {templateActionMessage ? <span className="openspec-shell-note">{templateActionMessage}</span> : null}
@@ -2574,7 +2578,7 @@ function StandaloneApp() {
                       </td>
                       <td className="openspec-table-actions">
                         <button className="button" type="button" onClick={() => handleSelectTemplate(template)}>
-                          Select
+                          Show Template
                         </button>
                         {template.origin === "built-in" && !isTemplateCustomized(template.manifest.id) ? (
                           <button className="button"
@@ -2582,7 +2586,7 @@ function StandaloneApp() {
                             onClick={() => void handleCustomizeTemplate(template.manifest.id)}
                             disabled={templateActionLoading}
                           >
-                            Customize
+                            Edit Template
                           </button>
                         ) : null}
                         {template.origin === "project" ? (
@@ -2591,7 +2595,7 @@ function StandaloneApp() {
                             onClick={() => void handleDeleteProjectTemplate(template.manifest.id)}
                             disabled={templateActionLoading}
                           >
-                            Delete
+                            Delete Template...
                           </button>
                         ) : null}
                       </td>
@@ -2647,7 +2651,7 @@ function StandaloneApp() {
                 onClick={() => void handleInsertTemplateIntoChange()}
                 disabled={templateActionLoading || templateInsertTargetChange.trim().length === 0}
               >
-                {templateActionLoading ? "Inserting..." : "Insert into change"}
+                {templateActionLoading ? "Inserting..." : "Insert Template"}
               </button>
             </div>
           </section>
@@ -2781,7 +2785,7 @@ function StandaloneApp() {
                 onClick={() => void downloadSprintReport()}
                 disabled={sprintReportLoading || multiSelection.length === 0}
               >
-                {sprintReportLoading ? "Generating..." : "Open the report"}
+                {sprintReportLoading ? "Generating..." : "Generate Report"}
               </button>
             </div>
 

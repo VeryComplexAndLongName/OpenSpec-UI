@@ -51,7 +51,7 @@ describe("HintList", () => {
   it("offers Copy beside a command where the host can copy, and copies only its text", () => {
     const copyText = vi.fn(async () => undefined);
     render(<HintList hints={[HINT]} copyText={copyText} />);
-    const copy = screen.getByRole("button", { name: `Copy ${HINT.commands[0] as string}` });
+    const copy = screen.getByRole("button", { name: `Copy Command ${HINT.commands[0] as string}` });
     fireEvent.click(copy);
     expect(copyText).toHaveBeenCalledWith(HINT.commands[0]);
     expect(screen.getAllByRole("button")).toEqual([copy]);

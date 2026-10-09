@@ -11,19 +11,19 @@ holds the run.
 
 ## A run this host holds
 
-**1.** On the change's Pipeline card, press **Stop**: in the standalone
+**1.** On the change's Pipeline card, press **Stop Run...**: in the standalone
 app's Pipeline tab, or in the editor's "OpenSpec Workbench: Open Pipeline" panel.
 
-**2.** Give the reason, and press **Ask to stop**.
+**2.** Give the reason, and press **Stop Run**.
 
-![The Ask to stop form on a Pipeline card](../images/standalone/pipeline-stop-ask.png)
+![The Stop Run form on a Pipeline card](../images/standalone/pipeline-stop-ask.png)
 
 The card then says the run was asked to stop, and by whom. The reason is
 recorded in the run's status and in the chain's ending audit entry.
 
-![A running change's card stating that it was asked to stop, with Stop now](../images/standalone/pipeline-stop.png)
+![A running change's card stating that it was asked to stop, with Stop Process](../images/standalone/pipeline-stop.png)
 
-**Stop now** appears once a stop has been asked. It cancels at once,
+**Stop Process** appears once a stop has been asked. It cancels at once,
 without waiting for a sound point. Use it only when waiting is worse than
 an unfinished task.
 
@@ -67,7 +67,7 @@ Until the run reads it, the card says the stop was requested and that it
 is waiting for the run to read it.
 
 If your own runs read as not verified, enrol this machine's key first:
-confirm **It was me** in the Human-Only Inbox, or run
+press **Confirm Key** in the Human-Only Inbox, or run
 `openspec-ui-cli confirm key`.
 
 ## From a terminal

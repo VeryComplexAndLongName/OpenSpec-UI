@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { matchesFilter } from "@openspec-ui/core/browser";
 import { Icon } from "./Icon.js";
+import { ModalLayer } from "./ModalLayer.js";
 
 export interface ProcessSummary {
   id: string;
@@ -86,6 +87,9 @@ export function ProcessesView({
   const [retentionDays, setRetentionDays] = useState(30);
   const [message, setMessage] = useState<string | null>(null);
   const [reading, setReading] = useState<string | null>(null);
+  // Both destructive actions ask first, as every Danger action does
+  // (ADR 0045), in a dialog over the page (ADR 0047).
+  const [asking, setAsking] = useState<"cleanup" | "rollback" | null>(null);
   const loading = reading !== null;
 
   useEffect(() => { onReadingChange?.(reading); }, [reading, onReadingChange]);
@@ -195,7 +199,7 @@ export function ProcessesView({
             after it: the jerk the owner reported. What is being read is
             said by the shell's status line (a-screen-says-what-it-is-doing). */}
         <button className="button" type="button" onClick={() => void load()} disabled={loading}>
-          <Icon meaning="refresh" />Refresh
+          <Icon meaning="refresh" />Refresh Processes
         </button>
         <label className="openspec-pipeline-filter">
           <span className="openspec-visually-hidden">Filter runs</span>
@@ -214,8 +218,8 @@ export function ProcessesView({
         {/* The destructive pair take `warning`, not `stop`: stopping is what
             a run does, and these delete history that cannot come back
             (the-web-ui-screens-wear-metro 4.1). */}
-        <button className="button alert" type="button" onClick={() => void cleanup()} disabled={loading}>
-          <Icon meaning="warning" />Clean old history
+        <button className="button alert" type="button" onClick={() => setAsking("cleanup")} disabled={loading}>
+          <Icon meaning="warning" />Delete History...
         </button>
         {message ? <span className="openspec-shell-note" role="status" data-testid="processes-message">{message}</span> : null}
       </div>
@@ -261,7 +265,7 @@ export function ProcessesView({
                     data-testid={`processes-review-${process.id}`}
                     onClick={() => void inspect(process.id)}
                   >
-                    <Icon meaning="review" />Review
+                    <Icon meaning="review" />Show Process
                   </button>
                 </td>
               </tr>,
@@ -288,8 +292,8 @@ export function ProcessesView({
                               {`Excluded directories: ${details.coverage?.excludedDirectories.join(", ") || "none"}.`}
                             </p>
                             <div className="openspec-panel-foot">
-                              <button className="button alert" type="button" onClick={() => void rollback()} disabled={loading || !details.canRollback}>
-                                <Icon meaning="warning" />Rollback files
+                              <button className="button alert" type="button" onClick={() => setAsking("rollback")} disabled={loading || !details.canRollback}>
+                                <Icon meaning="warning" />Rollback Process...
                               </button>
                             </div>
                           </div>
@@ -301,6 +305,30 @@ export function ProcessesView({
           </table>
         )}
       </section>
+      {asking !== null ? (
+        <ModalLayer onCancel={() => setAsking(null)}>
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-label={asking === "cleanup" ? "Delete History" : "Rollback Process"}
+            className="openspec-pipeline-stop-form"
+            data-testid="processes-confirm"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const what = asking;
+              setAsking(null);
+              void (what === "cleanup" ? cleanup() : rollback());
+            }}
+          >
+            <p><strong>{asking === "cleanup" ? `Delete the history older than ${retentionDays} days?` : "Roll this run's files back?"}</strong></p>
+            <p>{asking === "cleanup" ? "The processes are deleted for good." : "The files return to what they were before the run."} This cannot be undone.</p>
+            <div className="openspec-pipeline-stop-form-actions">
+              <button type="submit" className="button alert" data-testid="processes-confirm-yes">{asking === "cleanup" ? "Delete" : "Rollback"}</button>
+              <button type="button" className="button" onClick={() => setAsking(null)}>Cancel</button>
+            </div>
+          </form>
+        </ModalLayer>
+      ) : null}
     </div>
   );
 }

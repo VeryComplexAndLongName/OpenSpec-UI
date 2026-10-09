@@ -80,9 +80,11 @@ function Recommendations(
               key={agent}
               type="button"
               data-testid={`run-stats-use-${agent}`}
+              aria-label={`Set Stage Agents: ${agent}`}
+              title={`Put ${agent} on every stage`}
               onClick={() => onUseAgent(agent)}
             >
-              {`Use ${agent} for every stage`}
+              Set Stage Agents
             </button>
           ))}
         </div>

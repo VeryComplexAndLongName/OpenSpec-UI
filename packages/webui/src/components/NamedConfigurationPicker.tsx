@@ -19,7 +19,7 @@ import { SegmentedChoice } from "./SegmentedChoice.js";
 // under them, with the basis in fine print.
 
 export function NamedConfigurationPicker(
-  { scope, recommendedId, describeEffort, onApply, status, note, testIdPrefix, applyLabel = "Apply" }: {
+  { scope, recommendedId, describeEffort, onApply, status, note, testIdPrefix, applyLabel = "Set Configuration" }: {
     /** Which configurations may be written where this picker writes.
      * `templatesForScope` is the one answer: a configuration refused on
      * save is never offered. */

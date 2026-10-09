@@ -122,9 +122,10 @@ test("offers a run only on the row whose item names an agent this build carries"
   // The item's line is the third of its tasks.md ("## Tasks", blank, the
   // item), and the row is keyed by change and line.
   await expect(page.getByTestId("run-delegated-run-by-an-agent:2")).toBeVisible();
-  await expect(page.getByTestId("run-delegated-run-by-an-agent:2")).toHaveText("Run copilot-cli");
+  await expect(page.getByTestId("run-delegated-run-by-an-agent:2")).toHaveText("Run Item");
+  await expect(page.getByTestId("run-delegated-run-by-an-agent:2")).toHaveAccessibleName("Run Item on copilot-cli");
   // The id in backticks is offered the same run.
-  await expect(page.getByTestId("run-delegated-run-by-a-quoted-agent:2")).toHaveText("Run copilot-cli");
+  await expect(page.getByTestId("run-delegated-run-by-a-quoted-agent:2")).toHaveAccessibleName("Run Item on copilot-cli");
   await expect(page.getByTestId("run-delegated-judged-by-a-person:3")).toHaveCount(0);
   await expect(page.getByTestId("run-delegated-nobody-at-all:2")).toHaveCount(0);
 });

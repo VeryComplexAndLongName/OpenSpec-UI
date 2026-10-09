@@ -458,7 +458,7 @@ describe("HarnessChainPanel — the button says what it does (two-buttons-two-na
     // have passed throughout.
     render(<HarnessChainPanel transport={createFakeTransport().transport} cwd={cwd} changeDir={changeDir} />);
 
-    expect(screen.getByRole("button", { name: "Start chain" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Run Chain" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Run with Agentic Harness" })).toBeNull();
   });
 });

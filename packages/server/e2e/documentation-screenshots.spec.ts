@@ -199,7 +199,7 @@ test.describe("standalone documentation screenshots", () => {
       await page.getByRole("tab", { name: "Change Editor" }).click();
       const editor = page.getByTestId("page-tab-panel-change-editor");
       await editor.getByRole("combobox", { name: "Change to edit" }).selectOption(CHANGE_NAME);
-      await page.getByRole("button", { name: "Load change", exact: true }).click();
+      await page.getByRole("button", { name: "Open Change", exact: true }).click();
       await expect(page.getByText(`Loaded ${CHANGE_NAME}.`)).toBeVisible({ timeout: 20000 });
       await expect(page.getByLabel("Markdown (proposal)")).toBeVisible();
       await editor.screenshot({ path: path.join(IMAGES_DIR, "change-editor.png") });
@@ -216,7 +216,7 @@ test.describe("standalone documentation screenshots", () => {
 
       // 6. The template catalog.
       await page.getByRole("tab", { name: "Templates" }).click();
-      await page.getByRole("button", { name: "Load templates" }).click();
+      await page.getByRole("button", { name: "Show Templates" }).click();
       await expect(page.getByTestId("templates-table")).toBeVisible({ timeout: 20000 });
       await page.getByTestId("page-tab-panel-templates")
         .screenshot({ path: path.join(IMAGES_DIR, "templates.png"), timeout: 20000 });

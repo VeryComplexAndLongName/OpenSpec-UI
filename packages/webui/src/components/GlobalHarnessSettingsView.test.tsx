@@ -32,7 +32,7 @@ function createApi(overrides: Partial<HarnessSettingsApi> = {}): HarnessSettings
   };
 }
 
-const saveButton = () => screen.getByRole("button", { name: "Save global settings" });
+const saveButton = () => screen.getByRole("button", { name: "Save Settings" });
 
 /** The radios of a named choice. */
 function radios(group: string): HTMLInputElement[] {
@@ -289,7 +289,7 @@ describe("GlobalHarnessSettingsView — a named configuration", () => {
     await waitFor(() => expect(screen.getByLabelText("propose agent")).toHaveValue("claude-cli"));
 
     choose("Named configuration", "economy");
-    fireEvent.click(screen.getByRole("button", { name: "Apply to the form" }));
+    fireEvent.click(screen.getByRole("button", { name: "Set Configuration" }));
 
     await waitFor(() =>
       expect(screen.getByTestId("global-harness-named-configuration-status").textContent).toContain("Nothing is saved"),

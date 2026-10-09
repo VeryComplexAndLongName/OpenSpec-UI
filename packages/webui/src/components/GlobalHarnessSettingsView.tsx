@@ -189,7 +189,7 @@ export function GlobalHarnessSettingsView({
         status={applyStatus}
         note="Nothing is saved until you save."
         testIdPrefix="global-harness"
-        applyLabel="Apply to the form"
+        applyLabel="Set Configuration"
       />
       <HarnessFindingsPanel findings={findings} />
       <section className="openspec-panel openspec-harness-section" data-testid="global-harness-fields">
@@ -305,7 +305,7 @@ export function GlobalHarnessSettingsView({
           </div>
         </div>
         <SettingsFoot
-          saveLabel="Save global settings"
+          saveLabel="Save Settings"
           onSave={() => void save()}
           onDiscard={() => void load()}
           loading={loading}

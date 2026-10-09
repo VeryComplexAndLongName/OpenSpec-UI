@@ -173,7 +173,7 @@ it may be a change you have not written yet.
 - See each change's standing word beside it in the Changes tree — the same
   word the Pipeline, the standalone app and `openspec-ui-cli show readiness` use —
   with where each part of it was read from on hover.
-- Say that a run signed by an unenrolled key was yours with **It was me** in
+- Say that a run signed by an unenrolled key was yours with **Confirm Key** in
   the Human-Only Inbox; its runs then read as signed by you.
 - Ask a change what it follows — "Show Ancestry" walks
   back to the changes it grew out of and opens any of them. This is how a

@@ -662,7 +662,7 @@ run from its Pipeline card, in either host.
 are not enrolled, with where the run is, its machine and its git author.
 `openspec-ui-cli confirm key <keyId>` says a listed run was yours: its key is
 enrolled, and its runs then read as signed by you. The same confirmation
-is offered in the Human-Only Inbox of both hosts as "It was me". It exits
+is offered in the Human-Only Inbox of both hosts as "Confirm Key". It exits
 `1` when the confirmation is refused.
 
 ### `join` and `people`: the team, in git

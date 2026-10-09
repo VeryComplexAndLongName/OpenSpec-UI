@@ -24,7 +24,7 @@ describe("EnrolmentRequests (a-run-is-signed-by-its-person 5.2)", () => {
     expect(row).toHaveTextContent("alpha — /wt/repo/alpha, on ada-laptop, git author ada@example.com, last seen");
     expect(screen.getAllByRole("button")).toHaveLength(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "It was me" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Key" }));
     expect(onConfirm).toHaveBeenCalledWith(KEY_ID);
   });
 

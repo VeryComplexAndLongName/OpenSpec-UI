@@ -517,6 +517,9 @@ export function PipelineView({
   const [answerFor, setAnswerFor] = useState<AnswerTarget | undefined>(undefined);
   // A Danger action waiting for its confirmation (a-change-is-acted-on-from-its-card).
   const [confirmFor, setConfirmFor] = useState<{ action: ChangeAction; changeName: string } | undefined>(undefined);
+  // The landed changes Archive Landed Changes... names, waiting for its
+  // confirmation: a Danger action asks first (ADR 0045).
+  const [archiveLanded, setArchiveLanded] = useState<string[] | undefined>(undefined);
   /** When this view asked each run elsewhere to stop, by instance id, so its
    * card can say it is waiting for the run to read the request. */
   const [stopsAsked, setStopsAsked] = useState<ReadonlyMap<string, string>>(() => new Map());
@@ -808,10 +811,10 @@ export function PipelineView({
         </div>
         <div className="openspec-pipeline-toolbar-actions">
           <button className="openspec-pipeline-button" type="button" data-testid="pipeline-open-all" onClick={() => setOpen(new Set(openableKeys()))}>
-            <ChevronIcon up={false} />Open all
+            <ChevronIcon up={false} />Show Tasks
           </button>
           <button className="openspec-pipeline-button" type="button" data-testid="pipeline-close-all" disabled={open.size === 0} onClick={() => setOpen(new Set())}>
-            <ChevronIcon up />Close all
+            <ChevronIcon up />Hide Tasks
           </button>
           <div className="openspec-pipeline-zoom" role="group" aria-label="Zoom">
             <button type="button" aria-label="Zoom out" data-testid="pipeline-zoom-out" disabled={zoomIndex <= 0} onClick={() => setZoom(PIPELINE_ZOOM_STEPS[zoomIndex - 1] ?? zoom)}>
@@ -860,7 +863,7 @@ export function PipelineView({
           </label>
           {refresh ? (
             <button className="openspec-pipeline-button" type="button" data-testid="pipeline-refresh" disabled={refreshing} onClick={() => void refreshNow()}>
-              <RefreshIcon />{refreshing ? "Refreshing…" : "Refresh"}
+              <RefreshIcon />{refreshing ? "Refreshing…" : "Refresh Pipeline"}
             </button>
           ) : null}
           {/* The same narrowing the editor's views take, over a change's
@@ -925,7 +928,7 @@ export function PipelineView({
                     await behind.read();
                   })()}
                 >
-                  Catch up
+                  Update Main
                 </button>
               ) : null}
               {caughtUp !== null ? <span data-testid="pipeline-catch-up-said">{caughtUp}</span> : null}
@@ -935,16 +938,16 @@ export function PipelineView({
             <p className="openspec-pipeline-landed" data-testid="pipeline-landed">
               <span>{`${foldedCount} ${foldedCount === 1 ? "change has" : "changes have"} landed`}</span>
               <button type="button" className="openspec-pipeline-button" data-testid="pipeline-show-landed" onClick={() => setShowLanded(true)}>
-                Show them
+                Show Landed Changes
               </button>
               {onArchive ? (
                 <button
                   type="button"
                   className="openspec-pipeline-button"
                   data-testid="pipeline-archive-landed"
-                  onClick={() => onArchive(landedHere.map((change) => change.changeName))}
+                  onClick={() => setArchiveLanded(landedHere.map((change) => change.changeName))}
                 >
-                  Archive them
+                  Archive Landed Changes...
                 </button>
               ) : null}
             </p>
@@ -953,7 +956,7 @@ export function PipelineView({
             <p className="openspec-shell-note" data-testid="pipeline-landed-shown">
               <span>{`${landedHere.length} of these have landed.`}</span>
               <button type="button" className="openspec-pipeline-button" data-testid="pipeline-hide-landed" onClick={() => setShowLanded(false)}>
-                Fold them away
+                Hide Landed Changes
               </button>
             </p>
           ) : null}
@@ -1027,6 +1030,29 @@ export function PipelineView({
           }}
           onClose={() => setAnswerFor(undefined)}
         />
+        </ModalLayer>
+      ) : null}
+      {archiveLanded !== undefined && onArchive !== undefined ? (
+        <ModalLayer onCancel={() => setArchiveLanded(undefined)}>
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-label="Archive Landed Changes"
+            className="openspec-pipeline-stop-form"
+            data-testid="pipeline-confirm-archive-landed"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onArchive(archiveLanded);
+              setArchiveLanded(undefined);
+            }}
+          >
+            <p><strong>{`Archive ${archiveLanded.length === 1 ? archiveLanded[0] : `${archiveLanded.length} landed changes`}?`}</strong></p>
+            <p>Their specs are merged into openspec/specs, and the changes move to the archive.</p>
+            <div className="openspec-pipeline-stop-form-actions">
+              <button type="submit" className="openspec-pipeline-button openspec-pipeline-button--stop" data-testid="pipeline-confirm-archive-landed-yes">Archive</button>
+              <button type="button" className="openspec-pipeline-button" onClick={() => setArchiveLanded(undefined)}>Cancel</button>
+            </div>
+          </form>
         </ModalLayer>
       ) : null}
       {confirmFor !== undefined && changeActions !== undefined ? (
@@ -1498,7 +1524,7 @@ function CardTaskTools({ changeName, directory, listedFrom, where, own, rows, op
           title={hiding ? "Show the done tasks" : "Hide the done tasks"}
           onClick={() => taskCards.toggleHideDone(directory, changeName)}
         >
-          {hiding ? "Show done" : "Hide done"}
+          {hiding ? "Show Done Tasks" : "Hide Done Tasks"}
         </button>
       ) : null}
       {own && taskCards.select !== undefined ? (
@@ -1780,7 +1806,7 @@ function cardControls(card: ChangeCard, handlers: CardControlHandlers): ReactNod
     const view = handlers.onViewLogs;
     const name = card.changeName;
     buttons.push(
-      <button key="logs" type="button" className="openspec-pipeline-button" data-testid={`pipeline-logs-${name}`} aria-label={`Logs of ${name}`} onClick={() => view(name)}><Icon meaning="log" />Logs</button>,
+      <button key="logs" type="button" className="openspec-pipeline-button" data-testid={`pipeline-logs-${name}`} aria-label={`Show Logs ${name}`} onClick={() => view(name)}><Icon meaning="log" />Show Logs</button>,
     );
   }
   return buttons;
@@ -1832,7 +1858,7 @@ function runControls(card: ChangeCard, handlers: CardControlHandlers): ReactNode
     const open = handlers.onAnswer;
     const questions = target.questions;
     buttons.push(
-      <button key="answer" type="button" className={forward} data-testid={`pipeline-answer-${name}`} aria-label={`Answer ${name}: ${questions.map((question) => question.text).join("; ")}`} onClick={() => open(target)}><Icon meaning="run" />Answer...</button>,
+      <button key="answer" type="button" className={forward} data-testid={`pipeline-answer-${name}`} aria-label={`Answer Questions ${name}: ${questions.map((question) => question.text).join("; ")}`} onClick={() => open(target)}><Icon meaning="run" />Answer Questions...</button>,
     );
   }
   const stopping = "openspec-pipeline-button openspec-pipeline-button--stop";
@@ -1846,7 +1872,7 @@ function runControls(card: ChangeCard, handlers: CardControlHandlers): ReactNode
         // Every control here carries its own `aria-label`, so an icon before
         // the word cannot move the name a test or a voice command uses
         // (the-web-ui-screens-wear-metro 4.2).
-        <button key="start" type="button" className={forward} data-testid={`pipeline-start-${name}`} aria-label={`Start ${name}`} onClick={() => start(name)}><Icon meaning="run" />Start...</button>,
+        <button key="start" type="button" className={forward} data-testid={`pipeline-start-${name}`} aria-label={`Run Change ${name}`} onClick={() => start(name)}><Icon meaning="run" />Run Change...</button>,
       );
     }
     // A review that asked for changes: the plan is updated before anything
@@ -1854,7 +1880,7 @@ function runControls(card: ChangeCard, handlers: CardControlHandlers): ReactNode
     if (handlers.onUpdatePlan !== undefined && card.lastRun?.reviewVerdict === "changes-needed") {
       const update = handlers.onUpdatePlan;
       buttons.push(
-        <button key="update-plan" type="button" className={forward} data-testid={`pipeline-update-plan-${name}`} aria-label={`Update the plan of ${name}`} onClick={() => update(name)}><Icon meaning="run" />Update the plan</button>,
+        <button key="update-plan" type="button" className={forward} data-testid={`pipeline-update-plan-${name}`} aria-label={`Update Plan ${name}`} onClick={() => update(name)}><Icon meaning="run" />Update Plan</button>,
       );
     }
     return buttons;
@@ -1869,7 +1895,7 @@ function runControls(card: ChangeCard, handlers: CardControlHandlers): ReactNode
     if (!run.ownedHere && run.stoppableByMe && handlers.canAskToStop && run.stopAskedAt === undefined && run.stopRequested === null) {
       const instanceId = run.instanceId;
       buttons.push(
-        <button key="ask-stop" type="button" className={stopping} data-testid={`pipeline-ask-stop-${name}`} aria-label={`Stop ${name}`} onClick={() => handlers.onAskStop({ changeName: name, instanceId })}><Icon meaning="stop" />Stop...</button>,
+        <button key="ask-stop" type="button" className={stopping} data-testid={`pipeline-ask-stop-${name}`} aria-label={`Stop Run ${name}`} onClick={() => handlers.onAskStop({ changeName: name, instanceId })}><Icon meaning="stop" />Stop Run...</button>,
       );
     }
     // Answered where it was started: the card names the folder, and offers
@@ -1877,7 +1903,7 @@ function runControls(card: ChangeCard, handlers: CardControlHandlers): ReactNode
     if (!run.ownedHere && handlers.copyText !== undefined && run.workingDirectory !== "") {
       const copy = handlers.copyText;
       buttons.push(
-        <button key="copy" type="button" className={plain} data-testid={`pipeline-copy-path-${name}`} aria-label={`Copy folder path of ${name}`} onClick={() => void copy(run.workingDirectory)}><CopyIcon />Copy folder path</button>,
+        <button key="copy" type="button" className={plain} data-testid={`pipeline-copy-path-${name}`} aria-label={`Copy Path ${name}`} onClick={() => void copy(run.workingDirectory)}><CopyIcon />Copy Path</button>,
       );
     }
     return buttons;
@@ -1887,14 +1913,14 @@ function runControls(card: ChangeCard, handlers: CardControlHandlers): ReactNode
   const runId = held.runId;
   if (held.stopRequested !== null) {
     buttons.push(
-      <button key="stop-now" type="button" className={stopping} data-testid={`pipeline-stop-now-${name}`} aria-label={`Stop ${name} now`} onClick={() => send({ changeName: name, runId, kind: "cancel" })}><Icon meaning="stop" />Stop now</button>,
+      <button key="stop-now" type="button" className={stopping} data-testid={`pipeline-stop-now-${name}`} aria-label={`Stop Process ${name}`} onClick={() => send({ changeName: name, runId, kind: "cancel" })}><Icon meaning="stop" />Stop Process</button>,
     );
     return buttons;
   }
   if (run.waiting?.kind === "checkpoint") {
     const next = run.waiting.nextStage;
     buttons.push(
-      <button key="continue" type="button" className={forward} data-testid={`pipeline-continue-${name}`} aria-label={`Continue ${name} to ${next}`} onClick={() => send({ changeName: name, runId, kind: "confirmCheckpoint" })}><ForwardIcon />{`Continue to ${next}`}</button>,
+      <button key="continue" type="button" className={forward} data-testid={`pipeline-continue-${name}`} aria-label={`Continue Run ${name} to ${next}`} title={`Continue to ${next}`} onClick={() => send({ changeName: name, runId, kind: "confirmCheckpoint" })}><ForwardIcon />Continue Run</button>,
     );
   }
   // The oldest permission request still open, and how many are: an agent
@@ -1910,12 +1936,12 @@ function runControls(card: ChangeCard, handlers: CardControlHandlers): ReactNode
     const { requestId, description } = oldest;
     const more = pendingHere.length > 1 ? ` (1 of ${pendingHere.length})` : "";
     buttons.push(
-      <button key="allow" type="button" className={forward} data-testid={`pipeline-allow-${name}`} aria-label={`Allow ${name}: ${description}${more}`} onClick={() => send({ changeName: name, runId, kind: "resolvePermission", permissionRequestId: requestId, permissionOutcome: "allow" })}><CheckIcon />{`Allow${more}`}</button>,
-      <button key="deny" type="button" className={stopping} data-testid={`pipeline-deny-${name}`} aria-label={`Deny ${name}: ${description}${more}`} onClick={() => send({ changeName: name, runId, kind: "resolvePermission", permissionRequestId: requestId, permissionOutcome: "deny" })}><CrossIcon />Deny</button>,
+      <button key="allow" type="button" className={forward} data-testid={`pipeline-allow-${name}`} aria-label={`Allow Permission ${name}: ${description}${more}`} onClick={() => send({ changeName: name, runId, kind: "resolvePermission", permissionRequestId: requestId, permissionOutcome: "allow" })}><CheckIcon />{`Allow Permission${more}`}</button>,
+      <button key="deny" type="button" className={stopping} data-testid={`pipeline-deny-${name}`} aria-label={`Deny Permission ${name}: ${description}${more}`} onClick={() => send({ changeName: name, runId, kind: "resolvePermission", permissionRequestId: requestId, permissionOutcome: "deny" })}><CrossIcon />Deny Permission</button>,
     );
   }
   buttons.push(
-    <button key="stop" type="button" className={stopping} data-testid={`pipeline-stop-${name}`} aria-label={`Stop ${name}`} onClick={() => handlers.onAskStop({ changeName: name, runId })}><Icon meaning="stop" />Stop...</button>,
+    <button key="stop" type="button" className={stopping} data-testid={`pipeline-stop-${name}`} aria-label={`Stop Run ${name}`} onClick={() => handlers.onAskStop({ changeName: name, runId })}><Icon meaning="stop" />Stop Run...</button>,
   );
   return buttons;
 }
@@ -1941,7 +1967,7 @@ function WaitingBanner({ cards, heldRuns, onAnswer, onRunControl }: {
       rows.push(
         <li key={`${name} questions`} data-testid={`pipeline-waiting-${name}`}>
           <span><strong>{name}</strong>{` asks ${count === 1 ? "a question" : `${count} questions`}`}</span>
-          <button type="button" className="openspec-pipeline-button openspec-pipeline-button--forward" data-testid={`pipeline-waiting-answer-${name}`} aria-label={`Answer the questions of ${name}`} onClick={() => onAnswer(target)}>Answer...</button>
+          <button type="button" className="openspec-pipeline-button openspec-pipeline-button--forward" data-testid={`pipeline-waiting-answer-${name}`} aria-label={`Answer Questions for ${name}`} onClick={() => onAnswer(target)}>Answer Questions...</button>
         </li>,
       );
     }
@@ -1952,8 +1978,8 @@ function WaitingBanner({ cards, heldRuns, onAnswer, onRunControl }: {
       rows.push(
         <li key={`${name} permission`} data-testid={`pipeline-waiting-permission-${name}`}>
           <span><strong>{name}</strong>{` asks permission${more}: ${asked.description}`}</span>
-          <button type="button" className="openspec-pipeline-button openspec-pipeline-button--forward" aria-label={`Allow, for ${name}: ${asked.description}`} onClick={() => send("allow")}>Allow</button>
-          <button type="button" className="openspec-pipeline-button openspec-pipeline-button--stop" aria-label={`Deny, for ${name}: ${asked.description}`} onClick={() => send("deny")}>Deny</button>
+          <button type="button" className="openspec-pipeline-button openspec-pipeline-button--forward" aria-label={`Allow Permission for ${name}: ${asked.description}`} onClick={() => send("allow")}>Allow Permission</button>
+          <button type="button" className="openspec-pipeline-button openspec-pipeline-button--stop" aria-label={`Deny Permission for ${name}: ${asked.description}`} onClick={() => send("deny")}>Deny Permission</button>
         </li>,
       );
     }
@@ -2065,7 +2091,7 @@ function StopReasonForm({ changeName, onAsk, onCancel }: {
       </label>
       {refused ? <p className="openspec-shell-error" role="alert">A stop needs a reason.</p> : null}
       <div className="openspec-pipeline-stop-form-actions">
-        <button type="submit" className="openspec-pipeline-button openspec-pipeline-button--stop" data-testid="pipeline-ask-to-stop">Ask to stop</button>
+        <button type="submit" className="openspec-pipeline-button openspec-pipeline-button--stop" data-testid="pipeline-ask-to-stop">Stop Run</button>
         <button className="openspec-pipeline-button" type="button" onClick={onCancel}>Cancel</button>
       </div>
     </form>
