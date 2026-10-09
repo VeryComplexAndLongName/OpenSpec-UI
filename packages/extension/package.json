@@ -40,7 +40,7 @@
         "command": "openspec-ui.showStatus",
         "title": "Show Status",
         "category": "OpenSpec Workbench",
-        "icon": "$(eye)"
+        "icon": "$(pulse)"
       },
       {
         "command": "openspec-ui.initializeWorkspace",
@@ -52,7 +52,7 @@
         "command": "openspec-ui.writeRules",
         "title": "Write Rules",
         "category": "OpenSpec Workbench",
-        "icon": "$(pencil)"
+        "icon": "$(law)"
       },
       {
         "command": "openspec-ui.generateInstructions",
@@ -64,19 +64,19 @@
         "command": "openspec-ui.initializeWorkspaceHarness",
         "title": "Initialize Workspace Harness...",
         "category": "OpenSpec Workbench",
-        "icon": "$(rocket)"
+        "icon": "$(tools)"
       },
       {
         "command": "openspec-ui.configureDependabot",
         "title": "Configure Dependabot...",
         "category": "OpenSpec Workbench",
-        "icon": "$(settings-gear)"
+        "icon": "$(shield)"
       },
       {
         "command": "openspec-ui.generateScopedInstructions",
         "title": "Generate Scoped Instructions...",
         "category": "OpenSpec Workbench",
-        "icon": "$(sparkle)"
+        "icon": "$(wand)"
       },
       {
         "command": "openspec-ui.configureWorkspaceHarness",
@@ -88,13 +88,13 @@
         "command": "openspec-ui.setLlmKey",
         "title": "Set LLM Key...",
         "category": "OpenSpec Workbench",
-        "icon": "$(symbol-property)"
+        "icon": "$(key)"
       },
       {
         "command": "openspec-ui.configureChangeHarness",
         "title": "Configure Change Harness",
         "category": "OpenSpec Workbench",
-        "icon": "$(settings-gear)"
+        "icon": "$(gear)"
       },
       {
         "command": "openspec-ui.runChange",
@@ -105,7 +105,7 @@
       {
         "command": "openspec-ui.createChange",
         "title": "Create Change...",
-        "icon": "$(new-file)",
+        "icon": "$(add)",
         "category": "OpenSpec Workbench"
       },
       {
@@ -123,19 +123,19 @@
       {
         "command": "openspec-ui.showTimeline",
         "title": "Show Timeline",
-        "icon": "$(eye)",
+        "icon": "$(history)",
         "category": "OpenSpec Workbench"
       },
       {
         "command": "openspec-ui.showAncestry",
         "title": "Show Ancestry",
-        "icon": "$(eye)",
+        "icon": "$(type-hierarchy-super)",
         "category": "OpenSpec Workbench"
       },
       {
         "command": "openspec-ui.showCost",
         "title": "Show Cost",
-        "icon": "$(eye)",
+        "icon": "$(credit-card)",
         "category": "OpenSpec Workbench"
       },
       {
@@ -153,19 +153,19 @@
       {
         "command": "openspec-ui.showGraph",
         "title": "Show Graph",
-        "icon": "$(eye)",
+        "icon": "$(graph)",
         "category": "OpenSpec Workbench"
       },
       {
         "command": "openspec-ui.showChange",
         "title": "Show Change",
-        "icon": "$(eye)",
+        "icon": "$(preview)",
         "category": "OpenSpec Workbench"
       },
       {
         "command": "openspec-ui.openPipeline",
         "title": "Open Pipeline",
-        "icon": "$(go-to-file)",
+        "icon": "$(type-hierarchy)",
         "category": "OpenSpec Workbench"
       },
       {
@@ -177,13 +177,13 @@
       {
         "command": "openspec-ui.openChangeCopy",
         "title": "Open Change Copy...",
-        "icon": "$(go-to-file)",
+        "icon": "$(files)",
         "category": "OpenSpec Workbench"
       },
       {
         "command": "openspec-ui.openWorktree",
         "title": "Open Worktree",
-        "icon": "$(go-to-file)",
+        "icon": "$(folder-opened)",
         "category": "OpenSpec Workbench"
       },
       {
@@ -219,7 +219,7 @@
       {
         "command": "openspec-ui.deleteTemplate",
         "title": "Delete Template",
-        "icon": "$(trash)",
+        "icon": "$(circle-slash)",
         "category": "OpenSpec Workbench"
       },
       {
@@ -231,13 +231,13 @@
       {
         "command": "openspec-ui.deleteTask",
         "title": "Delete Task",
-        "icon": "$(trash)",
+        "icon": "$(close)",
         "category": "OpenSpec Workbench"
       },
       {
         "command": "openspec-ui.runItem",
         "title": "Run Item",
-        "icon": "$(play)",
+        "icon": "$(run-all)",
         "category": "OpenSpec Workbench"
       },
       {
@@ -262,36 +262,36 @@
         "command": "openspec-ui.openCliView",
         "title": "Open CLI View",
         "category": "OpenSpec Workbench",
-        "icon": "$(go-to-file)"
+        "icon": "$(terminal)"
       },
       {
         "command": "openspec-ui.showComparison",
         "title": "Show Comparison",
         "category": "OpenSpec Workbench",
-        "icon": "$(eye)"
+        "icon": "$(git-compare)"
       },
       {
         "command": "openspec-ui.generateReport",
         "title": "Generate Report...",
         "category": "OpenSpec Workbench",
-        "icon": "$(sparkle)"
+        "icon": "$(report)"
       },
       {
         "command": "openspec-ui.showDetails",
         "title": "Show Details",
         "category": "OpenSpec Workbench",
-        "icon": "$(eye)"
+        "icon": "$(note)"
       },
       {
         "command": "openspec-ui.showSpecs",
         "title": "Show Specs",
         "category": "OpenSpec Workbench",
-        "icon": "$(eye)"
+        "icon": "$(book)"
       },
       {
         "command": "openspec-ui.openDashboard",
         "title": "Open Dashboard",
-        "icon": "$(go-to-file)",
+        "icon": "$(dashboard)",
         "category": "OpenSpec Workbench"
       },
       {
@@ -303,13 +303,13 @@
       {
         "command": "openspec-ui.deleteLeftover",
         "title": "Delete Leftover",
-        "icon": "$(trash)",
+        "icon": "$(diff-removed)",
         "category": "OpenSpec Workbench"
       },
       {
         "command": "openspec-ui.deleteWorktree",
         "title": "Delete Worktree",
-        "icon": "$(trash)",
+        "icon": "$(repo-delete)",
         "category": "OpenSpec Workbench"
       },
       {
@@ -327,13 +327,13 @@
       {
         "command": "openspec-ui.addRelation",
         "title": "Add Relation...",
-        "icon": "$(add)",
+        "icon": "$(link)",
         "category": "OpenSpec Workbench"
       },
       {
         "command": "openspec-ui.removeRelation",
         "title": "Remove Relation...",
-        "icon": "$(remove)",
+        "icon": "$(debug-disconnect)",
         "category": "OpenSpec Workbench"
       },
       {
@@ -351,25 +351,25 @@
       {
         "command": "openspec-ui.filterSpecs",
         "title": "Filter Specs...",
-        "icon": "$(filter)",
+        "icon": "$(list-filter)",
         "category": "OpenSpec Workbench"
       },
       {
         "command": "openspec-ui.clearSpecsFilter",
         "title": "Clear Specs Filter",
-        "icon": "$(clear-all)",
+        "icon": "$(close-all)",
         "category": "OpenSpec Workbench"
       },
       {
         "command": "openspec-ui.filterGraph",
         "title": "Filter Graph...",
-        "icon": "$(filter)",
+        "icon": "$(filter-filled)",
         "category": "OpenSpec Workbench"
       },
       {
         "command": "openspec-ui.clearGraphFilter",
         "title": "Clear Graph Filter",
-        "icon": "$(clear-all)",
+        "icon": "$(search-stop)",
         "category": "OpenSpec Workbench"
       },
       {
@@ -387,13 +387,13 @@
       {
         "command": "openspec-ui.showDiff",
         "title": "Show Diff",
-        "icon": "$(eye)",
+        "icon": "$(diff)",
         "category": "OpenSpec Workbench"
       },
       {
         "command": "openspec-ui.stopProcess",
         "title": "Stop Process",
-        "icon": "$(debug-stop)",
+        "icon": "$(stop-circle)",
         "category": "OpenSpec Workbench"
       },
       {
@@ -411,25 +411,25 @@
       {
         "command": "openspec-ui.rollbackChange",
         "title": "Rollback Change",
-        "icon": "$(debug-step-back)",
+        "icon": "$(debug-reverse-continue)",
         "category": "OpenSpec Workbench"
       },
       {
         "command": "openspec-ui.runTypecheck",
         "title": "Run Typecheck",
-        "icon": "$(play)",
+        "icon": "$(check)",
         "category": "OpenSpec Workbench"
       },
       {
         "command": "openspec-ui.runTests",
         "title": "Run Tests",
-        "icon": "$(play)",
+        "icon": "$(beaker)",
         "category": "OpenSpec Workbench"
       },
       {
         "command": "openspec-ui.runLint",
         "title": "Run Lint",
-        "icon": "$(play)",
+        "icon": "$(symbol-ruler)",
         "category": "OpenSpec Workbench"
       }
     ],

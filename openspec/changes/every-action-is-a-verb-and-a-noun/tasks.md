@@ -2,7 +2,7 @@ From ADR 0045, accepted by the owner on 2026-10-08.
 
 ## 1. Core
 
-- [x] 1.1 `action-vocabulary.ts`: verbs with group and icon, nouns,
+- [x] 1.1 `action-vocabulary.ts`: verbs with their group, nouns,
   `readActionTitle`, `actionCommandId`, `actionCliForm`; exported from the
   root and the browser surface. Tests.
   `action-vocabulary.ts`, exported from `index.ts` and `browser.ts`;
@@ -29,6 +29,12 @@ From ADR 0045, accepted by the owner on 2026-10-08.
   hold to the vocabulary; no two titles alike. `one-way-in.test.ts` follows.
   `action-vocabulary.test.ts` in the extension, 4 tests; all 521 of the
   extension's unit tests pass (2026-10-08).
+- [x] 2.4 Every command has an icon of its own (the owner, 2026-10-09: the
+  Changes view's title bar showed one picture two and three times). Core's
+  verbs lose their icon; ADR 0045 amended; the test refuses two commands
+  with one glyph, a codicon's second name included.
+  66 commands, 66 icons, each checked against the glyph table of VS Code
+  1.141 so no two names draw one picture (2026-10-09).
 ## 3. CLI
 
 - [x] 3.1 `subcommands.ts`: pairs routed to handlers, former names refused

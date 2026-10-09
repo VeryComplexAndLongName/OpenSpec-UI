@@ -8,7 +8,7 @@ own changes, and use the vocabulary this one adds.
 ## Decisions
 
 1. **One vocabulary, in core, with no imports.** `action-vocabulary.ts`
-   holds the verbs (group, codicon, danger by group), the nouns, and
+   holds the verbs (group, danger by group), the nouns, and
    `readActionTitle`, `actionCommandId`, `actionCliForm`. `webui` will read
    it as the extension does, so it is exported from the browser surface too.
 2. **The manifest is generated, not hand-edited, this once.** A script maps

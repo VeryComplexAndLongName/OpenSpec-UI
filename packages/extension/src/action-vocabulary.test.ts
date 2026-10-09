@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { actionCommandId, actionVerb, readActionTitle } from "@openspec-ui/core";
+import { actionCommandId, readActionTitle } from "@openspec-ui/core";
 import { describe, expect, it, vi } from "vitest";
 
 // every-action-is-a-verb-and-a-noun (ADR 0045). Asserted over the manifest,
@@ -29,13 +29,18 @@ describe("every command is a verb and a noun", () => {
     expect(wrong.map((entry) => entry.command)).toEqual([]);
   });
 
-  it("shows every command with its verb's icon, so a verb looks the same wherever it is", () => {
-    const wrong = manifest.contributes.commands.filter((entry) => {
-      const read = readActionTitle(entry.title);
-      return read === undefined || entry.icon !== `$(${actionVerb(read.verb.verb)?.icon})`;
+  // The owner, on 2026-10-09: the Changes view's title bar showed the same
+  // picture twice and three times, and a picture that two actions share
+  // tells neither apart. Some codicons are two names for one glyph.
+  it("gives every command its own picture: no icon, nor a second name of its glyph, is shared", () => {
+    const sameGlyph: Record<string, string> = { pencil: "edit", trashcan: "trash", plus: "add", "gist-new": "add", "repo-create": "add", "file-add": "new-file", "settings": "gear" };
+    const glyphs = manifest.contributes.commands.map((entry) => {
+      const name = /^\$\(([a-z-]+)\)$/.exec(entry.icon ?? "")?.[1];
+      return name === undefined ? undefined : (sameGlyph[name] ?? name);
     });
 
-    expect(wrong.map((entry) => entry.command)).toEqual([]);
+    expect(manifest.contributes.commands.filter((_, index) => glyphs[index] === undefined).map((entry) => entry.command)).toEqual([]);
+    expect(manifest.contributes.commands.filter((_, index) => glyphs.indexOf(glyphs[index]) !== index).map((entry) => entry.command)).toEqual([]);
   });
 
   it("names each action once: no two commands share a title", () => {

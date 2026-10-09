@@ -1,6 +1,6 @@
 // Every action the product offers is a verb and a noun (ADR 0045,
-// every-action-is-a-verb-and-a-noun): one list of verbs, each with the group,
-// icon and danger every surface shows it with, and one list of nouns. A
+// every-action-is-a-verb-and-a-noun): one list of verbs, each with the group
+// and danger every surface shows it with, and one list of nouns. A
 // command's title, a CLI subcommand and a card's control are a pair from
 // these lists, and the tests that hold each surface ask this module.
 //
@@ -13,8 +13,6 @@ export type ActionGroup = "run" | "respond" | "inspect" | "arrange" | "set-up" |
 export interface ActionVerb {
   verb: string;
   group: ActionGroup;
-  /** A codicon name: the same icon wherever the verb is shown. */
-  icon: string;
 }
 
 export const ACTION_GROUPS: ReadonlyArray<{ group: ActionGroup; label: string; color: string }> = [
@@ -27,47 +25,47 @@ export const ACTION_GROUPS: ReadonlyArray<{ group: ActionGroup; label: string; c
 ];
 
 export const ACTION_VERBS: readonly ActionVerb[] = [
-  { verb: "Run", group: "run", icon: "play" },
-  { verb: "Continue", group: "run", icon: "debug-continue" },
-  { verb: "Update", group: "run", icon: "sync" },
-  { verb: "Reopen", group: "run", icon: "issue-reopened" },
-  { verb: "Stop", group: "run", icon: "debug-stop" },
-  { verb: "Send", group: "run", icon: "comment" },
-  { verb: "Finish", group: "run", icon: "check-all" },
-  { verb: "Answer", group: "respond", icon: "reply" },
-  { verb: "Allow", group: "respond", icon: "check" },
-  { verb: "Deny", group: "respond", icon: "close" },
-  { verb: "Confirm", group: "respond", icon: "pass" },
-  { verb: "Show", group: "inspect", icon: "eye" },
-  { verb: "Open", group: "inspect", icon: "go-to-file" },
-  { verb: "Find", group: "inspect", icon: "search" },
-  { verb: "Explain", group: "inspect", icon: "info" },
-  { verb: "Recommend", group: "inspect", icon: "lightbulb" },
-  { verb: "Validate", group: "inspect", icon: "checklist" },
-  { verb: "Diagnose", group: "inspect", icon: "pulse" },
-  { verb: "Filter", group: "arrange", icon: "filter" },
-  { verb: "Clear", group: "arrange", icon: "clear-all" },
-  { verb: "Hide", group: "arrange", icon: "eye-closed" },
-  { verb: "Refresh", group: "arrange", icon: "refresh" },
-  { verb: "Copy", group: "arrange", icon: "copy" },
-  { verb: "Configure", group: "set-up", icon: "settings-gear" },
-  { verb: "Set", group: "set-up", icon: "symbol-property" },
-  { verb: "Initialize", group: "set-up", icon: "rocket" },
-  { verb: "Write", group: "set-up", icon: "pencil" },
-  { verb: "Generate", group: "set-up", icon: "sparkle" },
-  { verb: "Create", group: "set-up", icon: "new-file" },
-  { verb: "Edit", group: "set-up", icon: "edit" },
-  { verb: "Insert", group: "set-up", icon: "insert" },
-  { verb: "Add", group: "set-up", icon: "add" },
-  { verb: "Remove", group: "set-up", icon: "remove" },
-  { verb: "Join", group: "set-up", icon: "person-add" },
-  { verb: "Restore", group: "set-up", icon: "discard" },
-  { verb: "Commit", group: "set-up", icon: "git-commit" },
-  { verb: "Complete", group: "set-up", icon: "check" },
-  { verb: "Move", group: "set-up", icon: "arrow-right" },
-  { verb: "Archive", group: "danger", icon: "archive" },
-  { verb: "Rollback", group: "danger", icon: "debug-step-back" },
-  { verb: "Delete", group: "danger", icon: "trash" },
+  { verb: "Run", group: "run" },
+  { verb: "Continue", group: "run" },
+  { verb: "Update", group: "run" },
+  { verb: "Reopen", group: "run" },
+  { verb: "Stop", group: "run" },
+  { verb: "Send", group: "run" },
+  { verb: "Finish", group: "run" },
+  { verb: "Answer", group: "respond" },
+  { verb: "Allow", group: "respond" },
+  { verb: "Deny", group: "respond" },
+  { verb: "Confirm", group: "respond" },
+  { verb: "Show", group: "inspect" },
+  { verb: "Open", group: "inspect" },
+  { verb: "Find", group: "inspect" },
+  { verb: "Explain", group: "inspect" },
+  { verb: "Recommend", group: "inspect" },
+  { verb: "Validate", group: "inspect" },
+  { verb: "Diagnose", group: "inspect" },
+  { verb: "Filter", group: "arrange" },
+  { verb: "Clear", group: "arrange" },
+  { verb: "Hide", group: "arrange" },
+  { verb: "Refresh", group: "arrange" },
+  { verb: "Copy", group: "arrange" },
+  { verb: "Configure", group: "set-up" },
+  { verb: "Set", group: "set-up" },
+  { verb: "Initialize", group: "set-up" },
+  { verb: "Write", group: "set-up" },
+  { verb: "Generate", group: "set-up" },
+  { verb: "Create", group: "set-up" },
+  { verb: "Edit", group: "set-up" },
+  { verb: "Insert", group: "set-up" },
+  { verb: "Add", group: "set-up" },
+  { verb: "Remove", group: "set-up" },
+  { verb: "Join", group: "set-up" },
+  { verb: "Restore", group: "set-up" },
+  { verb: "Commit", group: "set-up" },
+  { verb: "Complete", group: "set-up" },
+  { verb: "Move", group: "set-up" },
+  { verb: "Archive", group: "danger" },
+  { verb: "Rollback", group: "danger" },
+  { verb: "Delete", group: "danger" },
 ];
 
 /** What an action acts on. A noun of two words is one noun. */

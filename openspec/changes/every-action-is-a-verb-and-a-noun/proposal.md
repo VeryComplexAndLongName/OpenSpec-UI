@@ -13,14 +13,14 @@ the product has 58 installs and 40 updates (2026-10-07).
 
 - **BREAKING** Every extension command is renamed to `<Verb> <Noun>`, with
   the id `openspec-ui.<verb><Noun>`, the category "OpenSpec Workbench" and
-  its verb's icon. The table is in ADR 0045.
+  an icon of its own, which no other command shares. The table is in ADR
+  0045.
 - **BREAKING** Every CLI subcommand becomes a pair: `validate changes`, `run
   change`, `diagnose workspace`, `answer question`, ... A former name is
   refused with `OSW-CLI-001`, naming its replacement.
 - "Validate Change (Strict)" goes: "Validate Change" is strict, and asks for
   a change when none is selected.
-- `action-vocabulary.ts` in core: the verbs with their group, icon and
-  danger, the nouns, and how a pair is read and named. Tests hold the
+- `action-vocabulary.ts` in core: the verbs with their group and danger, the nouns, and how a pair is read and named. Tests hold the
   extension's manifest and the CLI's subcommands to it.
 - Every message, hint and document that names a command or subcommand
   names it by its pair: the supervisor's and readiness hints, the workflow

@@ -5,9 +5,9 @@
 Every command the extension contributes SHALL be titled `<Verb> <Noun>`,
 with the verb and the noun from the product's lists (ADR 0045), and three
 dots after it where the command asks before it acts. Its id SHALL be
-`openspec-ui.<verb><Noun>`, its category "OpenSpec Workbench", and its icon
-the verb's. No two commands SHALL share a title, and no command SHALL keep
-a former id beside its new one.
+`openspec-ui.<verb><Noun>`, its category "OpenSpec Workbench", and its
+icon its own. No two commands SHALL share a title or an icon's glyph, and
+no command SHALL keep a former id beside its new one.
 
 #### Scenario: A command a person reads
 
@@ -15,6 +15,12 @@ a former id beside its new one.
 - **THEN** every entry reads as a verb and a noun, such as "Configure Change
   Harness" or "Answer Question...", and in the palette it follows "OpenSpec
   Workbench:"
+
+#### Scenario: Icons side by side
+
+- **WHEN** a view's title bar or a row shows several commands as icons
+- **THEN** each shows a different picture, such as Run Typecheck, Run Tests
+  and Run Lint in the Changes view
 
 #### Scenario: Validation from the palette
 
