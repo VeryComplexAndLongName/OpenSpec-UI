@@ -39,8 +39,10 @@ From ADR 0047, accepted by the owner on 2026-10-09.
 - [x] 5.2 `openspec validate what-waits-for-a-person-is-a-dialog --strict`,
   and the merge gate with the worktree's absolute path as `--cwd`.
   2026-10-09: valid under `--strict`; the gate named only 5.3 as open.
-- [ ] 5.3 **Human-only**: in VS Code's Pipeline, with an agent's question
+- [x] 5.3 **Human-only**: in VS Code's Pipeline, with an agent's question
   open, the top of the Pipeline says so without scrolling; Answer opens a
   dialog over everything that nothing behind can be pressed through, Tab
   stays in it and Escape closes it; Logs and Delete Change open as dialogs
   too.
+  2026-10-09, the owner, on the extension built from this branch, with two
+  open questions in the demo repository: all works as described.
