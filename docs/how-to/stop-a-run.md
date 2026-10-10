@@ -38,7 +38,8 @@ openspec-ui-cli stop run <instanceId> --reason "only up to 4.6" --after 4.6
 The run keeps working and ends the moment 4.6 is ticked, or the moment its
 agent says it is starting a task after it. It does not wait for a further
 sound point: the tick of 4.6 is one. In the editor, the same request is
-made from a change's row with **OpenSpec Workbench: Stop Run...**.
+made with **Stop Run...**, on the change's card or in its **Show
+Actions...** in the Changes view.
 
 The run learns that 4.6 was ticked by reading the task list twice a second
 while it holds the request, so there is a window of up to about half a
