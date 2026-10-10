@@ -45,6 +45,7 @@ export interface ProductLinks {
   docs?: string;
   release?: string;
   marketplace?: string;
+  npm?: string;
 }
 
 export interface ManifestProduct {
@@ -108,7 +109,13 @@ export const MANIFEST_PRODUCTS: readonly ProductSpec[] = [
     summary: "Execution engine shared by both delivery targets.",
   },
   { id: "shared-ui", name: "Shared UI", directory: "packages/webui", public: false },
-  { id: "ci-cli", name: "CLI", directory: "packages/cli", public: false },
+  {
+    id: "ci-cli",
+    name: "CLI",
+    directory: "packages/cli",
+    public: true,
+    summary: "Run, validate and check OpenSpec changes from a terminal or CI.",
+  },
 ];
 
 // The site's own expressions, transcribed. Changing one of these changes
@@ -277,6 +284,7 @@ export async function buildReleaseManifest(options: BuildManifestOptions): Promi
       docs: `https://github.com/${repository}/blob/${ref}/${spec.directory}/README.md`,
     };
     if (release?.url) links.release = release.url;
+    if (spec.id === "ci-cli") links.npm = "https://www.npmjs.com/package/@openspec-ui/cli";
 
     products.push({
       id: spec.id,
