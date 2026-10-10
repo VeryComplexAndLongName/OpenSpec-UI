@@ -59,6 +59,16 @@ npx @openspec-ui/cli release-manifest --cwd . --repository <owner/name>
 
 See `--help` for the full flag set.
 
+The manifest describes CLI under the stable `ci-cli` id as a public product,
+with its own package version, release notes, summary and
+`links.npm`: `https://www.npmjs.com/package/@openspec-ui/cli`. The homepage uses
+this metadata for its Current versions tile and Current releases card.
+Other products do not receive an npm link.
+
+The version is what the repository carries; it does not prove that version is
+already on npm. Registry publication is a separate, manually dispatched step.
+Manifest schema version remains 1, and the npm link is optional for consumers.
+
 ## Exit codes
 
 - `0`: every active change passed strict validation.

@@ -61,7 +61,7 @@ describe("MANIFEST_PRODUCTS — the ids the site already uses", () => {
       ["standalone-app", "Standalone App", "packages/server", true],
       ["core", "Core", "packages/core", true],
       ["shared-ui", "Shared UI", "packages/webui", false],
-      ["ci-cli", "CLI", "packages/cli", false],
+      ["ci-cli", "CLI", "packages/cli", true],
     ]);
   });
 
@@ -238,8 +238,28 @@ describe("buildReleaseManifest", () => {
 
     // The site's schema has the flag and applies it; deciding visibility
     // here as well would put the decision in two places.
-    expect(manifest.products.filter((p) => !p.public).map((p) => p.id)).toEqual(["shared-ui", "ci-cli"]);
+    expect(manifest.products.filter((p) => !p.public).map((p) => p.id)).toEqual(["shared-ui"]);
     expect(manifest.products).toHaveLength(5);
+  });
+
+  it("exposes the CLI's version, summary and npm page without links for other products", async () => {
+    const root = await completeRepo("2.3.4");
+    const manifest = await buildReleaseManifest({ repoRoot: root, repository: "owner/name" });
+    const cli = manifest.products.find((product) => product.id === "ci-cli");
+
+    expect(cli).toMatchObject({
+      public: true,
+      version: "2.3.4",
+      summary: "Run, validate and check OpenSpec changes from a terminal or CI.",
+      links: { npm: "https://www.npmjs.com/package/@openspec-ui/cli" },
+      artifacts: [],
+    });
+    expect(manifest.products.filter((product) => product.public).map((product) => product.id))
+      .toEqual(["vscode-extension", "standalone-app", "core", "ci-cli"]);
+    for (const product of manifest.products.filter((product) => product.id !== "ci-cli")) {
+      expect(product.links.npm).toBeUndefined();
+    }
+    expect(manifest.schema_version).toBe(1);
   });
 
   it("stamps released_at with the moment of generation", async () => {
@@ -321,8 +341,17 @@ describe("the release-manifest command", () => {
     const { code, out } = await run(["write", "manifest", "--cwd", root, "--repository", "owner/name"]);
 
     expect(code).toBe(0);
-    const parsed = JSON.parse(out) as { products: { id: string; version: string }[] };
+    const parsed = JSON.parse(out) as {
+      schema_version: number;
+      products: { id: string; version: string; public: boolean; links: { npm?: string } }[];
+    };
     expect(parsed.products.map((p) => p.version)).toEqual(["2.0.0", "2.0.0", "2.0.0", "2.0.0", "2.0.0"]);
+    expect(parsed.schema_version).toBe(1);
+    expect(parsed.products.find((product) => product.id === "ci-cli")).toMatchObject({
+      public: true,
+      version: "2.0.0",
+      links: { npm: "https://www.npmjs.com/package/@openspec-ui/cli" },
+    });
   });
 
   it("prints only the fingerprint when asked, and reads one back from a published manifest", async () => {
