@@ -41,4 +41,4 @@ refused as outside the workspace.
   branch, Run Change... on the card of a change in its own worktree runs
   its stages without "outside the workspace".
   2026-10-10, the owner, on the extension 0.103.0 built from this branch:
-  the change started and is working ("Чендж запустился и работает").
+  the change started and is working ("The change started and is working").
