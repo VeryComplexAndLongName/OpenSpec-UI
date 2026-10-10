@@ -1,7 +1,8 @@
 # 0009: Publish `@openspec-ui/cli` to npm as a Bundled Package
 
 Status: Accepted (decision 4 superseded by
-[ADR-0020](0020-cli-runs-a-change.md))
+[ADR-0020](0020-cli-runs-a-change.md); decision 5 completed by
+[ADR-0048](0048-npm-is-published-by-trusted-publishing-from-the-dispatch.md))
 
 Date: 2026-08-26
 

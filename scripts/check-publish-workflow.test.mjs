@@ -10,28 +10,49 @@ import { checkAll, checkOtherWorkflows, checkPublishWorkflow } from "./check-pub
 // See a-check-that-passes-checked-something.
 
 const GOOD = [
-  "name: Publish to the Marketplace",
+  "name: Publish",
   "",
   "on:",
   "  workflow_dispatch:",
   "    inputs:",
-  "      version:",
-  "        required: true",
+  "      vscode_version:",
+  "        required: false",
+  "      cli_version:",
+  "        required: false",
   "      confirm:",
   "        required: true",
   "",
   "jobs:",
-  "  publish:",
+  "  confirm:",
   "    steps:",
   "      - name: Refuse a run that was not confirmed",
   "        run: |",
   '          if [ "${CONFIRM}" != "publish" ]; then exit 1; fi',
+  "  marketplace:",
+  "    needs: confirm",
+  "    environment: marketplace",
+  "    steps:",
   "      - name: Take the VSIX from the release",
   "        run: gh release download \"${TAG}\" --pattern '*.vsix' --dir publish",
   "      - name: Publish it",
   "        env:",
   "          VSCE_PAT: ${{ secrets.VSCE_PAT }}",
   "        run: npx vsce publish --packagePath \"${VSIX}\"",
+  "  npm:",
+  "    needs: confirm",
+  "    environment: npm",
+  "    permissions:",
+  "      contents: read",
+  "      id-token: write",
+  "    steps:",
+  '      - run: if [ "${GITHUB_REF}" != "refs/heads/main" ]; then exit 1; fi',
+  "      - name: Refuse a version that is not the one this commit carries",
+  "        run: |",
+  "          HAVE=$(node -p \"require('./packages/cli/package.json').version\")",
+  '          if npm view "@openspec-ui/cli@${VERSION}" version; then exit 1; fi',
+  "      - name: Publish it",
+  "        working-directory: packages/cli",
+  "        run: npm publish --access public",
 ].join("\n");
 
 function without(line) {
@@ -79,11 +100,64 @@ test("building a package of its own fails", () => {
   assert.ok(checkPublishWorkflow(rebuilt).some((problem) => /builds a package of its own/u.test(problem)));
 });
 
+test("a missing vscode_version or cli_version input fails", () => {
+  assert.ok(checkPublishWorkflow(without("      vscode_version:")).some((problem) => /"vscode_version" input/u.test(problem)));
+  assert.ok(checkPublishWorkflow(without("      cli_version:")).some((problem) => /"cli_version" input/u.test(problem)));
+});
+
+test("a publishing job that does not wait for the confirmation fails", () => {
+  const unwaiting = GOOD.replace("  npm:\n    needs: confirm", "  npm:");
+  assert.ok(checkPublishWorkflow(unwaiting).some((problem) => /does not need the "confirm" job/u.test(problem)));
+});
+
+test("an npm job outside the npm environment fails", () => {
+  const elsewhere = GOOD.replace("    environment: npm", "    environment: marketplace");
+  assert.ok(checkPublishWorkflow(elsewhere).some((problem) => /"npm" environment/u.test(problem)));
+});
+
+test("an npm job without id-token fails, and one granted twice fails too", () => {
+  assert.ok(checkPublishWorkflow(without("      id-token: write")).some((problem) => /asks for no id-token/u.test(problem)));
+  const twice = GOOD.replace("    needs: confirm\n    environment: marketplace", "    needs: confirm\n    environment: marketplace\n    permissions:\n      id-token: write");
+  assert.ok(checkPublishWorkflow(twice).some((problem) => /granted more than once/u.test(problem)));
+});
+
+test("an npm token anywhere in the workflow fails", () => {
+  const tokened = GOOD.replace("        run: npm publish --access public", "        env:\n          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}\n        run: npm publish --access public");
+  assert.ok(checkPublishWorkflow(tokened).some((problem) => /names an npm token/u.test(problem)));
+});
+
+test("an npm job that does not refuse other refs, or check the version, fails", () => {
+  const anyRef = GOOD.replace('"refs/heads/main"', '"refs/heads/other"');
+  assert.ok(checkPublishWorkflow(anyRef).some((problem) => /ref other than main/u.test(problem)));
+  const unchecked = GOOD.replace('          if npm view "@openspec-ui/cli@${VERSION}" version; then exit 1; fi', "          echo ok");
+  assert.ok(checkPublishWorkflow(unchecked).some((problem) => /check the named version/u.test(problem)));
+});
+
+test("a second workflow publishing to npm or naming an npm token fails, naming the file", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "openspec-publish-check-"));
+  try {
+    await mkdir(path.join(root, ".github", "workflows"), { recursive: true });
+    await writeFile(path.join(root, ".github", "workflows", "publish.yml"), GOOD, "utf8");
+    await writeFile(
+      path.join(root, ".github", "workflows", "quality.yml"),
+      ["name: Quality", "jobs:", "  release:", "    steps:", "      - run: npm publish", "        env:", "          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}"].join("\n"),
+      "utf8",
+    );
+
+    const problems = await checkOtherWorkflows(root);
+
+    assert.equal(problems.length, 2);
+    assert.ok(problems.every((problem) => problem.startsWith(".github/workflows/quality.yml")));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("a second workflow naming the token fails, naming the file", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "openspec-publish-check-"));
   try {
     await mkdir(path.join(root, ".github", "workflows"), { recursive: true });
-    await writeFile(path.join(root, ".github", "workflows", "publish-marketplace.yml"), GOOD, "utf8");
+    await writeFile(path.join(root, ".github", "workflows", "publish.yml"), GOOD, "utf8");
     await writeFile(
       path.join(root, ".github", "workflows", "quality.yml"),
       ["name: Quality", "jobs:", "  release:", "    steps:", "      - run: npx vsce publish", "        env:", "          VSCE_PAT: ${{ secrets.VSCE_PAT }}"].join("\n"),
@@ -119,7 +193,7 @@ test("fails a workflow other than the dispatch one that names the homepage token
   const root = await mkdtemp(path.join(os.tmpdir(), "openspec-workflows-"));
   try {
     await mkdir(path.join(root, ".github", "workflows"), { recursive: true });
-    await writeFile(path.join(root, ".github", "workflows", "publish-marketplace.yml"), GOOD, "utf8");
+    await writeFile(path.join(root, ".github", "workflows", "publish.yml"), GOOD, "utf8");
     await writeFile(
       path.join(root, ".github", "workflows", "quality.yml"),
       ["name: Quality", "jobs:", "  build:", "    env:", "      GH_TOKEN: ${{ secrets.HOMEPAGE_DISPATCH_TOKEN }}"].join("\n"),
@@ -139,7 +213,7 @@ test("allows the dispatch workflow itself to name the homepage token", async () 
   const root = await mkdtemp(path.join(os.tmpdir(), "openspec-workflows-"));
   try {
     await mkdir(path.join(root, ".github", "workflows"), { recursive: true });
-    await writeFile(path.join(root, ".github", "workflows", "publish-marketplace.yml"), GOOD, "utf8");
+    await writeFile(path.join(root, ".github", "workflows", "publish.yml"), GOOD, "utf8");
     await writeFile(
       path.join(root, ".github", "workflows", "homepage-dispatch.yml"),
       ["name: Tell the homepage", "jobs:", "  tell:", "    env:", "      GH_TOKEN: ${{ secrets.HOMEPAGE_DISPATCH_TOKEN }}"].join("\n"),
