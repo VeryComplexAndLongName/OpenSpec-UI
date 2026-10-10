@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-10T16:01:54.592Z",
+  "generated_at": "2026-10-10T20:25:50.089Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "9abc674edbf3cccb287c0cbdae0af1da18036c05",
+  "commit": "4589fa9e47ceb834edea41aec269dd84137c8712",
   "products": [
     {
       "id": "vscode-extension",
@@ -10,7 +10,7 @@
       "package": "openspec-ui-vscode",
       "public": true,
       "version": "0.103.1",
-      "released_at": "2026-10-10T16:01:54.592Z",
+      "released_at": "2026-10-10T20:25:50.089Z",
       "tag": "openspec-ui-vscode@0.103.1",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
@@ -39,7 +39,7 @@
       "package": "@openspec-ui/server",
       "public": true,
       "version": "1.59.1",
-      "released_at": "2026-10-10T16:01:54.592Z",
+      "released_at": "2026-10-10T20:25:50.089Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -60,7 +60,7 @@
       "package": "@openspec-ui/core",
       "public": true,
       "version": "0.145.0",
-      "released_at": "2026-10-10T16:01:54.592Z",
+      "released_at": "2026-10-10T20:25:50.089Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -81,7 +81,7 @@
       "package": "@openspec-ui/webui",
       "public": false,
       "version": "1.92.1",
-      "released_at": "2026-10-10T16:01:54.592Z",
+      "released_at": "2026-10-10T20:25:50.089Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -94,19 +94,21 @@
       "id": "ci-cli",
       "name": "CLI",
       "package": "@openspec-ui/cli",
-      "public": false,
-      "version": "0.29.0",
-      "released_at": "2026-10-10T16:01:54.592Z",
+      "public": true,
+      "version": "0.30.0",
+      "released_at": "2026-10-10T20:25:50.089Z",
       "prerelease": false,
+      "summary": "Run, validate and check OpenSpec changes from a terminal or CI.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
-        "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/README.md"
+        "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/README.md",
+        "npm": "https://www.npmjs.com/package/@openspec-ui/cli"
       },
       "artifacts": [],
       "changes": [
         {
           "kind": "minor",
-          "summary": "**Every message has an identifier** (every-message-has-an-identifier, ADR 0046). Core gains one register of what the product says to a person: each message's identifier `OSW-<GROUP>-<NNN>`, its level, its words, why it is said and what to do, and [docs/messages.md](../docs/messages.md) is generated from it. The first groups are in it: the CLI's argument errors (`CLI`), the chain's refusals, limits and endings (`RUN`), the operator's questions (`QST`) and the permission requests nobody can answer (`PRM`). Their words are unchanged; the CLI now prints them as `error OSW-CLI-003: --cwd requires a value` rather than `openspec-ui-cli: --cwd requires a value`, with the same exit codes. `progress`, `failed` and `cancelled` events carry `code` beside their words, and so does the CLI's JSON; the CLI, the output channel and the panels put the identifier before the words (`✗ OSW-RUN-104: \"apply\" changed no file ...`), and the panels show it as a link to its entry. A test counts the messages still said in place - 290, from 323 - and lets the number only fall."
+          "summary": "Expose CLI as a public product in the release manifest, with its package version,"
         }
       ]
     }
