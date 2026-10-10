@@ -52,6 +52,10 @@ From ADR 0044, step 2; the shape approved by the owner on 2026-10-09.
   the merge gate with the worktree's absolute path as `--cwd`.
   2026-10-09: valid under `--strict`; the gate, run as `openspec-ui-cli
   validate changes`, named only 4.2 and 4.3 as open.
-- [ ] 4.3 **Human-only**: in VS Code, the side panel opens on Workspace;
+- [x] 4.3 **Human-only**: in VS Code, the side panel opens on Workspace;
   Agents lists the agents; choosing a change shows its card in the
   Pipeline; a change's menu is Show Actions...
+  2026-10-10, the owner, on the extension 0.101.0 built from this branch:
+  Agents, a change's card and its menu as described; the views took the
+  manifest's order after View: Reset View Locations, since the editor keeps
+  a layout it has shown ("All OK").
