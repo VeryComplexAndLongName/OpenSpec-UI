@@ -43,10 +43,14 @@ code change it describes, until it is later applied.
 
 ## What this repository does *not* use changesets for
 
-- **No npm publishing.** Every workspace package is `"private": true`;
-  none of them are ever published to the npm registry. `access:
-  "restricted"` in `config.json` is a harmless default that is never
-  exercised — this repo never runs `changeset publish`.
+- **npm publishing is a dispatched step, not `changeset publish`.** Only
+  `@openspec-ui/cli` is public; every other workspace package is
+  `"private": true` and never reaches the registry. A version bump of the
+  CLI reaches npm only when somebody dispatches
+  `.github/workflows/publish.yml` with `cli_version` (ADR-0048). This repo
+  never runs `changeset publish`, so `access: "restricted"` in
+  `config.json` is never exercised; the workflow passes `--access public`
+  itself.
 - **The actual release mechanism is unchanged.** CI (`release-extension`
   job in `.github/workflows/quality.yml`) tags the commit and publishes a
   GitHub Release with the built `.vsix` once `package.json`'s version has
@@ -54,8 +58,8 @@ code change it describes, until it is later applied.
   changelog entry that trigger that existing pipeline; it does not replace
   it. Publishing that release to the VS Code Marketplace is a step
   somebody dispatches by hand, for a version they name
-  (`.github/workflows/publish-marketplace.yml`): a version bump reaches
-  the Marketplace only when somebody asks it to.
+  (`.github/workflows/publish.yml`): a version bump reaches the
+  Marketplace only when somebody asks it to.
 - **`openspec-ui`** (the private workspace root, always `0.0.0`) is
   listed in `config.json`'s `ignore` array — it is a workspace
   container, never a release artifact, and was never bumped by hand
