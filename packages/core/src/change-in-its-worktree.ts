@@ -8,9 +8,11 @@
 // round, and the product keeps it too: the directory first, cut from the
 // default branch as the server has it, and the change made inside it.
 
+import { commitAndPushDirectory, type ShareRefusal, type SharedChange } from "./change-commit.js";
 import { createGitWrapper, type GitWrapper } from "./git.js";
 import { planChangeWorktree } from "./change-worktrees.js";
 import { DEFAULT_BRANCH, DEFAULT_REMOTE } from "./main-drift-facts.js";
+import { say } from "./message-register.js";
 import { createChange, type CreateChangeOptions } from "./openspec.js";
 import type { WorktreeRootSources } from "./worktree-root.js";
 
@@ -20,6 +22,10 @@ export interface ChangeMade {
   directory: string;
   /** The branch it is on, where it has a directory of its own. */
   branch?: string;
+  /** Whether the change was committed on that branch and the branch pushed
+   * (a-change-is-committed-where-it-is-made). A push refused does not undo
+   * the change: it is made, and says why the server does not have it. */
+  shared?: SharedChange | ShareRefusal;
 }
 
 /** Makes `changeName` in a working directory of its own, on a branch of
@@ -38,6 +44,7 @@ export async function createChangeInItsWorktree(options: {
   git?: GitWrapper;
   rootSources?: WorktreeRootSources;
   create?: typeof createChange;
+  share?: typeof commitAndPushDirectory;
 }): Promise<ChangeMade> {
   const git = options.git ?? createGitWrapper({ cwd: options.repositoryRoot });
   const create = options.create ?? createChange;
@@ -58,5 +65,15 @@ export async function createChangeInItsWorktree(options: {
   if (!plan.ok) throw new Error(`${plan.refusal.reason}; ${plan.refusal.remedy}`);
   await git.worktreeAdd({ path: plan.path, branch: plan.branch, base: plan.base });
   await create(options.changeName, { cwd: plan.path }, options.createOptions);
-  return { directory: plan.path, branch: plan.branch };
+  // Committed and pushed at once: a change only on this disk is seen by no
+  // other directory, host or person, and its card can do nothing with it
+  // (a-change-is-committed-where-it-is-made).
+  const share = options.share ?? commitAndPushDirectory;
+  const shared = await share({ changeName: options.changeName, directory: plan.path, branch: plan.branch, message: `${options.changeName}: create the change` })
+    .catch((error: unknown): ShareRefusal => ({
+      ok: false,
+      kind: "commit-failed",
+      said: say("OSW-GIT-101", { name: options.changeName, why: error instanceof Error ? error.message : String(error) }),
+    }));
+  return { directory: plan.path, branch: plan.branch, shared };
 }

@@ -19,6 +19,7 @@ import {
   changeAction,
   changeActionRoot,
   changeAncestry,
+  commitChange,
   createGitWrapper,
   deleteChange,
   editChangeRelation,
@@ -37,8 +38,10 @@ import {
   renderChangeCostReport,
   resolveAgentStatusDirectory,
   resolveHarnessConfig,
+  sayCommitChange,
   sayToLiveRun,
   validateChange,
+  withMessageCode,
   type ChangeActionAnswer,
   type ChangeActionId,
   type ChangeActionInput,
@@ -185,6 +188,14 @@ async function perform(request: ChangeActionRequest, at: ChangeActionRoot, seams
         "",
         ...recommendation.grounds.map((line) => `- ${line}`),
       ].join("\n"));
+    }
+    case "commitChange": {
+      // Everything its own worktree holds, committed on its branch and
+      // pushed (a-change-is-committed-where-it-is-made).
+      const result = await commitChange({ repositoryRoot: cwd, changeName: name });
+      const said = sayCommitChange(name, result);
+      if (!result.ok) throw new Refused(withMessageCode(said.text, said.code));
+      return done(withMessageCode(said.text, said.code));
     }
     case "openWorktree": {
       if (at.root === cwd) throw new Refused(`${name} is worked in this checkout.`);

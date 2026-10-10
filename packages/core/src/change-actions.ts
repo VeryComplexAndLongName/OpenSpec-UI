@@ -24,6 +24,7 @@ export type ChangeActionId =
   | "recommendChangeHarness"
   | "openWorktree"
   | "openChangeCopy"
+  | "commitChange"
   | "configureChangeHarness"
   | "addRelation"
   | "removeRelation"
@@ -75,6 +76,9 @@ export const CHANGE_ACTIONS: readonly ChangeAction[] = [
   action("recommendChangeHarness", "Recommend Change Harness", "lightbulb", false),
   action("openWorktree", "Open Worktree", "folder-opened", false),
   action("openChangeCopy", "Open Change Copy...", "files", false),
+  // Everything its worktree holds, committed on its branch and pushed
+  // (a-change-is-committed-where-it-is-made).
+  action("commitChange", "Commit Change", "git-commit", true),
   action("configureChangeHarness", "Configure Change Harness", "gear", true),
   action("addRelation", "Add Relation...", "link", true),
   action("removeRelation", "Remove Relation...", "debug-disconnect", true),
@@ -103,6 +107,9 @@ export interface ChangeActionFacts {
   running: boolean;
   /** Its tasks still open, where they were read. */
   openTasks?: number;
+  /** Its branch is not on the server as it is here: never pushed, or at
+   * another commit (a-change-is-committed-where-it-is-made). */
+  notOnServer?: boolean;
 }
 
 export interface ChangeActionState {
@@ -128,6 +135,12 @@ function reasonAgainst(action: ChangeAction, facts: ChangeActionFacts): string |
     case "openWorktree":
     case "openChangeCopy":
       return facts.where === "checkout" ? "This change is worked in this checkout." : undefined;
+    case "commitChange":
+      // Never in the checkout: what is there goes on the default branch
+      // (ADR 0043). A run commits as it goes, and two committers in one
+      // tree is one too many.
+      if (facts.where === "checkout") return "This change is worked in this checkout, not on a branch of its own.";
+      return facts.running ? RUNNING : undefined;
     case "archiveChange":
       if (facts.running) return RUNNING;
       return facts.openTasks !== undefined && facts.openTasks > 0

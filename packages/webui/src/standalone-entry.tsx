@@ -1714,7 +1714,7 @@ function StandaloneApp() {
         throw new Error(payload.error ?? `${response.status} ${response.statusText}`);
       }
 
-      const made = (await response.json().catch(() => ({}))) as { directory?: string; branch?: string };
+      const made = (await response.json().catch(() => ({}))) as { directory?: string; branch?: string; pushedTo?: string; notShared?: string };
       setNewChangeName("");
       setNewChangeDescription("");
       // Made in a working directory of its own, where the repository has a
@@ -1724,9 +1724,12 @@ function StandaloneApp() {
       if (root !== cwd) handleCwdChange(root);
       await loadOverviewFor(root);
       await loadChangeEditor(changeName, root);
+      // Committed on its branch and pushed as it was made, or why the server
+      // does not have it (a-change-is-committed-where-it-is-made).
+      const pushed = made.pushedTo !== undefined ? `, pushed to ${made.pushedTo}` : "";
       setEditorMessage(root === cwd
         ? `Created ${changeName}.`
-        : `Created ${changeName} in its own working directory, ${root}, on branch ${made.branch ?? changeName}; this page now works there.`);
+        : made.notShared ?? `Created ${changeName} in its own working directory, ${root}, on branch ${made.branch ?? changeName}${pushed}; this page now works there.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setEditorMessage(`Create failed: ${message}`);

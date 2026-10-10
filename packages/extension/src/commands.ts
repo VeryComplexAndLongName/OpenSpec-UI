@@ -79,6 +79,9 @@ import {
   validateChange,
   writeAgentInstructions,
   createChangeInItsWorktree,
+  commitChange,
+  sayChangeNotShared,
+  sayCommitChange,
   workflowRulesNeedConsent,
   writeWorkflowRules,
   commitOpenSpecSetup,
@@ -854,8 +857,18 @@ function announceChangeMade(changeName: string, made: ChangeMade | undefined, wo
     return;
   }
   const open = "Open its working directory";
+  // Committed on its branch and pushed as it was made, or saying why the
+  // server does not have it (a-change-is-committed-where-it-is-made).
+  const notShared = sayChangeNotShared(changeName, made.directory, made.shared);
+  if (notShared !== undefined) {
+    void vscode.window.showWarningMessage(withMessageCode(notShared.text, notShared.code), open).then((choice) => {
+      if (choice === open) void vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.file(made.directory), { forceNewWindow: true });
+    });
+    return;
+  }
+  const pushed = made.shared?.ok === true ? `, and pushed it to ${made.shared.pushedTo}` : "";
   void vscode.window.showInformationMessage(
-    `OpenSpec Workbench: created ${changeName} in its own working directory, ${made.directory}, on branch ${made.branch ?? changeName}.`,
+    `OpenSpec Workbench: created ${changeName} in its own working directory, ${made.directory}, on branch ${made.branch ?? changeName}${pushed}.`,
     open,
   ).then((choice) => {
     if (choice === open) void vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.file(made.directory), { forceNewWindow: true });
@@ -1702,6 +1715,25 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         return;
       }
       await vscode.commands.executeCommand(chosen.action.command, item);
+    }),
+    // Everything the change's own worktree holds, committed on its branch
+    // and pushed, from its card or its Show Actions...
+    // (a-change-is-committed-where-it-is-made).
+    vscode.commands.registerCommand("openspec-ui.commitChange", async (invokedItem?: ChangeTreeItem) => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
+      if (!item || item.archived) { warnNoTreeSelection("change"); return; }
+      const result = await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: `OpenSpec Workbench: committing and pushing ${item.changeName}` },
+        () => commitChange({ repositoryRoot: workspaceRoot, changeName: item.changeName }),
+      );
+      const said = sayCommitChange(item.changeName, result);
+      const show = said.level === "info"
+        ? vscode.window.showInformationMessage
+        : said.level === "warning" ? vscode.window.showWarningMessage : vscode.window.showErrorMessage;
+      void show(withMessageCode(said.text, said.code));
+      deps.refreshTrees();
     }),
     vscode.commands.registerCommand("openspec-ui.configureChangeHarness", async (invokedItem?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();

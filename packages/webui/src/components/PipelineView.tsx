@@ -1047,7 +1047,7 @@ export function PipelineView({
           suggestion computed here — `buildHints` derived them in core
           before the payload was sent. */}
       {report !== undefined ? <HintList hints={report.hints} {...(copyText !== undefined ? { copyText } : {})} /> : null}
-      {others.value ? <OtherDirectories survey={others.value} labels={labels} now={now} onCards={onCards} openCards={openCards} archivedOnMain={archivedOnDefault} drawsChanges={!onBoard} order={order} /> : null}
+      {others.value ? <OtherDirectories survey={others.value} labels={labels} now={now} onCards={onCards} openCards={openCards} archivedOnMain={archivedOnDefault} drawsChanges={!onBoard} order={order} controls={controls} /> : null}
       {others.error !== undefined
         ? <p className="openspec-shell-note" data-testid="pipeline-survey-error">The other working directories could not be read: {others.error}</p>
         : null}
@@ -1234,7 +1234,18 @@ function elsewhereActionFacts(change: SurveyedChange, directory: Extract<Surveye
     where: runs.some((run) => run.signature === "does-not-check-out") ? "unverified" : "worktree",
     running: runs.length > 0,
     ...(!change.tasksUnreadable ? { openTasks: change.tasksTotal - change.tasksDone } : {}),
+    ...(directory.notOnServer !== undefined ? { notOnServer: true } : {}),
   };
+}
+
+/** What a card of a change's own worktree says where the server does not
+ * have the change's branch as it is there (a-change-is-committed-where-it-is-made). */
+function notOnServerDetails(change: SurveyedChange | undefined, directory: Extract<SurveyedDirectory, { readable: true }>): CardDetail[] {
+  if (change === undefined || directory.ownChange !== change.changeName || directory.notOnServer === undefined) return [];
+  return [{
+    kind: "where",
+    text: directory.notOnServer === "never-pushed" ? "not on the server: its branch was never pushed" : "not on the server as it is here",
+  }];
 }
 
 function hasProgress(card: ChangeCard): boolean {
@@ -2193,8 +2204,11 @@ function describeChange(change: ChangeReadiness): CardDetail[] {
 
 /** Every working directory other than this one, each in its own
  * recessed section with its own picture. */
-function OtherDirectories({ survey, labels, now, onCards, openCards, archivedOnMain, drawsChanges, order }: {
+function OtherDirectories({ survey, labels, now, onCards, openCards, archivedOnMain, drawsChanges, order, controls }: {
   survey: WorktreeSurvey;
+  /** A change's actions, for the card of its own worktree drawn here, as
+   * on the board (a-change-is-committed-where-it-is-made). */
+  controls?: Pick<CardControlHandlers, "actions" | "chooseAction">;
   order: ChangeOrder;
   labels: Map<string, string>;
   now: Date;
@@ -2220,7 +2234,7 @@ function OtherDirectories({ survey, labels, now, onCards, openCards, archivedOnM
           whose tasks its card works.
         </p>
         {others.map((directory, index) => (
-          <OtherDirectory key={directory.path} directory={directory} index={index} labels={labels} now={now} onCards={onCards} openCards={openCards} archivedOnMain={archivedOnMain} drawsChanges={drawsChanges} order={order} />
+          <OtherDirectory key={directory.path} directory={directory} index={index} labels={labels} now={now} onCards={onCards} openCards={openCards} archivedOnMain={archivedOnMain} drawsChanges={drawsChanges} order={order} {...(controls !== undefined ? { controls } : {})} />
         ))}
         {survey.runsElsewhere.length > 0 ? (
           <div data-testid="pipeline-runs-elsewhere">
@@ -2237,8 +2251,9 @@ function OtherDirectories({ survey, labels, now, onCards, openCards, archivedOnM
   );
 }
 
-function OtherDirectory({ directory, index, labels, now, onCards, openCards, archivedOnMain, drawsChanges, order }: {
+function OtherDirectory({ directory, index, labels, now, onCards, openCards, archivedOnMain, drawsChanges, order, controls }: {
   directory: SurveyedDirectory;
+  controls?: Pick<CardControlHandlers, "actions" | "chooseAction">;
   order: ChangeOrder;
   index: number;
   labels: Map<string, string>;
@@ -2279,7 +2294,7 @@ function OtherDirectory({ directory, index, labels, now, onCards, openCards, arc
       <ul className="openspec-shell-note openspec-pipeline-directory-runs" data-testid={`${testId}-runs`}>
         {describeDirectoryRuns(directory, now, onCards).map((line, lineIndex) => <li key={lineIndex}>{line}</li>)}
       </ul>
-      {directory.readable && drawsChanges ? <ForeignChanges directory={directory} testId={testId} labels={labels} openCards={openCards} archivedOnMain={archivedOnMain} order={order} /> : null}
+      {directory.readable && drawsChanges ? <ForeignChanges directory={directory} testId={testId} labels={labels} openCards={openCards} archivedOnMain={archivedOnMain} order={order} {...(controls !== undefined ? { controls } : {})} /> : null}
     </section>
   );
 }
@@ -2322,8 +2337,9 @@ function foreignDetails(
   ];
 }
 
-function ForeignChanges({ directory, testId, labels, openCards, archivedOnMain, order }: {
+function ForeignChanges({ directory, testId, labels, openCards, archivedOnMain, order, controls }: {
   directory: Extract<SurveyedDirectory, { readable: true }>;
+  controls?: Pick<CardControlHandlers, "actions" | "chooseAction">;
   order: ChangeOrder;
   testId: string;
   labels: Map<string, string>;
@@ -2342,14 +2358,22 @@ function ForeignChanges({ directory, testId, labels, openCards, archivedOnMain, 
   }
   const byName = new Map(changes.map((change) => [change.changeName, change]));
   const heights = new Map<string, number>();
+  // The change this directory is the worktree of offers its actions here as
+  // on the board: arranged by step, it was drawn with none, and every
+  // change made in its own worktree read as somebody else's
+  // (a-change-is-committed-where-it-is-made).
+  const actionsOf = new Map<string, ChangeActionState[]>();
   for (const change of changes) {
+    const facts = elsewhereActionFacts(change, directory);
+    if (facts !== undefined) actionsOf.set(change.changeName, cardActionStates(facts, controls?.actions));
     const openRows = openParts(change.tasks ?? [], openCards.isOpen(directory.path, change.changeName), taskCards.hidesDone(directory.path, change.changeName));
     heights.set(change.changeName, pipelineCardHeight({
       hasState: false,
       hasProgress: !change.tasksUnreadable && change.tasksTotal > 0,
       hasCallout: false,
-      detailLines: foreignDetails(change, change.blockers, labels, archivedOnMain).length,
+      detailLines: foreignDetails(change, change.blockers, labels, archivedOnMain).length + notOnServerDetails(change, directory).length,
       hasControls: false,
+      actionRows: cardActionRows(actionsOf.get(change.changeName) ?? []).length,
       ...(openRows !== undefined ? { open: openRows } : {}),
     }));
   }
@@ -2373,6 +2397,8 @@ function ForeignChanges({ directory, testId, labels, openCards, archivedOnMain, 
             testId={`${testId}-node-${node.change.changeName}`}
             open={openCards.isOpen(directory.path, node.change.changeName)}
             onToggle={() => openCards.toggle(directory.path, node.change.changeName)}
+            actions={actionsOf.get(node.change.changeName) ?? []}
+            {...(controls?.chooseAction !== undefined ? { onChooseAction: controls.chooseAction } : {})}
           />
         )}
       />
@@ -2395,6 +2421,7 @@ function elsewhereDetails(
     { kind: "where", text: `worked in ${where.label}` },
     ...(stage !== undefined ? [{ kind: "where" as const, text: describeStageLine(stage, now) }] : []),
     ...foreignDetails(change, change.blockers, labels, archivedOnMain),
+    ...notOnServerDetails(change, where),
   ];
 }
 
@@ -2412,8 +2439,8 @@ function DirectoryCard({ node, change, directory, details, testId, open, onToggl
   testId: string;
   open: boolean;
   onToggle: () => void;
-  /** Its change's actions, on a card of the change's own worktree drawn on
-   * this board; none elsewhere. */
+  /** Its change's actions, on a card of the change's own worktree, on the
+   * board and arranged by step alike; none elsewhere. */
   actions?: readonly ChangeActionState[];
   onChooseAction?: (action: ChangeAction, changeName: string) => void;
 }) {
@@ -2489,8 +2516,10 @@ function ElsewhereNode({ node, change, where, labels, archivedOnMain, stage, now
 
 /** A change of another working directory, drawn in that directory's own
  * picture. */
-function ForeignNode({ node, change, directory, labels, testId, open, onToggle, archivedOnMain }: {
+function ForeignNode({ node, change, directory, labels, testId, open, onToggle, archivedOnMain, actions, onChooseAction }: {
   node: ChangeLayoutNode;
+  actions?: readonly ChangeActionState[];
+  onChooseAction?: (action: ChangeAction, changeName: string) => void;
   change: SurveyedChange | undefined;
   directory: Extract<SurveyedDirectory, { readable: true }>;
   labels: Map<string, string>;
@@ -2499,6 +2528,6 @@ function ForeignNode({ node, change, directory, labels, testId, open, onToggle, 
   onToggle: () => void;
   archivedOnMain: ReadonlySet<string>;
 }) {
-  const details = foreignDetails(change, node.change.blockers, labels, archivedOnMain);
-  return <DirectoryCard node={node} change={change} directory={directory} details={details} testId={testId} open={open} onToggle={onToggle} />;
+  const details = [...foreignDetails(change, node.change.blockers, labels, archivedOnMain), ...notOnServerDetails(change, directory)];
+  return <DirectoryCard node={node} change={change} directory={directory} details={details} testId={testId} open={open} onToggle={onToggle} actions={actions ?? []} {...(onChooseAction !== undefined ? { onChooseAction } : {})} />;
 }

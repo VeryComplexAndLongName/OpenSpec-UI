@@ -150,6 +150,10 @@ it may be a change you have not written yet.
   their own worktrees - archived changes, canonical specs, and every
   proposal, design, task list, and delta spec. Choosing a change shows its
   card in the Pipeline.
+- Have a new change on the server at once: Create Change commits it on its
+  own branch and pushes it. A card whose change's branch is not on the
+  server says so, and **Commit Change** commits everything the change's
+  worktree holds and pushes it - never on `main`, never in this checkout.
 - Create, validate, archive, restore, and delete changes - from a change's
   card or its **Show Actions...**, and from an archived change's menu - with
   confirmation for destructive operations. Expand a change,

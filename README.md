@@ -75,6 +75,13 @@ the changes and goes to them: choosing one shows its card in the Pipeline,
 where everything is done to it, and its one menu entry, **Show Actions...**,
 lists the same actions (ADR 0044).
 
+A change is on the server from the moment it is made: Create Change commits
+it on its own branch and pushes it, the rules tell every agent to commit and
+push its planning artifacts at once and its work after every task, and the
+`git` stage commits what the stages left before it pushes. A card whose
+change's branch is not on the server says so, and **Commit Change** commits
+what the change's worktree holds and pushes it (ADR 0043).
+
 The **Change Graph** view nests each change under the ones it
 follows, marks anything waiting on a change that has not landed, folds
 away the branches where every change has landed, and lets a relation be
