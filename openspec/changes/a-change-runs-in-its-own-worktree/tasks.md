@@ -37,6 +37,8 @@ refused as outside the workspace.
   and the merge gate with the worktree's absolute path as `--cwd`.
   2026-10-10: valid under `--strict`; the gate named only 4.1, 4.2 and 4.3
   as open.
-- [ ] 4.3 **Human-only**: in `HppMCP`, on the extension built from this
+- [x] 4.3 **Human-only**: in `HppMCP`, on the extension built from this
   branch, Run Change... on the card of a change in its own worktree runs
   its stages without "outside the workspace".
+  2026-10-10, the owner, on the extension 0.103.0 built from this branch:
+  the change started and is working ("Чендж запустился и работает").
