@@ -1,39 +1,35 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-10T13:45:01.655Z",
+  "generated_at": "2026-10-10T16:01:54.592Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "a729913922c559281f64506fd5b895b6d39309b4",
+  "commit": "9abc674edbf3cccb287c0cbdae0af1da18036c05",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.103.0",
-      "released_at": "2026-10-10T13:45:01.655Z",
-      "tag": "openspec-ui-vscode@0.103.0",
+      "version": "0.103.1",
+      "released_at": "2026-10-10T16:01:54.592Z",
+      "tag": "openspec-ui-vscode@0.103.1",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.103.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.103.1"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.103.0/openspec-ui-vscode-0.103.0.vsix",
-          "size_bytes": 9972566
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.103.1/openspec-ui-vscode-0.103.1.vsix",
+          "size_bytes": 9977518
         }
       ],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "**A change is on the server from the moment it is made** (a-change-is-committed-where-it-is-made, ADR 0043 amended). Create Change, in both hosts, now commits the new change on its own branch and pushes it, and says so - or says why the server refused it. The rules written into `CLAUDE.md` and `AGENTS.md` tell every agent *when* to commit, not only where: the planning artifacts on the change's branch with `git push -u origin <change-id>` as soon as they are written, the work of every task ticked, nothing left unpushed at the end of a turn, nothing of a change on `main`; run **Write Agent Workflow Rules** to give an existing repository the new rules. The `git` stage commits what the stages left before it pushes. A card whose change's branch is not on the server says \"not on the server\", and a new action, **Commit Change**, on the card and in Show Actions..., commits everything the change's worktree holds and pushes it. A card of a change's own worktree now offers its actions in the Pipeline's arrangement by step as well, not only on the board by stage, and **Run Change...**, which runs the change in its worktree - before, such a change could be acted on but never run from its card. New messages `OSW-GIT-001`..`OSW-GIT-203`."
-        },
-        {
           "kind": "patch",
-          "summary": "The extension's README follows the side panel's new shape (the-side-panel-is-the-workspace): its features name the Workspace view, a change is acted on from its card and its **Show Actions...**, the Change Graph states relations, and the archive and template menus are described by what they now offer (Restore Change, Edit Template). The how-to on stopping a run sends you to the card or Show Actions... rather than a change's row."
+          "summary": "**A change in its own worktree runs there** (a-change-runs-in-its-own-worktree). Run Change... on the card of a change worked in its own worktree failed at its first stage with `cwd \"…/.worktrees/<repo>/<change>\" is outside the workspace`: every agent was bound to the workspace that was open. A run inside one of the repository's worktrees is now given that worktree's own agents, whose sandbox is that worktree - for a chain, a single stage and a card's controls of a run, in the editor and in the standalone app; a directory that is neither the workspace nor one of its worktrees is still refused. The editor's run dialog also applies a named configuration to the worktree's copy of the change's harness, not the checkout's."
         }
       ]
     },
@@ -42,8 +38,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.59.0",
-      "released_at": "2026-10-10T13:45:01.655Z",
+      "version": "1.59.1",
+      "released_at": "2026-10-10T16:01:54.592Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -53,8 +49,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "**A change is on the server from the moment it is made** (a-change-is-committed-where-it-is-made, ADR 0043 amended). Create Change, in both hosts, now commits the new change on its own branch and pushes it, and says so - or says why the server refused it. The rules written into `CLAUDE.md` and `AGENTS.md` tell every agent *when* to commit, not only where: the planning artifacts on the change's branch with `git push -u origin <change-id>` as soon as they are written, the work of every task ticked, nothing left unpushed at the end of a turn, nothing of a change on `main`; run **Write Agent Workflow Rules** to give an existing repository the new rules. The `git` stage commits what the stages left before it pushes. A card whose change's branch is not on the server says \"not on the server\", and a new action, **Commit Change**, on the card and in Show Actions..., commits everything the change's worktree holds and pushes it. A card of a change's own worktree now offers its actions in the Pipeline's arrangement by step as well, not only on the board by stage, and **Run Change...**, which runs the change in its worktree - before, such a change could be acted on but never run from its card. New messages `OSW-GIT-001`..`OSW-GIT-203`."
+          "kind": "patch",
+          "summary": "**A change in its own worktree runs there** (a-change-runs-in-its-own-worktree). Run Change... on the card of a change worked in its own worktree failed at its first stage with `cwd \"…/.worktrees/<repo>/<change>\" is outside the workspace`: every agent was bound to the workspace that was open. A run inside one of the repository's worktrees is now given that worktree's own agents, whose sandbox is that worktree - for a chain, a single stage and a card's controls of a run, in the editor and in the standalone app; a directory that is neither the workspace nor one of its worktrees is still refused. The editor's run dialog also applies a named configuration to the worktree's copy of the change's harness, not the checkout's."
         }
       ]
     },
@@ -63,8 +59,8 @@
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.144.0",
-      "released_at": "2026-10-10T13:45:01.655Z",
+      "version": "0.145.0",
+      "released_at": "2026-10-10T16:01:54.592Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -75,7 +71,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "**A change is on the server from the moment it is made** (a-change-is-committed-where-it-is-made, ADR 0043 amended). Create Change, in both hosts, now commits the new change on its own branch and pushes it, and says so - or says why the server refused it. The rules written into `CLAUDE.md` and `AGENTS.md` tell every agent *when* to commit, not only where: the planning artifacts on the change's branch with `git push -u origin <change-id>` as soon as they are written, the work of every task ticked, nothing left unpushed at the end of a turn, nothing of a change on `main`; run **Write Agent Workflow Rules** to give an existing repository the new rules. The `git` stage commits what the stages left before it pushes. A card whose change's branch is not on the server says \"not on the server\", and a new action, **Commit Change**, on the card and in Show Actions..., commits everything the change's worktree holds and pushes it. A card of a change's own worktree now offers its actions in the Pipeline's arrangement by step as well, not only on the board by stage, and **Run Change...**, which runs the change in its worktree - before, such a change could be acted on but never run from its card. New messages `OSW-GIT-001`..`OSW-GIT-203`."
+          "summary": "**A change in its own worktree runs there** (a-change-runs-in-its-own-worktree). Run Change... on the card of a change worked in its own worktree failed at its first stage with `cwd \"…/.worktrees/<repo>/<change>\" is outside the workspace`: every agent was bound to the workspace that was open. A run inside one of the repository's worktrees is now given that worktree's own agents, whose sandbox is that worktree - for a chain, a single stage and a card's controls of a run, in the editor and in the standalone app; a directory that is neither the workspace nor one of its worktrees is still refused. The editor's run dialog also applies a named configuration to the worktree's copy of the change's harness, not the checkout's."
         }
       ]
     },
@@ -84,20 +80,15 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.92.0",
-      "released_at": "2026-10-10T13:45:01.655Z",
+      "version": "1.92.1",
+      "released_at": "2026-10-10T16:01:54.592Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/README.md"
       },
       "artifacts": [],
-      "changes": [
-        {
-          "kind": "minor",
-          "summary": "**A change is on the server from the moment it is made** (a-change-is-committed-where-it-is-made, ADR 0043 amended). Create Change, in both hosts, now commits the new change on its own branch and pushes it, and says so - or says why the server refused it. The rules written into `CLAUDE.md` and `AGENTS.md` tell every agent *when* to commit, not only where: the planning artifacts on the change's branch with `git push -u origin <change-id>` as soon as they are written, the work of every task ticked, nothing left unpushed at the end of a turn, nothing of a change on `main`; run **Write Agent Workflow Rules** to give an existing repository the new rules. The `git` stage commits what the stages left before it pushes. A card whose change's branch is not on the server says \"not on the server\", and a new action, **Commit Change**, on the card and in Show Actions..., commits everything the change's worktree holds and pushes it. A card of a change's own worktree now offers its actions in the Pipeline's arrangement by step as well, not only on the board by stage, and **Run Change...**, which runs the change in its worktree - before, such a change could be acted on but never run from its card. New messages `OSW-GIT-001`..`OSW-GIT-203`."
-        }
-      ]
+      "changes": []
     },
     {
       "id": "ci-cli",
@@ -105,7 +96,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.29.0",
-      "released_at": "2026-10-10T13:45:01.655Z",
+      "released_at": "2026-10-10T16:01:54.592Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
