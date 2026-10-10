@@ -118,6 +118,7 @@ export * from "./failure-diagnosis.js";
 export * from "./supervisor.js";
 export * from "./own-worktree-tasks.js";
 export * from "./change-commit.js";
+export * from "./run-root.js";
 export * from "./change-layout.js";
 export * from "./board-columns-facts.js";
 export * from "./board-columns.js";

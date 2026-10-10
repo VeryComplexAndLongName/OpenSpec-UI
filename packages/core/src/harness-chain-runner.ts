@@ -93,8 +93,10 @@ export interface HarnessChainDeps {
    * resolveRunner`), typically `default-runners.ts`'s `resolveRunner`
    * curried over that host's `Map<string, AgentRunner>`. Falling back to
    * the default agent for an unset `stepAgents` entry is this function's
-   * responsibility, not the chain runner's. */
-  resolveRunner: (agentId: string | undefined) => AgentRunner | undefined;
+   * responsibility, not the chain runner's. `cwd` is where the stage runs:
+   * a host gives a change's own worktree that worktree's agents, whose
+   * sandbox is that worktree (a-change-runs-in-its-own-worktree). */
+  resolveRunner: (agentId: string | undefined, cwd?: string) => AgentRunner | undefined;
   /** Best-effort accessor for this workspace's recorded audit entries —
    * used only to sum recorded usage against `harnessConfig.budget` before
    * starting each stage (see openspec/changes/agent-usage-accounting/
@@ -1832,7 +1834,7 @@ export class HarnessChainRunner {
       : stepAgent === undefined
         ? { agent: undefined, model: undefined, effort: undefined, budget: undefined, customAgent: undefined }
         : normalizeStepAgent(stepAgent);
-    const runner = this.deps.resolveRunner(agentId);
+    const runner = this.deps.resolveRunner(agentId, cwd);
     if (!runner) {
       yield failedEvent(runId, `no agent available to run the "${stage}" stage`);
       return "failed";

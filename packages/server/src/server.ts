@@ -9,6 +9,7 @@ import path from "node:path";
 import { WebSocketServer } from "ws";
 import {
   getCoreVersion,
+  agentsByRunRoot,
   resolveRunner,
   FileAuditLog,
   HarnessChainRunner,
@@ -158,6 +159,15 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     worktreeContainer = path.join(root, path.basename(workspaceRoot));
   }, () => undefined);
   const within = (resolved: string, root: string) => resolved === root || resolved.startsWith(`${root}${path.sep}`);
+  // A run in one of those worktrees is given that worktree's agents, whose
+  // sandbox is that worktree; every other run, this workspace's
+  // (a-change-runs-in-its-own-worktree).
+  const agentsAt = agentsByRunRoot({
+    workspaceRoot,
+    runners,
+    container: () => worktreeContainer,
+    ...(options.runnersFor !== undefined ? { runnersFor: options.runnersFor } : {}),
+  });
   const requestPolicy = {
     maxPayloadBytes,
     isCwdAllowed(cwd: string): boolean {
@@ -173,7 +183,7 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
   // not construct a fresh one per message.
   const fileAuditLog = options.auditLog instanceof FileAuditLog ? options.auditLog : undefined;
   const chainRunner = new HarnessChainRunner({
-    resolveRunner: (agentId) => resolveRunner(runners, agentId),
+    resolveRunner: (agentId, cwd) => resolveRunner(agentsAt(cwd), agentId),
     listAuditEntries: fileAuditLog ? () => fileAuditLog.readEntries() : undefined,
     auditLog: options.auditLog,
   });
@@ -461,7 +471,7 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
       socket.close();
     });
     socket.on("message", (raw) => {
-      handleSocketMessage(socket, raw.toString(), runners, resolveRecoveryService, chainRunner, liveRuns, options.auditLog);
+      handleSocketMessage(socket, raw.toString(), runners, resolveRecoveryService, chainRunner, liveRuns, options.auditLog, agentsAt);
     });
   });
 

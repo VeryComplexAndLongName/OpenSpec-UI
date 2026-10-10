@@ -10,7 +10,7 @@ export interface PipelineRunControlDeps {
   liveRuns: Pick<LiveRuns, "get">;
   chainRunner: Pick<HarnessChainRunner, "holds" | "confirmCheckpoint" | "resolvePermission" | "asAgentRunner">;
   /** The runner a single-stage run was started on, by its agent. */
-  resolveRunner: (agentId: string | undefined) => AgentRunner | undefined;
+  resolveRunner: (agentId: string | undefined, cwd?: string) => AgentRunner | undefined;
 }
 
 /** Sends a card's control to the run it names.
@@ -46,7 +46,7 @@ export function sendPipelineRunControl(control: PipelineRunControl, deps: Pipeli
     return;
   }
 
-  const runner = chain ? deps.chainRunner.asAgentRunner() : deps.resolveRunner(held.agentId);
+  const runner = chain ? deps.chainRunner.asAgentRunner() : deps.resolveRunner(held.agentId, held.cwd);
   if (runner === undefined) return;
   void (async () => {
     try {

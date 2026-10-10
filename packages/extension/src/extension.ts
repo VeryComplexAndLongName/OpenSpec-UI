@@ -47,6 +47,8 @@ import {
   resolveRunner as resolveAgentRunner,
   runDelegatedItem,
   shortDelegatedItemOutcome,
+  agentsByRunRoot,
+  resolveWorktreeRoot,
 } from "@openspec-ui/core";
 import { AnswerWatcher, describeAnswer } from "./answers-watcher.js";
 import { buildChainRunnerAuditDeps } from "./chain-runner-audit-deps.js";
@@ -93,6 +95,17 @@ let runners: Map<string, AgentRunner> | undefined;
  * `runners` is, for that root: a change's own worktree, where a card runs a
  * delegated task (a-card-works-its-own-tasks). */
 let runnersFor: ((root: string) => Map<string, AgentRunner>) | undefined;
+/** Where this repository's worktrees are made, `<worktree root>/<repository>`,
+ * once read (ADR 0043). */
+let worktreeContainer: string | undefined;
+/** The agents of the place a run runs in: the workspace, or one of its
+ * repository's worktrees (a-change-runs-in-its-own-worktree). */
+let agentsAt: ((cwd: string | undefined) => Map<string, AgentRunner>) | undefined;
+/** The agent a run in `cwd` runs on. */
+function runnerAt(agentId: string | undefined, cwd: string | undefined): AgentRunner | undefined {
+  const agents = agentsAt?.(cwd) ?? runners;
+  return agents ? resolveAgentRunner(agents, agentId) : undefined;
+}
 let auditLog: FileAuditLog | undefined;
 let optionalServer: OptionalServerManager | undefined;
 /** The Workspace view, told which checks resolve whenever the check
@@ -584,13 +597,27 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     });
     // A worktree records its runs in its own log, as `openspec-ui-cli run change
     // --cwd` does there.
-    runnersFor = (root) => buildDefaultAgentRunners({
-      workspaceRoot: root,
-      auditLog: new FileAuditLog(auditLogPath(root)),
-      runLogs: createFileRunLogs(root),
-      ...localLlmSettings,
-      ...readAgentSwitches(),
+    const workspaceAgents = runners;
+    const agentsFor = agentsByRunRoot({
+      workspaceRoot,
+      runners: workspaceAgents,
+      container: () => worktreeContainer,
+      runnersFor: (root) => buildDefaultAgentRunners({
+        workspaceRoot: root,
+        auditLog: new FileAuditLog(auditLogPath(root)),
+        runLogs: createFileRunLogs(root),
+        ...localLlmSettings,
+        ...readAgentSwitches(),
+      }),
     });
+    runnersFor = (root) => agentsFor(root);
+    // A run of a change in its own worktree is given that worktree's agents,
+    // whose sandbox is that worktree (a-change-runs-in-its-own-worktree).
+    // The worktrees' place is read once; until it is, only the workspace's.
+    void resolveWorktreeRoot(workspaceRoot).then(({ root }) => {
+      worktreeContainer = path.join(root, path.basename(workspaceRoot));
+    }, () => undefined);
+    agentsAt = agentsFor;
     context.subscriptions.push(
       vscode.commands.registerCommand("openspec-ui.setLlmKey", async () => {
         const key = await vscode.window.showInputBox({
@@ -794,7 +821,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   // `resolveRunner` above does — there is no workspace-independent set of
   // agents to bind at construction time.
   const chainRunner = new HarnessChainRunner({
-    resolveRunner: (agentId) => (runners ? resolveAgentRunner(runners, agentId) : undefined),
+    resolveRunner: (agentId, cwd) => runnerAt(agentId, cwd),
     // Both audit dependencies come from one place, so that "the chain
     // writes its spend but reads nothing back" cannot be introduced by
     // editing one of two lines. See chain-runner-audit-deps.ts.
@@ -837,7 +864,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   const aiPanel = new AiPanel({
     extensionUri: context.extensionUri,
     runController,
-    resolveRunner: (agentId) => (runners ? resolveAgentRunner(runners, agentId) : undefined),
+    resolveRunner: (agentId, cwd) => runnerAt(agentId, cwd),
     chainRunner,
     getLocalServerUrl: () => optionalServer?.launchUrl,
     scheduler,
@@ -892,7 +919,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     sendRunControl: (control) => sendPipelineRunControl(control, {
       liveRuns,
       chainRunner,
-      resolveRunner: (agentId) => (runners ? resolveAgentRunner(runners, agentId) : undefined),
+      resolveRunner: (agentId, cwd) => runnerAt(agentId, cwd),
     }),
     // As `openspec-ui.showChange` reveals a row: an item built from
     // the change the host found, never from the message.

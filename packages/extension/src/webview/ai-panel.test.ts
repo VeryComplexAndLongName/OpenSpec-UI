@@ -424,7 +424,7 @@ describe("AiPanel harness process tracking", () => {
         // DEFAULT_AGENT_ID, handing the cancel to claude-cli's runner —
         // whose `activeRuns` has never heard of this runId. The cancel
         // reported "nothing to cancel" and the real agent kept working.
-        expect(resolveRunner).toHaveBeenCalledWith("copilot-cli-acp");
+        expect(resolveRunner).toHaveBeenCalledWith("copilot-cli-acp", expect.any(String));
     });
 
     it("routes a resolvePermission to the runner that owns the run, not to the default agent", () => {
@@ -480,7 +480,7 @@ describe("AiPanel harness process tracking", () => {
             },
         });
 
-        expect(resolveRunner).toHaveBeenCalledWith("local-llm-acp");
+        expect(resolveRunner).toHaveBeenCalledWith("local-llm-acp", expect.any(String));
     });
 
     it("does not register a process when no scheduler is supplied", () => {
@@ -875,7 +875,7 @@ describe("AiPanel vscode-chat stage dispatch", () => {
 
         sendImplementCommand(receiveMessage);
 
-        expect(resolveRunner).toHaveBeenCalledWith("claude-cli");
+        expect(resolveRunner).toHaveBeenCalledWith("claude-cli", expect.any(String));
         expect(runController.run).toHaveBeenCalledWith(
             expect.objectContaining({ name: "claude-cli" }),
             expect.objectContaining({ kind: "implement" }),

@@ -187,7 +187,9 @@ const STAGE_FOR_COMMAND_KIND: Partial<Record<Command["kind"], HarnessStage>> = {
 export interface AiPanelDeps {
   extensionUri: vscode.Uri;
   runController: RunController;
-  resolveRunner: (agentId: string | undefined) => AgentRunner | undefined;
+  /** `cwd` is where the run runs: a change's own worktree has its own
+   * agents (a-change-runs-in-its-own-worktree). */
+  resolveRunner: (agentId: string | undefined, cwd?: string) => AgentRunner | undefined;
   /** Drives `"chain"`/`"confirmCheckpoint"` commands — see
    * docs/adr/0012-agentic-harness-chain-execution-protocol.md. Reused
    * across every message (a paused chain's state lives between them), not
@@ -383,7 +385,7 @@ export class AiPanel {
     const agentId = CARRIES_NO_OWN_AGENT_ID.has(command.kind)
       ? this.runAgentIds.get(command.runId) ?? command.agentId
       : command.agentId;
-    const runner = this.deps.resolveRunner(agentId);
+    const runner = this.deps.resolveRunner(agentId, command.cwd);
     if (!runner) {
       this.postEventMessage(panel, {
         kind: "failed",
