@@ -1,35 +1,39 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-10T06:38:19.945Z",
+  "generated_at": "2026-10-10T13:45:01.655Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "57682fda3af6c8e98b52f426a0a5302bdec8434a",
+  "commit": "a729913922c559281f64506fd5b895b6d39309b4",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.102.0",
-      "released_at": "2026-10-10T06:38:19.945Z",
-      "tag": "openspec-ui-vscode@0.102.0",
+      "version": "0.103.0",
+      "released_at": "2026-10-10T13:45:01.655Z",
+      "tag": "openspec-ui-vscode@0.103.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.102.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.103.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.102.0/openspec-ui-vscode-0.102.0.vsix",
-          "size_bytes": 9953721
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.103.0/openspec-ui-vscode-0.103.0.vsix",
+          "size_bytes": 9972566
         }
       ],
       "changes": [
         {
           "kind": "minor",
-          "summary": "**The side panel is the Workspace** (the-side-panel-is-the-workspace, ADR 0044). A new **Workspace** view comes first: Open Pipeline and Open Dashboard, the Workspace Harness, **Agents** - each agent the product knows, whether it is found on this machine, its version and the stages the harness gives it - OpenSpec Configuration, Repository Setup, and Run Typecheck, Run Tests and Run Lint where the workspace declares them. The Human-Only Inbox follows, then Changes; Processes and the Change Graph start folded. **Changes is a list to go by**: choosing a change shows its card in the Pipeline, scrolled to, marked for a moment and focused, and a change worked only in its own worktree now has a row of its own. A change's right-click menu is **Show Actions...** alone, which lists every action its card offers; Run, Stop, the Inspect and Set Up submenus, Archive, Rollback and Delete are there and on the card."
+          "summary": "**A change is on the server from the moment it is made** (a-change-is-committed-where-it-is-made, ADR 0043 amended). Create Change, in both hosts, now commits the new change on its own branch and pushes it, and says so - or says why the server refused it. The rules written into `CLAUDE.md` and `AGENTS.md` tell every agent *when* to commit, not only where: the planning artifacts on the change's branch with `git push -u origin <change-id>` as soon as they are written, the work of every task ticked, nothing left unpushed at the end of a turn, nothing of a change on `main`; run **Write Agent Workflow Rules** to give an existing repository the new rules. The `git` stage commits what the stages left before it pushes. A card whose change's branch is not on the server says \"not on the server\", and a new action, **Commit Change**, on the card and in Show Actions..., commits everything the change's worktree holds and pushes it. A card of a change's own worktree now offers its actions in the Pipeline's arrangement by step as well, not only on the board by stage, and **Run Change...**, which runs the change in its worktree - before, such a change could be acted on but never run from its card. New messages `OSW-GIT-001`..`OSW-GIT-203`."
+        },
+        {
+          "kind": "patch",
+          "summary": "The extension's README follows the side panel's new shape (the-side-panel-is-the-workspace): its features name the Workspace view, a change is acted on from its card and its **Show Actions...**, the Change Graph states relations, and the archive and template menus are described by what they now offer (Restore Change, Edit Template). The how-to on stopping a run sends you to the card or Show Actions... rather than a change's row."
         }
       ]
     },
@@ -38,8 +42,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.58.1",
-      "released_at": "2026-10-10T06:38:19.945Z",
+      "version": "1.59.0",
+      "released_at": "2026-10-10T13:45:01.655Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -47,15 +51,20 @@
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/server/README.md"
       },
       "artifacts": [],
-      "changes": []
+      "changes": [
+        {
+          "kind": "minor",
+          "summary": "**A change is on the server from the moment it is made** (a-change-is-committed-where-it-is-made, ADR 0043 amended). Create Change, in both hosts, now commits the new change on its own branch and pushes it, and says so - or says why the server refused it. The rules written into `CLAUDE.md` and `AGENTS.md` tell every agent *when* to commit, not only where: the planning artifacts on the change's branch with `git push -u origin <change-id>` as soon as they are written, the work of every task ticked, nothing left unpushed at the end of a turn, nothing of a change on `main`; run **Write Agent Workflow Rules** to give an existing repository the new rules. The `git` stage commits what the stages left before it pushes. A card whose change's branch is not on the server says \"not on the server\", and a new action, **Commit Change**, on the card and in Show Actions..., commits everything the change's worktree holds and pushes it. A card of a change's own worktree now offers its actions in the Pipeline's arrangement by step as well, not only on the board by stage, and **Run Change...**, which runs the change in its worktree - before, such a change could be acted on but never run from its card. New messages `OSW-GIT-001`..`OSW-GIT-203`."
+        }
+      ]
     },
     {
       "id": "core",
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.143.0",
-      "released_at": "2026-10-10T06:38:19.945Z",
+      "version": "0.144.0",
+      "released_at": "2026-10-10T13:45:01.655Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -66,7 +75,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "**Every button is a verb and a noun** (every-control-is-a-verb-and-a-noun, ADR 0045). The buttons of the Pipeline, the cards, the run and chain panels, the AI panel, the task list, Processes, the harness settings and the standalone app follow the rule the commands already did: **Run Change...** for Start..., **Show Logs** for Logs, **Update Main** for Catch up, **Show Landed Changes** for Show them, **Show Tasks** and **Hide Tasks** for Open all and Close all, **Stop Run...** and **Stop Process** for Stop... and Stop now, **Confirm Key** for It was me, **Delete History...** for Clean old history, and the rest. Inside a dialog that already names what it is about, a button is the verb alone: Answer, Allow, Deny, Archive, Delete, Cancel. Archive Landed Changes..., Delete History..., Rollback Process..., Delete Leftover... and Delete Worktree... now ask in a dialog before anything is deleted. A test reads every button's words and holds them to the lists."
+          "summary": "**A change is on the server from the moment it is made** (a-change-is-committed-where-it-is-made, ADR 0043 amended). Create Change, in both hosts, now commits the new change on its own branch and pushes it, and says so - or says why the server refused it. The rules written into `CLAUDE.md` and `AGENTS.md` tell every agent *when* to commit, not only where: the planning artifacts on the change's branch with `git push -u origin <change-id>` as soon as they are written, the work of every task ticked, nothing left unpushed at the end of a turn, nothing of a change on `main`; run **Write Agent Workflow Rules** to give an existing repository the new rules. The `git` stage commits what the stages left before it pushes. A card whose change's branch is not on the server says \"not on the server\", and a new action, **Commit Change**, on the card and in Show Actions..., commits everything the change's worktree holds and pushes it. A card of a change's own worktree now offers its actions in the Pipeline's arrangement by step as well, not only on the board by stage, and **Run Change...**, which runs the change in its worktree - before, such a change could be acted on but never run from its card. New messages `OSW-GIT-001`..`OSW-GIT-203`."
         }
       ]
     },
@@ -75,8 +84,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.91.0",
-      "released_at": "2026-10-10T06:38:19.945Z",
+      "version": "1.92.0",
+      "released_at": "2026-10-10T13:45:01.655Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -86,7 +95,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "**The side panel is the Workspace** (the-side-panel-is-the-workspace, ADR 0044). A new **Workspace** view comes first: Open Pipeline and Open Dashboard, the Workspace Harness, **Agents** - each agent the product knows, whether it is found on this machine, its version and the stages the harness gives it - OpenSpec Configuration, Repository Setup, and Run Typecheck, Run Tests and Run Lint where the workspace declares them. The Human-Only Inbox follows, then Changes; Processes and the Change Graph start folded. **Changes is a list to go by**: choosing a change shows its card in the Pipeline, scrolled to, marked for a moment and focused, and a change worked only in its own worktree now has a row of its own. A change's right-click menu is **Show Actions...** alone, which lists every action its card offers; Run, Stop, the Inspect and Set Up submenus, Archive, Rollback and Delete are there and on the card."
+          "summary": "**A change is on the server from the moment it is made** (a-change-is-committed-where-it-is-made, ADR 0043 amended). Create Change, in both hosts, now commits the new change on its own branch and pushes it, and says so - or says why the server refused it. The rules written into `CLAUDE.md` and `AGENTS.md` tell every agent *when* to commit, not only where: the planning artifacts on the change's branch with `git push -u origin <change-id>` as soon as they are written, the work of every task ticked, nothing left unpushed at the end of a turn, nothing of a change on `main`; run **Write Agent Workflow Rules** to give an existing repository the new rules. The `git` stage commits what the stages left before it pushes. A card whose change's branch is not on the server says \"not on the server\", and a new action, **Commit Change**, on the card and in Show Actions..., commits everything the change's worktree holds and pushes it. A card of a change's own worktree now offers its actions in the Pipeline's arrangement by step as well, not only on the board by stage, and **Run Change...**, which runs the change in its worktree - before, such a change could be acted on but never run from its card. New messages `OSW-GIT-001`..`OSW-GIT-203`."
         }
       ]
     },
@@ -96,7 +105,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.29.0",
-      "released_at": "2026-10-10T06:38:19.945Z",
+      "released_at": "2026-10-10T13:45:01.655Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
