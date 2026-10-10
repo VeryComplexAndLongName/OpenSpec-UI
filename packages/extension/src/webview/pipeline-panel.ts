@@ -701,7 +701,8 @@ export class PipelinePanel {
    * workspace can have and is one of its active changes. A message never
    * says what gets opened: the path comes from this host's own lookup. */
   /** A card's Start: checked as opening a change is, then the change's run
-   * dialog (a-change-is-run-from-its-card). */
+   * dialog (a-change-is-run-from-its-card). A change worked in its own
+   * worktree runs too, there (a-change-is-committed-where-it-is-made). */
   private async runChange(changeName: unknown): Promise<void> {
     const workspaceRoot = this.deps.getWorkspaceRoot();
     if (!workspaceRoot || this.deps.runChange === undefined) return;
@@ -710,7 +711,8 @@ export class PipelinePanel {
       return;
     }
     const change = await this.readers.findActiveChange(workspaceRoot, changeName);
-    if (!change) {
+    const own = change ? undefined : await this.readers.ownWorktree(workspaceRoot, changeName).catch(() => undefined);
+    if (!change && own?.ok !== true) {
       void vscode.window.showInformationMessage(
         `OpenSpec Workbench: ${changeName} is not an active change of this workspace — it may have been archived or deleted since the Pipeline was read.`,
       );

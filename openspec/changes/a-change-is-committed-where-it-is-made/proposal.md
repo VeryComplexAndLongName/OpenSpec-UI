@@ -39,7 +39,10 @@ done, so the change can be worked at once as one's own.
   the change's branch and pushes it. On the card and in Show Actions..., in
   both hosts; refused in the main checkout and on the default branch.
 - A card of a change's own worktree offers its actions in the arrangement
-  by step as on the board.
+  by step as on the board, and **Run Change...**: the owner found on
+  2026-10-10 that such a change could be acted on but never run - a card's
+  Start was refused for a change this checkout does not have. It runs in
+  the change's worktree, in both hosts.
 - Messages in the register's new GIT group (`OSW-GIT-001`..`203`). ADR 0043
   amended.
 

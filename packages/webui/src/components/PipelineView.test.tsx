@@ -1954,6 +1954,26 @@ describe("PipelineView — a card works its own tasks", () => {
     expect(perform).toHaveBeenCalledWith("commitChange", "fresh", { confirmed: false });
   });
 
+  it("runs a change from the card of its own worktree, there, and not while a run of it reports from there", async () => {
+    // a-change-is-committed-where-it-is-made: its Start was the one action
+    // such a card lacked.
+    const onStart = vi.fn();
+    const { unmount } = render(
+      <PipelineView isActive load={async () => report(change("alpha"))} survey={async () => survey(directory(), own())} onStart={onStart} />,
+    );
+    const start = await screen.findByTestId("pipeline-directory-0-node-fresh-start");
+    expect(start).toHaveAccessibleName("Run Change fresh");
+    expect(start).toHaveTextContent("Run Change...");
+    fireEvent.click(start);
+    expect(onStart).toHaveBeenCalledWith("fresh", "/wt/repo/fresh");
+    unmount();
+
+    const running = { instanceId: "r1", changeName: "fresh", workingDirectory: "/wt/repo/fresh", gone: false } as never;
+    render(<PipelineView isActive load={async () => report(change("alpha"))} survey={async () => survey(directory(), own({ runs: [running] }))} onStart={onStart} />);
+    expect(await screen.findByTestId("pipeline-directory-0-node-fresh-controls")).toHaveTextContent("running");
+    expect(screen.queryByTestId("pipeline-directory-0-node-fresh-start")).toBeNull();
+  });
+
   it("holds a task's whole text in the hint of its row", async () => {
     await openOwnCard();
     const row = screen.getByTestId("pipeline-directory-0-node-fresh-tasks").querySelector("[data-word='only a person can close it']");

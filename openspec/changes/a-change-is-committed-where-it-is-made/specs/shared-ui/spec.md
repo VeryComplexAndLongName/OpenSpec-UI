@@ -8,6 +8,11 @@ stage or by step. Among them, Commit Change SHALL commit what the worktree
 holds on the change's branch and push it; it SHALL be refused, saying why,
 for a change worked in the checkout and while a run of it is going.
 
+Such a card SHALL also offer Run Change..., as a card of this checkout
+does, and the run SHALL run in that worktree, with that worktree's harness
+settings and task list, in both hosts. While a run of the change reports
+from there, the card SHALL say it is running and offer no start.
+
 The survey SHALL say, from the refs it already lists and without running
 git in the directory, where that change's branch is not on the server:
 never pushed, or at another commit than the server's. The card SHALL say
@@ -20,6 +25,13 @@ the server as it is here".
   it was made for `fresh`
 - **THEN** `fresh`'s card there offers its actions, Commit Change among
   them, as it does on the board
+
+#### Scenario: Running a change of its own worktree
+
+- **WHEN** Run Change... is pressed on `fresh`'s card, `fresh` being only in
+  its own worktree
+- **THEN** the run dialog opens for `fresh` with that worktree's harness
+  and open tasks, and a run chosen in it runs in that worktree
 
 #### Scenario: A branch never pushed
 

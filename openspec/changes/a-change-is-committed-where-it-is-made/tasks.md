@@ -42,6 +42,17 @@ button.
   page says it.
   `change-actions-rest.test.ts` (2026-10-10).
 
+- [x] 2.4 Run Change... on a card of a change's own worktree, in both
+  arrangements; the run runs in that worktree, in both hosts. The owner's
+  check on 2026-10-10 showed the card with every action but the run.
+  `PipelineView.test.tsx` (the button, its directory, running); the
+  extension's `runChange` resolves the change where it is worked and its
+  Start is accepted for a change of its own worktree (`commands.test.ts`,
+  `pipeline-panel.test.ts`); the standalone's run dialog, schedule and
+  chain take the worktree's root. Seen live on `HppMCP`: the dialog for
+  `mailbox-integrations-readonly` read its worktree's harness and "24 tasks
+  still open" (2026-10-10).
+
 ## 3. Documents
 
 - [x] 3.1 ADR 0043 amended (decisions 6-8).
