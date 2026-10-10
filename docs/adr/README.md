@@ -54,5 +54,6 @@ Alternatives / Consequences.
 | [0045](0045-every-action-is-a-verb-and-a-noun.md) | Every action is a verb and a noun | Accepted |
 | [0046](0046-every-message-has-an-identifier.md) | Every message has an identifier | Accepted |
 | [0047](0047-what-waits-for-a-person-is-a-dialog.md) | What waits for a person is a dialog | Accepted |
+| [0048](0048-npm-is-published-by-trusted-publishing-from-the-dispatch.md) | npm is published by Trusted Publishing, from the same dispatch as the Marketplace | Accepted; completes 0009 decision 5 |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.

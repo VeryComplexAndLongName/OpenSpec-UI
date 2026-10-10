@@ -1,0 +1,225 @@
+name: Publish
+
+# Asked for, never inferred (the-marketplace-publish-is-a-manual-step,
+# one-dispatch-publishes-to-both-channels).
+#
+# What the automatic path does, in `quality.yml`: a push to `main` whose
+# `openspec-ui-vscode` version has no tag yet is tagged
+# `openspec-ui-vscode@<version>` and published as a GitHub Release with
+# the VSIX attached. That is the whole of it. Nothing there reaches the
+# Visual Studio Marketplace or the npm registry.
+#
+# This workflow is the step that does, and it runs on no event: a person
+# dispatches it, names what to publish and types the confirmation. Not
+# every release is meant for a registry, a Marketplace publish reaches
+# every installed copy through the editor's auto-update, and a version
+# pulled from either registry stays gone and its number can never be
+# reused.
+#
+# Two channels, two versions, because the two products are versioned
+# independently (changesets): `vscode_version` names an
+# `openspec-ui-vscode` release for the Marketplace, `cli_version` names an
+# `@openspec-ui/cli` version for npm. A field left empty skips its
+# channel, so what is published is only what was asked for.
+#
+# The Marketplace publishes the artifact that was released - the VSIX the
+# extension integration suite exercised, downloaded from that tag's
+# release - and never a rebuild of whatever `main` holds now.
+#
+# npm has no release to download: the CLI is not tagged or released. It is
+# built here, from the commit that is `main`, and published only if the
+# version it carries is the version that was named. Authentication is npm
+# Trusted Publishing (OIDC): the registry trusts this workflow file in
+# this repository, so there is no npm token anywhere. The trusted
+# publisher on npmjs.com names this file and the `npm` environment; if
+# this file is renamed, that setting has to follow.
+#
+# `scripts/check-publish-workflow.mjs` fails the lint gate if this file
+# stops holding to any of that.
+
+on:
+  workflow_dispatch:
+    inputs:
+      vscode_version:
+        description: 'Publish to the Marketplace: the openspec-ui-vscode version, as packages/extension/package.json states it (for example 0.62.0). Empty skips the Marketplace.'
+        required: false
+        type: string
+      cli_version:
+        description: 'Publish to npm: the @openspec-ui/cli version, as packages/cli/package.json states it (for example 0.30.0). Empty skips npm.'
+        required: false
+        type: string
+      confirm:
+        description: 'Type publish to confirm. Not every release is meant for a registry.'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: 22.11.0
+  # The repository's pinned npm builds and tests everything, here as in
+  # quality.yml. Trusted Publishing needs a newer one, which the npm job
+  # installs for the publish step alone.
+  NPM_VERSION: 10.9.0
+  NPM_PUBLISH_VERSION: 11.5.1
+
+jobs:
+  confirm:
+    name: Confirm the publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Both publishing jobs need this one, so neither can read its
+      # credential before the confirmation has been checked.
+      - name: Refuse a run that was not confirmed
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+          VSCODE_VERSION: ${{ inputs.vscode_version }}
+          CLI_VERSION: ${{ inputs.cli_version }}
+        run: |
+          if [ "${CONFIRM}" != "publish" ]; then
+            echo "Refusing: the confirmation field reads '${CONFIRM}', and it has to read exactly 'publish'."
+            echo "Nothing was published, and no credential was read."
+            exit 1
+          fi
+          if [ -z "${VSCODE_VERSION}" ] && [ -z "${CLI_VERSION}" ]; then
+            echo "Refusing: no version was named. Name vscode_version, cli_version or both."
+            exit 1
+          fi
+          echo "Confirmed. Marketplace: ${VSCODE_VERSION:-skipped}. npm: ${CLI_VERSION:-skipped}."
+
+  marketplace:
+    name: Publish to the Marketplace
+    needs: confirm
+    if: inputs.vscode_version != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # No protection rules are required for this to run. It is declared so
+    # a required reviewer can be added, or the secret scoped here, without
+    # editing this file - and so what was published, and when, appears
+    # outside the run log.
+    environment: marketplace
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm install --global npm@${NPM_VERSION}
+      - run: npm ci
+
+      - name: Take the VSIX from the release that version was tagged as
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.vscode_version }}
+        run: |
+          TAG="openspec-ui-vscode@${VERSION}"
+          if ! gh release view "${TAG}" > /dev/null 2>&1; then
+            echo "Refusing: ${TAG} has no GitHub Release. Only a released version can be published."
+            exit 1
+          fi
+          mkdir -p publish
+          gh release download "${TAG}" --pattern '*.vsix' --dir publish
+          VSIX=$(ls publish/*.vsix 2>/dev/null | head -1)
+          if [ -z "${VSIX}" ]; then
+            echo "Refusing: the release for ${TAG} carries no .vsix asset."
+            exit 1
+          fi
+          case "${VSIX}" in
+            *"${VERSION}.vsix") ;;
+            *)
+              echo "Refusing: ${VSIX} is not the file version ${VERSION} would have produced."
+              exit 1
+              ;;
+          esac
+          echo "VSIX=${VSIX}" >> "${GITHUB_ENV}"
+          echo "Publishing ${VSIX}, as it was released."
+
+      - name: Publish it
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        working-directory: packages/extension
+        run: npx vsce publish --packagePath "${GITHUB_WORKSPACE}/${VSIX}"
+
+      - name: Say what went out
+        env:
+          VERSION: ${{ inputs.vscode_version }}
+        run: |
+          echo "openspec-ui-vscode ${VERSION} is on the Marketplace." >> "${GITHUB_STEP_SUMMARY}"
+          echo "" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Published from the release for openspec-ui-vscode@${VERSION}, dispatched by ${GITHUB_ACTOR}." >> "${GITHUB_STEP_SUMMARY}"
+
+  npm:
+    name: Publish to npm
+    needs: confirm
+    if: inputs.cli_version != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # The environment the trusted publisher on npmjs.com names.
+    environment: npm
+    permissions:
+      contents: read
+      # The OIDC token the registry exchanges for a publish credential.
+      # Held by this job alone.
+      id-token: write
+    steps:
+      # What goes out is the commit that is `main`, never a branch a
+      # dispatch happened to be started from.
+      - name: Refuse a dispatch that was not started from main
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "Refusing: this was dispatched from ${GITHUB_REF}, and npm is published from refs/heads/main only."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm install --global npm@${NPM_VERSION}
+      - run: npm ci
+
+      - name: Refuse a version that is not the one this commit carries, or that is already out
+        env:
+          VERSION: ${{ inputs.cli_version }}
+        run: |
+          HAVE=$(node -p "require('./packages/cli/package.json').version")
+          if [ "${HAVE}" != "${VERSION}" ]; then
+            echo "Refusing: packages/cli/package.json states ${HAVE} on this commit, and ${VERSION} was named."
+            exit 1
+          fi
+          if npm view "@openspec-ui/cli@${VERSION}" version > /dev/null 2>&1; then
+            echo "Refusing: @openspec-ui/cli@${VERSION} is already on npm, and a version can never be published twice."
+            exit 1
+          fi
+
+      - name: Build the bundle that is published
+        run: npm run build --workspace @openspec-ui/cli
+
+      # Trusted Publishing needs a newer npm than the one the repository
+      # is pinned to. It is installed here, after everything that reads
+      # the lockfile has run, and by an exact version.
+      - run: npm install --global npm@${NPM_PUBLISH_VERSION}
+
+      - name: Publish it
+        working-directory: packages/cli
+        run: npm publish --access public
+
+      - name: Say what went out
+        env:
+          VERSION: ${{ inputs.cli_version }}
+        run: |
+          echo "@openspec-ui/cli ${VERSION} is on npm." >> "${GITHUB_STEP_SUMMARY}"
+          echo "" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Built from ${GITHUB_SHA}, dispatched by ${GITHUB_ACTOR}." >> "${GITHUB_STEP_SUMMARY}"

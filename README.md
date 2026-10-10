@@ -423,14 +423,22 @@ no matching git tag yet, CI (`release-extension` job in
 download a specific build; the artifact itself is never committed into
 `packages/` or anywhere else in git.
 
-Reaching the Visual Studio Marketplace is a separate step, and a manual
-one: not every release is meant for it. Somebody dispatches the
-`Publish to the Marketplace` workflow
-(`.github/workflows/publish-marketplace.yml`), names the version and types
-the confirmation, and that run publishes the `.vsix` from that version's
-GitHub Release — the artifact the extension integration suite exercised,
-never a rebuild. No push, tag or merge publishes anything. The token is a
-repository secret read by that one job;
+Reaching the Visual Studio Marketplace or the npm registry is a separate
+step, and a manual one: not every release is meant for either. Somebody
+dispatches the `Publish` workflow (`.github/workflows/publish.yml`), names
+`vscode_version`, `cli_version` or both, and types the confirmation; a
+version left empty skips its channel.
+
+- The Marketplace publishes the `.vsix` from that version's GitHub Release
+  — the artifact the extension integration suite exercised, never a
+  rebuild. Its token is a repository secret read by that one job.
+- npm publishes `@openspec-ui/cli`, built from `main` and only if
+  `packages/cli/package.json` states the version that was named. It uses
+  npm Trusted Publishing, so there is no npm token at all; the trusted
+  publisher on npmjs.com names `publish.yml` and the `npm` environment
+  (ADR-0048).
+
+No push, tag or merge publishes anything.
 `scripts/check-publish-workflow.mjs` fails the lint gate if any of that
 stops holding.
 
