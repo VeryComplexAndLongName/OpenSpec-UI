@@ -1,35 +1,35 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-09T15:23:58.703Z",
+  "generated_at": "2026-10-10T06:38:19.945Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "c1e103e1f966c778699b2c8976492ffc11be94dd",
+  "commit": "57682fda3af6c8e98b52f426a0a5302bdec8434a",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.101.0",
-      "released_at": "2026-10-09T15:23:58.703Z",
-      "tag": "openspec-ui-vscode@0.101.0",
+      "version": "0.102.0",
+      "released_at": "2026-10-10T06:38:19.945Z",
+      "tag": "openspec-ui-vscode@0.102.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.101.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.102.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.101.0/openspec-ui-vscode-0.101.0.vsix",
-          "size_bytes": 9941822
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.102.0/openspec-ui-vscode-0.102.0.vsix",
+          "size_bytes": 9953721
         }
       ],
       "changes": [
         {
           "kind": "minor",
-          "summary": "**Every button is a verb and a noun** (every-control-is-a-verb-and-a-noun, ADR 0045). The buttons of the Pipeline, the cards, the run and chain panels, the AI panel, the task list, Processes, the harness settings and the standalone app follow the rule the commands already did: **Run Change...** for Start..., **Show Logs** for Logs, **Update Main** for Catch up, **Show Landed Changes** for Show them, **Show Tasks** and **Hide Tasks** for Open all and Close all, **Stop Run...** and **Stop Process** for Stop... and Stop now, **Confirm Key** for It was me, **Delete History...** for Clean old history, and the rest. Inside a dialog that already names what it is about, a button is the verb alone: Answer, Allow, Deny, Archive, Delete, Cancel. Archive Landed Changes..., Delete History..., Rollback Process..., Delete Leftover... and Delete Worktree... now ask in a dialog before anything is deleted. A test reads every button's words and holds them to the lists."
+          "summary": "**The side panel is the Workspace** (the-side-panel-is-the-workspace, ADR 0044). A new **Workspace** view comes first: Open Pipeline and Open Dashboard, the Workspace Harness, **Agents** - each agent the product knows, whether it is found on this machine, its version and the stages the harness gives it - OpenSpec Configuration, Repository Setup, and Run Typecheck, Run Tests and Run Lint where the workspace declares them. The Human-Only Inbox follows, then Changes; Processes and the Change Graph start folded. **Changes is a list to go by**: choosing a change shows its card in the Pipeline, scrolled to, marked for a moment and focused, and a change worked only in its own worktree now has a row of its own. A change's right-click menu is **Show Actions...** alone, which lists every action its card offers; Run, Stop, the Inspect and Set Up submenus, Archive, Rollback and Delete are there and on the card."
         }
       ]
     },
@@ -39,7 +39,7 @@
       "package": "@openspec-ui/server",
       "public": true,
       "version": "1.58.1",
-      "released_at": "2026-10-09T15:23:58.703Z",
+      "released_at": "2026-10-10T06:38:19.945Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -55,7 +55,7 @@
       "package": "@openspec-ui/core",
       "public": true,
       "version": "0.143.0",
-      "released_at": "2026-10-09T15:23:58.703Z",
+      "released_at": "2026-10-10T06:38:19.945Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -75,8 +75,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.90.0",
-      "released_at": "2026-10-09T15:23:58.703Z",
+      "version": "1.91.0",
+      "released_at": "2026-10-10T06:38:19.945Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -86,7 +86,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "**Every button is a verb and a noun** (every-control-is-a-verb-and-a-noun, ADR 0045). The buttons of the Pipeline, the cards, the run and chain panels, the AI panel, the task list, Processes, the harness settings and the standalone app follow the rule the commands already did: **Run Change...** for Start..., **Show Logs** for Logs, **Update Main** for Catch up, **Show Landed Changes** for Show them, **Show Tasks** and **Hide Tasks** for Open all and Close all, **Stop Run...** and **Stop Process** for Stop... and Stop now, **Confirm Key** for It was me, **Delete History...** for Clean old history, and the rest. Inside a dialog that already names what it is about, a button is the verb alone: Answer, Allow, Deny, Archive, Delete, Cancel. Archive Landed Changes..., Delete History..., Rollback Process..., Delete Leftover... and Delete Worktree... now ask in a dialog before anything is deleted. A test reads every button's words and holds them to the lists."
+          "summary": "**The side panel is the Workspace** (the-side-panel-is-the-workspace, ADR 0044). A new **Workspace** view comes first: Open Pipeline and Open Dashboard, the Workspace Harness, **Agents** - each agent the product knows, whether it is found on this machine, its version and the stages the harness gives it - OpenSpec Configuration, Repository Setup, and Run Typecheck, Run Tests and Run Lint where the workspace declares them. The Human-Only Inbox follows, then Changes; Processes and the Change Graph start folded. **Changes is a list to go by**: choosing a change shows its card in the Pipeline, scrolled to, marked for a moment and focused, and a change worked only in its own worktree now has a row of its own. A change's right-click menu is **Show Actions...** alone, which lists every action its card offers; Run, Stop, the Inspect and Set Up submenus, Archive, Rollback and Delete are there and on the card."
         }
       ]
     },
@@ -96,7 +96,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.29.0",
-      "released_at": "2026-10-09T15:23:58.703Z",
+      "released_at": "2026-10-10T06:38:19.945Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
