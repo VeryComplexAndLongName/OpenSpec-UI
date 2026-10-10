@@ -31,7 +31,7 @@ context menu.
 
 #### Archive actions
 
-![Archived change context menu: unarchive, copy tasks as a template, rollback, show the change timeline, reveal it in the change graph, show what it follows, show what it cost, explain and recommend harness settings, and delete](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/archive-actions.png)
+![Archived change context menu: Restore Change, Copy Tasks..., Rollback Change, Show Timeline, Show Ancestry, Show Graph, Show Cost, Explain Change Harness, Recommend Change Harness and Delete Change](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/archive-actions.png)
 
 #### Archived task history
 
@@ -101,8 +101,8 @@ or is waiting on, is never folded.
 ### Stating a relation without opening a file
 
 **Add Relation** and **Remove Relation** are in a change's **Show
-Actions...** and on its card, and on its row in the Change Graph. Adding asks which relation - Follows,
-Supersedes or Blocked by, each with the sentence that says what it means -
+Actions...** and on its card, and on its row in the Change Graph. Adding
+asks which relation - Follows, Supersedes or Blocked by, each with the sentence that says what it means -
 and then which change, from the ones the workspace has. Removing offers
 only the relations that change actually states.
 
@@ -135,7 +135,7 @@ it may be a change you have not written yet.
 
 #### Template actions
 
-![Template context menu with customize and insert actions](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/template-actions.png)
+![Template context menu with Edit Template and Insert Template...](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/template-actions.png)
 
 #### Repository bootstrap
 
@@ -143,10 +143,16 @@ it may be a change you have not written yet.
 
 ## Features
 
-- Navigate `config.yaml`, active changes, archived changes, canonical specs,
-  and every proposal, design, task list, and delta spec.
-- Create, validate, archive, unarchive, and delete changes from contextual
-  actions with confirmation for destructive operations. Expand a change,
+- Start from the **Workspace** view: the Pipeline, the Dashboard, the
+  workspace harness, the agents found on this machine with the stages each
+  runs, `config.yaml`, Repository Setup and the checks.
+- Navigate active changes - those of this checkout and those worked only in
+  their own worktrees - archived changes, canonical specs, and every
+  proposal, design, task list, and delta spec. Choosing a change shows its
+  card in the Pipeline.
+- Create, validate, archive, restore, and delete changes - from a change's
+  card or its **Show Actions...**, and from an archived change's menu - with
+  confirmation for destructive operations. Expand a change,
   then expand its collapsible "Tasks" entry to see the individual
   `tasks.md` checklist items nested under it; select one to jump to it
   in the editor, or delete it (active changes only, and only if not yet
@@ -164,9 +170,10 @@ it may be a change you have not written yet.
 - Read the **Change Graph** view: each change nested under the ones it
   follows, archived ones marked, and any waiting on a change that has not
   landed shown as waiting — so what can be started now is answerable
-  without opening a file. It is read-only on purpose; a change with two
-  parents appears under each, and every action stays in the Changes and
-  Archive trees where a change appears exactly once.
+  without opening a file. It states and removes relations, and nothing
+  else; a change with two parents appears under each, and every other
+  action is on the change's card and in its Show Actions..., where a change
+  appears exactly once.
 - Open the **Human-Only Inbox** to see every open item that is waiting on
   a person, across all active changes, each naming the change it belongs
   to and opening it when selected. When nothing is waiting the view says
@@ -190,7 +197,8 @@ it may be a change you have not written yet.
   decision is traced to the reason for it once the change that made it is
   archived.
 - Move between the Changes/Archive trees and the Change Graph on request.
-  "Show Graph", on a change in either tree, expands and selects
+  "Show Graph", from a change's Show Actions... or an archived change's
+  menu, expands and selects
   every row it occupies (a change following more than one other change has
   one row per parent) and reports the count when there is more than one; if
   the change states no relation it says so rather than appearing to do
