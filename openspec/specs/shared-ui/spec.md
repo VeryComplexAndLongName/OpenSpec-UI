@@ -1290,30 +1290,30 @@ decoration: the words SHALL state the fact on their own.
 
 ### Requirement: A card starts its change through the run dialog
 
-A card whose change can start SHALL offer Start. Start SHALL open the run
-dialog for that change, and SHALL NOT start a run by itself.
+A card whose change can start SHALL offer Run Change. Run Change SHALL open
+the run dialog for that change, and SHALL NOT start a run by itself.
 
 A change whose every task is done can start: a run of it continues at
-`verify`. Its card SHALL offer Start.
+`verify`. Its card SHALL offer Run Change.
 
-A card whose change cannot start SHALL NOT offer Start.
+A card whose change cannot start SHALL NOT offer Run Change.
 
 #### Scenario: A ready change
 
-- **WHEN** Start is used on the card of a ready change
+- **WHEN** Run Change is used on the card of a ready change
 - **THEN** the run dialog opens for that change, and no run starts until a
   path is chosen in it
 
 #### Scenario: A blocked change
 
 - **WHEN** a change is blocked
-- **THEN** its card offers no Start
+- **THEN** its card offers no Run Change
 
 #### Scenario: A change whose every task is done
 
 - **WHEN** every task of a change is done, and no run of it is live
-- **THEN** its card offers Start, and the run dialog it opens says the run
-  continues at verify
+- **THEN** its card offers Run Change, and the run dialog it opens says the
+  run continues at verify
 
 ### Requirement: A run this host started is answered and stopped from its card
 
@@ -1321,8 +1321,8 @@ Where a change's run was started by the host that shows the card, the card
 SHALL:
 
 - say "Waiting for you" while the run waits, and offer to answer it;
-- offer Stop, and ask for a reason;
-- once a stop has been asked, offer Stop now, which terminates the run.
+- offer Stop Run, and ask for a reason;
+- once a stop has been asked, offer Stop Process, which terminates the run.
 
 Where the run was started elsewhere, the card SHALL offer none of these. A
 waiting run SHALL be described as answered where it was started. The card
@@ -1332,13 +1332,14 @@ SHALL NOT offer to open that folder.
 #### Scenario: A checkpoint on this host's run
 
 - **WHEN** a run this host started waits at a checkpoint
-- **THEN** its card says "Waiting for you" and offers to continue or to stop
+- **THEN** its card says "Waiting for you" and offers Continue Run or Stop
+  Run
 
 #### Scenario: Asking a run to stop
 
-- **WHEN** Stop is used on a card and a reason is given
+- **WHEN** Stop Run is used on a card and a reason is given
 - **THEN** the run is asked to stop, the card says it was asked and why, and
-  the card offers Stop now
+  the card offers Stop Process
 
 #### Scenario: A run another host started
 
@@ -1792,9 +1793,12 @@ hides the one thing the board exists to show.
 is worked**: this working directory's and every other working directory's,
 one card per change. A change worked in two places SHALL stand on the
 board once. A card for a change of another working directory SHALL say
-which directory works it, and SHALL offer no action on it: a change is the
-pair of a directory and a name, and nothing drawn here may reach the
-change of that name in this checkout. Such a card SHALL NOT also be drawn
+which directory works it. Where that directory is the change's own
+worktree, the card SHALL offer the change's actions, and each SHALL run in
+that directory (ADR 0044, a-change-is-acted-on-from-its-card); a card for
+any other directory's change SHALL offer none. A change is the pair of a
+directory and a name, and nothing drawn here may reach the change of that
+name in this checkout. Such a card SHALL NOT also be drawn
 under the other working directories, which is where it stood before.
 
 A board is of the work and not of one folder: one person with several
@@ -1843,8 +1847,9 @@ SHALL be kept for the next visit with the zoom and the open cards.
 - **WHEN** another working directory of this repository holds a change
   this checkout does not, and the board is chosen
 - **THEN** its card stands in its own stage's column, says which directory
-  works it, offers no action on it, and is not drawn again under the other
-  working directories
+  works it, offers the change's actions where that directory is the
+  change's own worktree - each run there - and is not drawn again under the
+  other working directories
 
 #### Scenario: A change worked in two directories
 
@@ -2008,30 +2013,31 @@ who numbers changes to find them faster found the column out of order.
 
 A control SHALL end its visible words with three full stops, "...", where
 pressing it asks for something before anything is done: a dialog to choose
-in, a name, a pick, a filter, a reason, a file. This holds for a card's
-buttons, for the standalone's buttons, and for the editor's command titles.
-A control that acts at once, only shows something, opens a view, or asks
-to confirm what was already chosen SHALL NOT carry them.
+in, a name, a pick, a filter, a reason, a confirmation, a file. This holds
+for a card's buttons, for the standalone's buttons, and for the editor's
+command titles. A control that acts at once, only shows something, or opens
+a view SHALL NOT carry them.
 
 The dots SHALL be three full stops, never the single ellipsis character.
 
-A control's accessible name SHALL NOT change with this: a card's Start is
-still named "Start" and its change's name.
+A control's accessible name SHALL NOT carry the dots: a card's Run
+Change... is named "Run Change" and its change's name.
 
 Every menu in the editor and the operating system follows this convention,
-so a person reads "Start" as starting now; a Start that opens a dialog
-instead was reported by a user on 2026-09-24.
+so a person reads a control without dots as acting now; a Start that opened
+a dialog instead was reported by a user on 2026-09-24.
 
 #### Scenario: A card's Start
 
-- **WHEN** a card offers Start, which opens the run dialog
-- **THEN** it reads "Start...", and its accessible name is "Start" and the
-  change's name
+- **WHEN** a card offers Run Change, which opens the run dialog
+- **THEN** it reads "Run Change...", and its accessible name is "Run
+  Change" and the change's name
 
 #### Scenario: A card's Stop
 
-- **WHEN** a card offers Stop, which asks for a reason first
-- **THEN** it reads "Stop..."; Stop now, which stops at once, reads "Stop now"
+- **WHEN** a card offers Stop Run, which asks for a reason first
+- **THEN** it reads "Stop Run..."; Stop Process, which stops at once, reads
+  "Stop Process"
 
 #### Scenario: A command that asks for a name
 
@@ -2193,16 +2199,17 @@ rest of the configuration.
 
 A card's task row SHALL carry the task's whole text and what is written
 under it in `tasks.md`. Hovering the row SHALL show all of it, and
-selecting the row, by pointer or keyboard, SHALL show it whole in a panel
-beside the board, on a card read from any directory. A card's height is
-derived from what it lists, so a task is not opened inside the card.
+selecting the row, by pointer or keyboard, SHALL show it whole in a dialog
+over the board (ADR 0047), on a card read from any directory. A card's
+height is derived from what it lists, so a task is not opened inside the
+card.
 
 #### Scenario: A wrapped task with a record
 
 - **WHEN** a task's sentence wraps onto two more lines and a record is
   written under it
 - **THEN** the row's hint holds all of it, and selecting the row shows it
-  whole beside the board
+  whole in a dialog over the board
 
 ### Requirement: A card acts on its change's own worktree only
 
@@ -2349,14 +2356,14 @@ The run analysis SHALL count an ACP agent's tool calls.
 
 The AI panel SHALL offer `update` among its commands, with its purpose,
 and, when it is chosen, a field for notes for the update that says it also
-reads the change's last completed review. A change's card SHALL offer **Update the plan**
-where the change's last run was a review whose verdict was `changes
-needed`.
+reads the change's last completed review. A change's card SHALL offer
+**Update Plan** where the change's last run was a review whose verdict was
+`changes needed`.
 
 #### Scenario: After a review that asks for changes
 
 - **WHEN** a change's last run was a review with verdict `changes needed`
-- **THEN** its card offers **Update the plan**, which opens the panel with
+- **THEN** its card offers **Update Plan**, which opens the panel with
   `update` chosen and a field for notes
 
 ### Requirement: The AI panel follows its run to the end
@@ -2404,3 +2411,185 @@ reach that run.
 - **WHEN** a change's review waits on a question and the operator types an
   answer on its card and presses **Answer**
 - **THEN** the answer is in `decisions.md`, and the waiting run goes on
+
+### Requirement: A card offers every action on its change
+
+A change's card SHALL offer every action on the change, from the one list
+in `packages/core` (ADR 0044): what runs, what reads, what sets up, and
+what cannot be taken back. They SHALL stand as icons under the change's
+name, grouped by their verb's group and coloured by it (ADR 0045), each
+icon the one its command has in the editor's menus. Run Change SHALL be
+the card's own Start, and not drawn again among the icons.
+
+An action that cannot run now SHALL be drawn dimmed, and SHALL say why
+when pointed at or focused, in the words core gives: no run is going, the
+change is worked in this checkout, its tasks are still open, a run of it
+is going, or the records of the directory it is worked in do not check
+out. Pressing it SHALL do nothing.
+
+Every Danger action - Archive Change, Rollback Change, Delete Change -
+SHALL ask first, naming the change and what the action does that cannot be
+taken back, and SHALL run only when confirmed; a host told that the card
+confirmed it SHALL NOT ask again.
+
+Where the change is worked SHALL decide where an action runs, never
+whether it is offered: a change worked in its own worktree is acted on
+there.
+
+The card's height SHALL include the rows of icons, derived as every other
+length on a card is.
+
+#### Scenario: A change in this checkout
+
+- **WHEN** a card of a change in this checkout is drawn, with no run going
+- **THEN** it shows every action but Run Change as icons in two rows, and
+  Open Worktree and Stop Run are dimmed, saying why
+
+#### Scenario: Deleting from the card
+
+- **WHEN** a person presses Delete Change on a card
+- **THEN** the card asks, naming the change and that this cannot be undone,
+  and deletes it only when confirmed
+
+#### Scenario: A change worked in its own worktree
+
+- **WHEN** a person presses Configure Change Harness on the card of a
+  change worked in its own worktree
+- **THEN** the change's harness settings open on that worktree's
+  `harness.json`
+
+### Requirement: Every control is a verb and a noun
+
+A web UI button outside a dialog SHALL read as a verb and a noun from ADR
+0045's lists, in both hosts, with three full stops where it asks first.
+Its accessible name SHALL start with its visible words, without the dots,
+and MAY add the change it is about.
+
+A button inside a dialog, or beside a prompt that already names what it is
+about, SHALL read as its verb alone: Answer, Allow, Deny, Archive, Delete,
+Rollback, Cancel, Close. A switch - a pressed button, a tab, a choice of
+view - says what it shows and is not an action.
+
+A button whose verb is a Danger verb (Archive, Rollback, Delete) SHALL ask
+before it acts, and SHALL carry the three dots.
+
+A test SHALL read every web UI source for its buttons' words and fail on a
+word that is neither a pair from the lists, nor a verb inside a dialog,
+nor a switch, nor a state ("Saving...", "Answered").
+
+#### Scenario: A card's buttons
+
+- **WHEN** a person reads a change's card on the Pipeline
+- **THEN** its buttons read Show Logs, Run Change..., Stop Run..., Copy
+  Path and the like, and none reads "Logs" or "Start..."
+
+#### Scenario: The Pipeline's toolbar
+
+- **WHEN** a person reads the Pipeline's toolbar
+- **THEN** it offers Show Tasks or Hide Tasks, Refresh Pipeline, Update
+  Main, Show Landed Changes or Hide Landed Changes, and Archive Landed
+  Changes...
+
+#### Scenario: Archiving the landed changes asks first
+
+- **WHEN** a person presses Archive Landed Changes...
+- **THEN** a dialog named "Archive Landed Changes" opens, nothing is
+  archived until its Archive is pressed, and Cancel archives nothing
+
+#### Scenario: Deleting history asks first
+
+- **WHEN** a person presses Delete History... or Rollback Process... in
+  Processes
+- **THEN** a dialog asks first, and nothing is deleted or rolled back
+  until its Delete or Rollback is pressed
+
+#### Scenario: A word that is not a pair
+
+- **WHEN** a component adds a button that reads "Go"
+- **THEN** the vocabulary test fails and names the component and the word
+
+### Requirement: A card the editor asks for is shown
+
+The Pipeline SHALL show the card of a change its host asks for: scrolled
+into the middle of sight, marked for a moment and given the focus. A card
+asked for before it is drawn SHALL be shown once it is, and a change that
+has no card SHALL mark nothing.
+
+In the editor, a request made while the Pipeline's page is loading SHALL
+wait until the page says it runs, and SHALL be shown once. This SHALL hold
+for the Pipeline drawn by the extension and for the standalone page the
+extension embeds, where the request SHALL be passed to that page's own
+origin alone.
+
+#### Scenario: A card already drawn
+
+- **WHEN** the host asks for the card of a change the Pipeline draws
+- **THEN** the card is scrolled to, marked and focused, and no other card is
+  marked
+
+#### Scenario: A Pipeline still opening
+
+- **WHEN** the host asks for a card as it opens the Pipeline
+- **THEN** the card is shown once the page runs and its cards are drawn,
+  and not again when the page is shown later
+
+### Requirement: What waits for a person is a modal dialog
+
+A form that waits for a person's decision - the answer to an agent's
+questions, the reason for a Stop, the confirmation of a Danger action, a
+change's action and its run dialog in the standalone app - SHALL be drawn
+as a modal dialog over the whole view (ADR 0047), and so SHALL what a
+person asked to see from a card: a run's logs and a task shown whole. The
+view behind it SHALL be dimmed and SHALL NOT take a press. Focus SHALL move
+into the dialog, SHALL stay in it as Tab moves, and SHALL return to the
+control that opened it when it closes. It SHALL close by its own answer or
+Cancel, or by Escape, and SHALL NOT close by a press beside it. It SHALL be
+named by the change and what is wanted, and SHALL carry `aria-modal`.
+
+#### Scenario: Answering from a card
+
+- **WHEN** a person presses Answer on a card whose agent asked two questions
+- **THEN** a dialog named "Answer <change>" stands over the Pipeline, its
+  first field has the focus, and nothing behind it can be pressed until it
+  is answered, cancelled or closed with Escape
+
+#### Scenario: Tab at the last control
+
+- **WHEN** the focus is on a dialog's last control and Tab is pressed
+- **THEN** the focus moves to the dialog's first control, not to the view
+  behind it
+
+### Requirement: The Pipeline says at its top what waits for a person
+
+Every question an agent put and every permission request a run this host
+holds waits on SHALL be said at the top of the Pipeline, above the
+picture, and SHALL stay in sight as the picture scrolls, whatever the
+number of changes (ADR 0047). Each SHALL name its change. A question's
+Answer SHALL open the same dialog the card's Answer opens; a permission
+SHALL be allowed or denied there as on the card. An agent's question SHALL
+NOT open a dialog by itself. Nothing SHALL be said there while nothing
+waits.
+
+#### Scenario: A question among many changes
+
+- **WHEN** an agent of one of thirty changes asks a question
+- **THEN** the top of the Pipeline says that change asks a question, with
+  Answer, without scrolling
+
+#### Scenario: Nothing waits
+
+- **WHEN** no question and no permission request is open
+- **THEN** nothing is said at the top of the Pipeline
+
+### Requirement: A run's panel puts what it waits for first
+
+A run's panel - the run panel and the chain panel - SHALL draw the
+permission requests and the questions its run waits on first, before its
+controls and its output, and SHALL keep them in sight as the output grows
+(ADR 0047). Nothing SHALL be drawn there while nothing waits.
+
+#### Scenario: A question during a chain
+
+- **WHEN** a chain's agent asks a question while the chain's output scrolls
+- **THEN** the question and its Answer stand at the top of the chain's
+  panel
