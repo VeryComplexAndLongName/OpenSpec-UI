@@ -624,8 +624,11 @@ function currentAgentFor(stepAgents: HarnessConfig["stepAgents"], stage: Harness
  * `extension.ts` on the panel. See run-dialog-in-the-panel. */
 export function createRunChoiceHandler(deps: CommandsDeps) {
   return async function handleRunChoice(choice: RunChoice, context: RunChoiceContext): Promise<void> {
-    const workspaceRoot = deps.getWorkspaceRoot();
-    if (!workspaceRoot) return;
+    if (!deps.getWorkspaceRoot()) return;
+    // Where the dialog's change is worked: its own worktree, as the host
+    // set the panel's context when it opened the dialog, or this checkout.
+    // Its harness is read and written there (a-change-runs-in-its-own-worktree).
+    const workspaceRoot = context.cwd.length > 0 ? context.cwd : deps.getWorkspaceRoot() as string;
     const changeName = context.changeName
       ?? context.changeDir.split(/[\\/]+/).filter((segment) => segment.length > 0).pop();
     if (!changeName) return;

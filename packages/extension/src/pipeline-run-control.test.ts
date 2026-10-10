@@ -79,7 +79,7 @@ describe("sendPipelineRunControl", () => {
     sendPipelineRunControl({ changeName: "alpha", runId: "r1", kind: "cancel" }, deps);
 
     await vi.waitFor(() => expect(received).toEqual([expect.objectContaining({ kind: "cancel", runId: "r1", agentId: "claude-cli" })]));
-    expect(resolveRunner).toHaveBeenCalledWith("claude-cli");
+    expect(resolveRunner).toHaveBeenCalledWith("claude-cli", expect.any(String));
   });
 
   it("sends nothing for a run this host does not hold", () => {

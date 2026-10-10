@@ -90,6 +90,9 @@ export function handleSocketMessage(
   /** Where a run records a request to stop it that it refused
    * (a-run-elsewhere-can-be-asked-to-stop). */
   auditLog?: AuditLog,
+  /** The agents of the place a run runs in: a change's own worktree has
+   * its own (a-change-runs-in-its-own-worktree). Absent, `runners`. */
+  agentsAt?: (cwd: string | undefined) => Map<string, AgentRunner>,
 ): void {
   let parsed: unknown;
   try {
@@ -143,7 +146,7 @@ export function handleSocketMessage(
     ? liveRuns.get(command.runId)
     : undefined;
   const routed = held?.agentId !== undefined && command.agentId === undefined ? { ...command, agentId: held.agentId } : command;
-  void dispatchSingleStage(socket, routed, runners, resolveRecoveryService, liveRuns, auditLog);
+  void dispatchSingleStage(socket, routed, agentsAt?.(routed.cwd) ?? runners, resolveRecoveryService, liveRuns, auditLog);
 }
 
 async function streamToSocket(socket: WebSocket, events: AsyncIterable<Event>): Promise<void> {
