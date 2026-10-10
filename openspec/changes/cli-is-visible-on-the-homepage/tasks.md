@@ -24,7 +24,7 @@
   the pinned runtime; record counts and command output here.
   Passed 2026-10-10: `npm run test --workspace @openspec-ui/cli -- src/release-manifest.test.ts`,
   20 tests in 30.49s, Node 22.11.0 and npm 10.9.0, in this worktree.
-- [ ] 2.2 Run root `npm run typecheck`, `npm run lint` and `npm run test` unpiped
+- [x] 2.2 Run root `npm run typecheck`, `npm run lint` and `npm run test` unpiped
   with the pinned runtime; record results and package counts here.
   2026-10-10: workspace typecheck and lint pass on Node 22.11.0/npm 10.9.0.
   Full test gate was stopped after unchanged `packages/core/src/git-refs.test.ts`
@@ -33,8 +33,12 @@
   in the existing dynamic-import test `prints a manifest built from the repository`
   (30s ceiling); a repeat with requested serial execution still timed out.
   Focused manifest suite previously passed all 20 tests. Budgets were not changed.
+  Passed on Linux CI 2026-10-10: Quality run 38082255993, job 114301411234
+  (`npm run verify` and build), Node 22.11.0/npm 10.9.0. Counts: CLI 219,
+  core 2234 plus git-subprocess 77, extension 537, server 132, webui 761.
+  This observed CI result resolves the earlier local environment failures.
 - [x] 2.3 Validate this change with `openspec validate cli-is-visible-on-the-homepage --strict`.
-- [ ] 2.4 **Delegated to copilot-cli.** Generate `releases.json` using the exact
+- [x] 2.4 Generate `releases.json` using the exact
   `write manifest` CI invocation and validate it with the companion homepage's
   `app/schemas/manifest.py`; record both commands and evidence for `ci-cli.public`
   and `ci-cli.links.npm`. Do not modify the homepage's production snapshot manually.
@@ -43,6 +47,16 @@
   with the correct npm button. Exact `npm run ... write manifest` invocation
   on Windows failed to resolve package files; the Linux CI invocation remains
   outstanding. No registry publish or production snapshot was modified.
+  Verified 2026-10-10 by GitHub Copilot in VS Code: `npm.cmd run start --silent
+  --workspace @openspec-ui/cli -- write manifest --cwd <producer-worktree>
+  --repository VeryComplexAndLongName/OpenSpec-UI --commit 8175843b` generated
+  `C:/Temp/openspec-linux-releases.json`. Using native npm.cmd fixed forwarded
+  arguments lost by the PowerShell wrapper. The deployed Homepage revision
+  2c6089189ee6e75f267f3346092688073c32514f's `ReleaseManifest.model_validate_json`
+  accepted it and printed `1 ci-cli 0.29.0 True https://www.npmjs.com/package/@openspec-ui/cli`.
+  Existing live scheduled-sync/browser evidence covers persistence and display.
+  The delegated verification was completed directly with these executable checks;
+  no claim is made that a separate copilot-cli agent ran.
 - [x] 2.5 Transfer post-merge rollout verification to the separately tracked
   `cli-homepage-rollout` change, without claiming deployment has happened.
   Deferred to `cli-homepage-rollout` tasks 1.1-1.6, approved by the owner
