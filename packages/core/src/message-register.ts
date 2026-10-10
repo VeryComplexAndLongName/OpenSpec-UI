@@ -68,6 +68,57 @@ export const MESSAGES = {
     todo: "Do what the reason says, then choose the action again.",
   },
 
+  // GIT: git, branches, worktrees, push, pull requests
+  // (a-change-is-committed-where-it-is-made).
+  "OSW-GIT-001": {
+    level: "warning",
+    text: "{name} has no worktree of its own: {why}.",
+    why: "Commit Change commits only in a change's own worktree, on its own branch.",
+    todo: "Make the change's worktree, or work the change there.",
+  },
+  "OSW-GIT-002": {
+    level: "warning",
+    text: "{name} is on {branch}, the default branch; nothing of a change is committed there.",
+    why: "A change reaches the default branch through its pull request, never by a commit on it (ADR 0043).",
+    todo: "Work the change on a branch of its own, named after it.",
+  },
+  "OSW-GIT-101": {
+    level: "error",
+    text: "Nothing of {name} was committed: {why}",
+    why: "git refused the commit: often no author is configured, or a hook failed.",
+    todo: "Put right what git says, then choose Commit Change again.",
+  },
+  "OSW-GIT-102": {
+    level: "error",
+    text: "The push of {branch} was refused{after}: {why}",
+    why: "The server, or the credentials git uses for it, refused the branch. A commit already made stays.",
+    todo: "Put right what the server says - access, credentials, a branch rule - then choose Commit Change again.",
+  },
+  "OSW-GIT-103": {
+    level: "error",
+    text: "git stage failed at commit: {why}",
+    why: "The git stage commits what the stages left before it pushes, and git refused that commit.",
+    todo: "Put right what git says in the change's worktree, then run the chain again from git.",
+  },
+  "OSW-GIT-201": {
+    level: "info",
+    text: "Committed {name} as {commit} and pushed it to {pushedTo}.",
+    why: "Commit Change committed what the change's worktree held, on its branch, and pushed the branch.",
+    todo: "Nothing: the change is on the server, where every directory, host and person can see it.",
+  },
+  "OSW-GIT-202": {
+    level: "info",
+    text: "{name} had nothing to commit; its branch is pushed to {pushedTo}.",
+    why: "Everything in the change's worktree was committed already, and the push brought the server up to date.",
+    todo: "Nothing.",
+  },
+  "OSW-GIT-203": {
+    level: "warning",
+    text: "{name} is made in {directory}, but not on the server: {why}",
+    why: "A new change is committed on its branch and pushed at once; that failed, so no other directory, host or person sees it yet.",
+    todo: "Put right what was refused, then choose Commit Change on the change's card.",
+  },
+
   // CLI: the CLI's arguments and subcommands.
   "OSW-CLI-001": {
     level: "error",

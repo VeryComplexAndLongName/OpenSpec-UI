@@ -281,6 +281,72 @@ Why: The CLI's input is not a terminal, so nobody can answer, and the request is
 
 What to do: Run it in a terminal to be asked, or from the card.
 
+## GIT: git, branches, worktrees, push, pull requests
+
+### OSW-GIT-001
+
+> warning: {name} has no worktree of its own: {why}.
+
+Why: Commit Change commits only in a change's own worktree, on its own branch.
+
+What to do: Make the change's worktree, or work the change there.
+
+### OSW-GIT-002
+
+> warning: {name} is on {branch}, the default branch; nothing of a change is committed there.
+
+Why: A change reaches the default branch through its pull request, never by a commit on it (ADR 0043).
+
+What to do: Work the change on a branch of its own, named after it.
+
+### OSW-GIT-101
+
+> error: Nothing of {name} was committed: {why}
+
+Why: git refused the commit: often no author is configured, or a hook failed.
+
+What to do: Put right what git says, then choose Commit Change again.
+
+### OSW-GIT-102
+
+> error: The push of {branch} was refused{after}: {why}
+
+Why: The server, or the credentials git uses for it, refused the branch. A commit already made stays.
+
+What to do: Put right what the server says - access, credentials, a branch rule - then choose Commit Change again.
+
+### OSW-GIT-103
+
+> error: git stage failed at commit: {why}
+
+Why: The git stage commits what the stages left before it pushes, and git refused that commit.
+
+What to do: Put right what git says in the change's worktree, then run the chain again from git.
+
+### OSW-GIT-201
+
+> info: Committed {name} as {commit} and pushed it to {pushedTo}.
+
+Why: Commit Change committed what the change's worktree held, on its branch, and pushed the branch.
+
+What to do: Nothing: the change is on the server, where every directory, host and person can see it.
+
+### OSW-GIT-202
+
+> info: {name} had nothing to commit; its branch is pushed to {pushedTo}.
+
+Why: Everything in the change's worktree was committed already, and the push brought the server up to date.
+
+What to do: Nothing.
+
+### OSW-GIT-203
+
+> warning: {name} is made in {directory}, but not on the server: {why}
+
+Why: A new change is committed on its branch and pushed at once; that failed, so no other directory, host or person sees it yet.
+
+What to do: Put right what was refused, then choose Commit Change on the change's card.
+
 ## CLI: the CLI's arguments and subcommands
 
 ### OSW-CLI-001

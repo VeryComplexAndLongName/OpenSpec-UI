@@ -460,17 +460,18 @@ describe("PipelinePanel — answering the view", () => {
   });
 
   // a-change-is-run-from-its-card 5.2
-  it("opens the run dialog for a card's Start, only for an active change of its workspace", async () => {
+  it("opens the run dialog for a card's Start, for an active change of its workspace or one worked in its own worktree", async () => {
     const runChange = vi.fn(async () => undefined);
     const { pipeline } = createPipelinePanel({ runChange });
     pipeline.show();
 
     await pipeline.deliverMessageForTesting({ type: "openspec-ui/run-change", changeName: "alpha" });
+    // `beta` is only in its own worktree (a-change-is-committed-where-it-is-made).
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/run-change", changeName: "beta" });
     await pipeline.deliverMessageForTesting({ type: "openspec-ui/run-change", changeName: "gone" });
     await pipeline.deliverMessageForTesting({ type: "openspec-ui/run-change", changeName: "../etc" });
 
-    expect(runChange).toHaveBeenCalledTimes(1);
-    expect(runChange).toHaveBeenCalledWith("alpha");
+    expect(runChange.mock.calls).toEqual([["alpha"], ["beta"]]);
   });
 
   // a-change-is-acted-on-from-its-card (ADR 0044): a card's action runs the

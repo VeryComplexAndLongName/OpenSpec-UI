@@ -45,6 +45,13 @@ describe("the actions on a change", () => {
     expect(stateOf(running, "sendMessage")).toMatchObject({ enabled: true });
   });
 
+  it("commits a change only on its own branch, and not while a run of it commits as it goes", () => {
+    // a-change-is-committed-where-it-is-made.
+    expect(stateOf(idle, "commitChange")).toMatchObject({ enabled: false, reason: "This change is worked in this checkout, not on a branch of its own." });
+    expect(stateOf({ ...idle, where: "worktree", notOnServer: true }, "commitChange")).toMatchObject({ enabled: true });
+    expect(stateOf({ ...idle, where: "worktree", running: true }, "commitChange")).toMatchObject({ enabled: false, reason: "A run of this change is going: stop it first." });
+  });
+
   it("archives a change whose open tasks were not read, and leaves the refusal to the archive", () => {
     expect(stateOf({ where: "checkout", running: false }, "archiveChange")).toMatchObject({ enabled: true });
   });

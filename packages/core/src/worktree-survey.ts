@@ -420,7 +420,9 @@ export async function surveyWorktrees(options: WorktreeSurveyOptions): Promise<W
     reports,
     (directoryPath, changeName) => taskLists.get(taskListKey(directoryPath, changeName)),
   );
-  await markFinishedDirectories(attached.directories, git, options);
+  const refs = await readBranchRefs(attached.directories, git, options);
+  await markFinishedDirectories(attached.directories, git, options, refs);
+  markNotOnServer(attached.directories, refs, options.remote ?? "origin");
   return {
     directories: attached.directories,
     runsElsewhere: attached.runsElsewhere,
@@ -438,23 +440,50 @@ export async function surveyWorktrees(options: WorktreeSurveyOptions): Promise<W
  * tree is clean, because that is a git invocation in a directory this
  * host does not own. The main working directory is never marked: it is
  * where the default branch lives. */
+/** The repository's branches and the remote's, by ref name, read once for
+ * every directory that has a branch; `undefined` where none has, or they
+ * cannot be read. */
+async function readBranchRefs(
+  directories: SurveyedDirectory[],
+  git: Partial<Pick<GitWrapper, "listRefs">>,
+  options: WorktreeSurveyOptions,
+): Promise<Map<string, string> | undefined> {
+  if (git.listRefs === undefined || !directories.some((directory) => !directory.isMain && directory.branch !== undefined)) return undefined;
+  const remote = options.remote ?? "origin";
+  try {
+    return new Map((await git.listRefs(["refs/heads", `refs/remotes/${remote}`])).map((ref) => [ref.name, ref.commit]));
+  } catch {
+    return undefined;
+  }
+}
+
+/** Says of each directory with a change of its own whether the server has
+ * that change's branch as it is here (a-change-is-committed-where-it-is-made). */
+function markNotOnServer(directories: SurveyedDirectory[], refs: Map<string, string> | undefined, remote: string): void {
+  if (refs === undefined) return;
+  for (const directory of directories) {
+    if (directory.isMain || directory.ownChange === undefined || directory.branch === undefined) continue;
+    const local = refs.get(`refs/heads/${directory.branch}`);
+    const onServer = refs.get(`refs/remotes/${remote}/${directory.branch}`);
+    if (local === undefined) continue;
+    if (onServer === undefined) directory.notOnServer = "never-pushed";
+    else if (onServer !== local) directory.notOnServer = "differs";
+  }
+}
+
 async function markFinishedDirectories(
   directories: SurveyedDirectory[],
   git: Pick<GitWrapper, "worktreeList" | "configuredIdentity"> & Partial<Pick<GitWrapper, "listRefs" | "mergeBase">>,
   options: WorktreeSurveyOptions,
+  branchRefs: Map<string, string> | undefined,
 ): Promise<void> {
   const candidates = directories.filter(
     (directory) => !directory.isMain && directory.branch !== undefined && directory.runs.length === 0,
   );
-  if (candidates.length === 0 || git.listRefs === undefined || git.mergeBase === undefined) return;
+  if (candidates.length === 0 || branchRefs === undefined || git.mergeBase === undefined) return;
 
   const remote = options.remote ?? "origin";
-  let refs: Map<string, string>;
-  try {
-    refs = new Map((await git.listRefs(["refs/heads", `refs/remotes/${remote}`])).map((ref) => [ref.name, ref.commit]));
-  } catch {
-    return;
-  }
+  const refs = branchRefs;
   const mainCommit = refs.get(`refs/remotes/${remote}/main`) ?? refs.get("refs/heads/main");
 
   const isClean = options.isClean ?? (async (directoryPath: string) => {

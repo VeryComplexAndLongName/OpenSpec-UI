@@ -62,6 +62,33 @@ decision 3), so the order was always "in the checkout first".
    page can open the change it just made. Another repository's directory
    is still refused.
 
+### Amended on 2026-10-10 (a-change-is-committed-where-it-is-made)
+
+The rules said where a change's commits go and never when. An agent made
+the worktree, wrote the change's files and stopped: four changes of one
+repository sat uncommitted in their worktrees, their branches where `main`
+was, seen by no other directory, host or person, and their cards - drawn
+in the Pipeline's arrangement by step - offered nothing at all. So:
+
+6. **The rules say when.** As soon as the planning artifacts are written,
+   they are committed on the change's branch and the branch pushed with an
+   upstream; after every task ticked, its work with its `tasks.md`; nothing
+   is left uncommitted or unpushed at the end of a turn; nothing of a
+   change is committed to `main`; a refused push is said, not worked
+   around.
+7. **The product commits and pushes what it makes.** "Create Change"
+   commits the new change on its branch and pushes it at once; where the
+   push is refused, the change stays made and the host says why. The `git`
+   stage commits what the stages left before it pushes.
+8. **A card says where its change is not on the server, and commits it.**
+   The survey reads, from the refs it lists anyway, whether a change's own
+   branch was never pushed or is at another commit than the server's, and
+   the card says so. **Commit Change**, on the card and in Show
+   Actions..., commits everything the change's own worktree holds on its
+   branch and pushes it - never in the main checkout, never on the default
+   branch. A card of a change's own worktree offers its actions arranged by
+   step as on the board.
+
 ## Consequences
 
 - An agent in any repository initialized by this product is told where a

@@ -49,6 +49,11 @@ describe("the workflow rules", () => {
     // And when it does not, the agent does it and goes on: told to stop,
     // Copilot stopped, with the change unmade (2026-10-07).
     expect(rules).toContain("commit the setup - nothing of any change - to `main`, push it, and go on");
+    // When, not only where (a-change-is-committed-where-it-is-made).
+    expect(rules).toContain("as soon as `openspec new change` has run and the planning artifacts are written, commit them on the change's branch and push it");
+    expect(rules).toContain("git push -u origin <change-id>");
+    expect(rules).toContain("after every task you tick, commit its work with its `tasks.md`, and push");
+    expect(rules).toContain("Nothing of a change is committed to `main`, here or anywhere.");
   });
 
   it("creates both files where there are none", async () => {

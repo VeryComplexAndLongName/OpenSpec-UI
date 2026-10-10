@@ -745,3 +745,38 @@ describe("surveyWorktrees - a directory with nothing left to do", () => {
     expect(survey.directories[1]?.finishedWith).toBeUndefined();
   });
 });
+
+describe("surveyWorktrees - a change the server does not have", () => {
+  // a-change-is-committed-where-it-is-made: read from the refs the survey
+  // lists anyway, so no git runs in the directory.
+  function refsGit(worktrees: Array<{ path: string; branch?: string }>, refs: Record<string, string>) {
+    return {
+      worktreeList: async () => worktrees,
+      configuredIdentity: async () => "someone@example.com",
+      listRefs: async () => Object.entries(refs).map(([name, commit]) => ({ name, commit })),
+      mergeBase: async () => "0000000",
+    };
+  }
+
+  it("says a change's branch was never pushed, or is at another commit than the server's, and says nothing where they agree", async () => {
+    const { main, worktreeRoot, rootSources } = await repository();
+    const never = path.join(worktreeRoot, "repo", "change-b");
+    const ahead = path.join(worktreeRoot, "repo", "change-c");
+    const level = path.join(worktreeRoot, "repo", "change-d");
+    await makeChange(main, "change-a");
+    for (const [directory, name] of [[never, "change-b"], [ahead, "change-c"], [level, "change-d"]] as const) await makeChange(directory, name);
+    const git = refsGit(
+      [{ path: main, branch: "main" }, { path: never, branch: "change-b" }, { path: ahead, branch: "change-c" }, { path: level, branch: "change-d" }],
+      {
+        "refs/heads/main": "m", "refs/remotes/origin/main": "m",
+        "refs/heads/change-b": "m",
+        "refs/heads/change-c": "c2", "refs/remotes/origin/change-c": "c1",
+        "refs/heads/change-d": "d1", "refs/remotes/origin/change-d": "d1",
+      },
+    );
+
+    const survey = await surveyWorktrees({ workspaceRoot: main, git, rootSources, isClean: async () => false });
+
+    expect(survey.directories.map((directory) => directory.notOnServer)).toEqual([undefined, "never-pushed", "differs", undefined]);
+  });
+});

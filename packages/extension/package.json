@@ -91,6 +91,12 @@
         "icon": "$(key)"
       },
       {
+        "command": "openspec-ui.commitChange",
+        "title": "Commit Change",
+        "category": "OpenSpec Workbench",
+        "icon": "$(git-commit)"
+      },
+      {
         "command": "openspec-ui.configureChangeHarness",
         "title": "Configure Change Harness",
         "category": "OpenSpec Workbench",
