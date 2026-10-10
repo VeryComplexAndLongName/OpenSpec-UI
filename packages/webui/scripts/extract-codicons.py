@@ -22,7 +22,7 @@ from fontTools.ttLib import TTFont
 
 NAMES = [
     "play", "comment", "debug-stop", "checklist", "diff", "history", "type-hierarchy-super",
-    "credit-card", "graph", "info", "lightbulb", "folder-opened", "files", "gear", "link",
+    "credit-card", "graph", "info", "lightbulb", "folder-opened", "files", "git-commit", "gear", "link",
     "debug-disconnect", "archive", "debug-reverse-continue", "trash",
 ]
 
