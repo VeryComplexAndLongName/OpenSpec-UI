@@ -218,6 +218,62 @@ describe("PipelinePanel — one panel", () => {
   });
 });
 
+describe("PipelinePanel — showing a change's card (the-side-panel-is-the-workspace)", () => {
+  const shown = (panel: ReturnType<typeof createPanelFixture>) =>
+    panel.webview.postMessage.mock.calls
+      .map((call) => (call as unknown[])[0] as { type?: string; changeName?: string })
+      .filter((message) => message.type === "openspec-ui/show-card");
+
+  it("shows the card once the page it opened says it runs, and once only", async () => {
+    const { pipeline } = createPipelinePanel();
+
+    pipeline.show("alpha");
+    expect(shown(created[0]!)).toEqual([]);
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/pipeline-ready" });
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/pipeline-ready" });
+
+    expect(shown(created[0]!)).toEqual([{ type: "openspec-ui/show-card", changeName: "alpha" }]);
+  });
+
+  it("tells a page in sight at once, and a hidden one when it has loaded again", async () => {
+    const { pipeline } = createPipelinePanel();
+    pipeline.show();
+
+    pipeline.show("alpha");
+    expect(shown(created[0]!)).toEqual([{ type: "openspec-ui/show-card", changeName: "alpha" }]);
+
+    created[0]!.setVisible(false);
+    pipeline.show("beta");
+    expect(shown(created[0]!)).toHaveLength(1);
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/pipeline-ready" });
+    expect(shown(created[0]!)).toEqual([
+      { type: "openspec-ui/show-card", changeName: "alpha" },
+      { type: "openspec-ui/show-card", changeName: "beta" },
+    ]);
+  });
+
+  it("shows no card for a name that is not a change's, and none for a plain Open Pipeline", async () => {
+    const { pipeline } = createPipelinePanel();
+
+    pipeline.show("../../etc");
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/pipeline-ready" });
+    pipeline.show();
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/pipeline-ready" });
+
+    expect(shown(created[0]!)).toEqual([]);
+  });
+
+  it("passes the request on to an embedded page, to its origin alone, and says when the page has loaded", () => {
+    const { pipeline } = createPipelinePanel({ getLocalServerUrl: () => "http://127.0.0.1:4317/#token=t" });
+    pipeline.show("alpha");
+
+    const html = created[0]!.webview.html;
+    expect(html).toContain('frame.addEventListener("load"');
+    expect(html).toContain('"openspec-ui/pipeline-ready"');
+    expect(html).toContain('frame.contentWindow.postMessage({ type: event.data.type, changeName: event.data.changeName }, "http://127.0.0.1:4317")');
+  });
+});
+
 describe("PipelinePanel — answering the view", () => {
   it("answers each reading against its own workspace root", async () => {
     const { pipeline, readers } = createPipelinePanel();

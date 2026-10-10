@@ -55,7 +55,7 @@ import { RunController } from "./run-controller.js";
 import { RunCompletionNotifier, describeRunCompletion } from "./run-notifications.js";
 import { registerChangeElsewhere } from "./change-elsewhere.js";
 import { createRunChoiceHandler, registerCommands, type CommandsDeps } from "./commands.js";
-import { LOCAL_LLM_API_KEY_SECRET, readAgentSwitches, readLocalLlmSettings, useSecretStorage } from "./local-llm-settings.js";
+import { detectAgentsHereDetailed, LOCAL_LLM_API_KEY_SECRET, readAgentSwitches, readLocalLlmSettings, useSecretStorage } from "./local-llm-settings.js";
 import { sendPipelineRunControl } from "./pipeline-run-control.js";
 import { checkScheduleOnce, watchScheduledRuns } from "./scheduled-run-watcher.js";
 import type { RevealableTreeView, TreeSelectionView, ViewFilters } from "./commands.js";
@@ -67,6 +67,7 @@ import { ChangeTreeItem } from "./tree/changes-tree.js";
 import { ArchiveTreeProvider, isUnderArchive } from "./tree/archive-tree.js";
 import { SpecsTreeProvider } from "./tree/specs-tree.js";
 import { ProcessesTreeProvider } from "./tree/processes-tree.js";
+import { WorkspaceTreeProvider } from "./tree/workspace-tree.js";
 import { TemplatesTreeProvider } from "./tree/templates-tree.js";
 import { ChangeGraphTreeProvider } from "./tree/change-graph-tree.js";
 import type { GraphTreeNode } from "./tree/change-graph-tree.js";
@@ -94,6 +95,9 @@ let runners: Map<string, AgentRunner> | undefined;
 let runnersFor: ((root: string) => Map<string, AgentRunner>) | undefined;
 let auditLog: FileAuditLog | undefined;
 let optionalServer: OptionalServerManager | undefined;
+/** The Workspace view, told which checks resolve whenever the check
+ * contexts are (the-side-panel-is-the-workspace). */
+let workspaceTree: WorkspaceTreeProvider | undefined;
 
 /** Sets `openspec-ui.checks.<name>` for each check — the context key
  * package.json's `view/title` and `commandPalette` `when` clauses gate on
@@ -103,6 +107,7 @@ let optionalServer: OptionalServerManager | undefined;
  * `package.json` changes — any of the three can change what resolves. */
 async function updateCheckContexts(workspaceRoot: string | undefined): Promise<void> {
   const resolved = workspaceRoot ? await resolveCheckScripts(workspaceRoot, readConfig().checks) : {};
+  workspaceTree?.setChecks(resolved);
   await Promise.all(
     CHECK_SCRIPT_NAMES.map((name) =>
       vscode.commands.executeCommand("setContext", `openspec-ui.checks.${name}`, Boolean(resolved[name])),
@@ -118,6 +123,7 @@ export interface ExtensionTestApi {
   optionalServer: OptionalServerManager | undefined;
   getDashboardContext: () => AiPanelContext | undefined;
   changesTree: ChangesTreeProvider | undefined;
+  workspaceTree: WorkspaceTreeProvider | undefined;
   templatesTree: TemplatesTreeProvider | undefined;
   /** Test-only in intent, real API in effect: delivers `command` to the
    * AI panel through the exact same handler a real webview message
@@ -320,6 +326,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     templatesTree = new TemplatesTreeProvider(workspaceRoot);
     changeGraphTree = new ChangeGraphTreeProvider(workspaceRoot);
     humanOnlyInboxTree = new HumanOnlyInboxTreeProvider(workspaceRoot);
+    // What is about the workspace rather than one change (ADR 0044,
+    // the-side-panel-is-the-workspace).
+    workspaceTree = new WorkspaceTreeProvider(workspaceRoot, { detectAgents: detectAgentsHereDetailed });
+    context.subscriptions.push(vscode.window.registerTreeDataProvider("openspecUiWorkspace", workspaceTree));
     const changesTreeView = vscode.window.createTreeView("openspecUiChanges", { treeDataProvider: changes });
     // The view says which change this working directory is for, beside its
     // title, and says it again whenever the tree is drawn: the survey that
@@ -515,6 +525,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
         templatesTree?.refresh();
         changeGraphTree?.refresh();
         humanOnlyInboxTree?.refresh();
+        workspaceTree?.refresh();
       }),
     );
     const watcher = vscode.workspace.createFileSystemWatcher(
@@ -896,7 +907,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     runnersFor: (root) => runnersFor?.(root) ?? new Map(),
   });
   context.subscriptions.push(
-    vscode.commands.registerCommand("openspec-ui.openPipeline", () => pipelinePanel.show()),
+    // With a change's name - a row of the Changes navigator - its card is
+    // shown (the-side-panel-is-the-workspace). A menu passes no name.
+    vscode.commands.registerCommand("openspec-ui.openPipeline", (changeName?: unknown) =>
+      pipelinePanel.show(typeof changeName === "string" ? changeName : undefined)),
   );
 
   const commandsDeps = {
@@ -968,6 +982,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     optionalServer,
     getDashboardContext: () => aiPanel.getContext(),
     changesTree,
+    workspaceTree,
     templatesTree,
     deliverWebviewCommand: (command) => aiPanel.deliverWebviewCommandForTesting(command),
     deliverWebviewRunChoice: (choice) => aiPanel.deliverWebviewRunChoiceForTesting(choice),

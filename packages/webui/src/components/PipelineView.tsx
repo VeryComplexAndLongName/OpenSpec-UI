@@ -239,7 +239,18 @@ export interface PipelineViewProps {
    * (ADR 0044, a-change-is-acted-on-from-its-card). Absent, a card draws
    * none. */
   changeActions?: ChangeActionsHost;
+  /** A change the host asks to be shown: its card is scrolled to, marked
+   * for a moment and given the focus (the-side-panel-is-the-workspace).
+   * `at` tells two requests for one change apart. */
+  focus?: { changeName: string; at: number };
 }
+
+/** How long a shown card stays marked, and how long the view waits for
+ * the card to be drawn before it gives up: a panel just opened draws its
+ * cards once its first reading returns. */
+export const PIPELINE_FOCUS_MARK_MS = 2_500;
+const PIPELINE_FOCUS_WAIT_MS = 15_000;
+const PIPELINE_FOCUS_RETRY_MS = 200;
 
 /** What the Pipeline says while its first report has not returned. */
 export const PIPELINE_FIRST_READING = "Reading what is running…";
@@ -493,7 +504,33 @@ export function PipelineView({
   onReadingChange,
   taskActions,
   changeActions,
+  focus,
 }: PipelineViewProps) {
+  const root = useRef<HTMLDivElement>(null);
+  // The card of a change the host asked to show: found once it is drawn,
+  // scrolled to the middle, marked and focused (the-side-panel-is-the-workspace).
+  useEffect(() => {
+    if (focus === undefined) return;
+    const selector = `[data-testid="pipeline-node-${focus.changeName.replace(/["\\]/gu, "\\$&")}"]`;
+    const started = Date.now();
+    let unmark: ReturnType<typeof setTimeout> | undefined;
+    const find = setInterval(() => {
+      const card = root.current?.querySelector<HTMLElement>(selector) ?? null;
+      if (card === null) {
+        if (Date.now() - started >= PIPELINE_FOCUS_WAIT_MS) clearInterval(find);
+        return;
+      }
+      clearInterval(find);
+      if (typeof card.scrollIntoView === "function") card.scrollIntoView({ block: "center", inline: "center" });
+      card.dataset.focused = "true";
+      card.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
+      unmark = setTimeout(() => { delete card.dataset.focused; }, PIPELINE_FOCUS_MARK_MS);
+    }, PIPELINE_FOCUS_RETRY_MS);
+    return () => {
+      clearInterval(find);
+      if (unmark !== undefined) clearTimeout(unmark);
+    };
+  }, [focus]);
   const local = usePolledReading(load, isActive, PIPELINE_POLL_INTERVAL_MS, { name: "readiness", subscribe });
   const others = usePolledReading(survey, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
   const ended = usePolledReading(lastRuns, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
@@ -789,7 +826,7 @@ export function PipelineView({
     // The zoom is one factor on everything the picture draws, cards, text
     // and lines alike; no layout unit changes with it.
     <TaskCardContext.Provider value={taskCards}>
-    <div data-testid="pipeline" className="openspec-pipeline" style={{ "--pipeline-zoom": zoom } as Record<string, number>}>
+    <div ref={root} data-testid="pipeline" className="openspec-pipeline" style={{ "--pipeline-zoom": zoom } as Record<string, number>}>
       <div className="openspec-pipeline-toolbar" data-testid="pipeline-view-controls">
         <div className="openspec-pipeline-toolbar-text">
           {here ? (

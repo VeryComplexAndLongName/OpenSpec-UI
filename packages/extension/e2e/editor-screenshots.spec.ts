@@ -211,12 +211,17 @@ test.describe("editor documentation screenshots", () => {
     // to a locator, and that is how the seventh view and half the words
     // went missing from the picture that promises them
     // (the-pictures-show-what-is-drawn-now).
-    for (const pane of ["Changes", "Archive", "Specs", "Processes", "Templates", "Change Graph", "Human-Only Inbox"]) {
+    // Processes and the Change Graph start folded (the-side-panel-is-the-
+    // workspace); the caption promises every view with something in it.
+    for (const pane of ["Processes", "Change Graph"]) await expandPane(pane);
+    for (const pane of ["Workspace", "Human-Only Inbox", "Changes", "Specs", "Archive", "Templates", "Processes", "Change Graph"]) {
       await expect(window.locator(`.pane-header:has-text("${pane}")`).first()).toBeInViewport();
     }
     // What each view has in it, in the words the caption uses.
     await expect(window.locator('.monaco-list-row:has-text("Cleared 1 directory")').first()).toBeInViewport();
-    await expect(window.locator('.monaco-list-row:has-text("a-change-in-progress")').first())
+    // In the Changes view: the Human-Only Inbox above it names the same
+    // change on a row of its own (the-side-panel-is-the-workspace).
+    await expect(window.locator('.pane:has(.pane-header:has-text("Changes")) .monaco-list-row:has-text("a-change-in-progress")').first())
       .toContainText("Blocked by a-change-not-started");
     await expect(window.locator('.monaco-list-row:has-text("2026-08-01-a-change-that-shipped")').first())
       .toContainText("archived");
@@ -310,9 +315,8 @@ test.describe("editor documentation screenshots", () => {
 
   test("the Repository Setup tree and what it offers", async () => {
     await closeEditors();
-    await onlyExpand("Changes");
-    // Not part of this caption, and left expanded by an earlier capture.
-    await collapseRow("a-change-in-progress");
+    // A row of the Workspace view (the-side-panel-is-the-workspace).
+    await onlyExpand("Workspace");
     await expandRow("Repository Setup");
 
     // Asserted on the CHILD rows, never on the parent. The first version
@@ -343,7 +347,7 @@ test.describe("editor documentation screenshots", () => {
     // The caption names four actions. A menu that opened but carries
     // different entries makes the caption false, so each is asserted
     // rather than the menu merely being visible.
-    for (const action of ["Unarchive", "Rollback", "Delete"]) {
+    for (const action of ["Restore Change", "Rollback Change", "Delete Change"]) {
       await expect(window.locator(`.context-view .action-label:has-text("${action}")`).first()).toBeVisible();
     }
 
@@ -412,9 +416,15 @@ test.describe("editor documentation screenshots", () => {
     await openContextMenu("a-change-in-progress");
     // Hovered and chosen with Enter, not clicked: a click on the label
     // left the menu open and ran nothing, where a hover focuses the item
-    // the way a person's pointer does.
-    const item = window.getByRole("menuitem", { name: "OpenSpec Workbench: Configure Change Harness" });
+    // the way a person's pointer does. A change's row offers Show
+    // Actions... alone, which lists the rest (the-side-panel-is-the-workspace);
+    // a menu shows a command's title without its category.
+    const item = window.getByRole("menuitem", { name: "Show Actions..." });
     await item.hover();
+    await window.keyboard.press("Enter");
+    const pick = window.locator(".quick-input-widget");
+    await expect(pick).toContainText("Actions on a-change-in-progress");
+    await pick.locator("input").fill("Configure Change Harness");
     await window.keyboard.press("Enter");
 
     await expect(window.locator('.tabs-container .tab:has-text("Harness: a-change-in-progress")')).toBeVisible();
@@ -434,7 +444,6 @@ test.describe("editor documentation screenshots", () => {
     await closeEditors();
     await onlyExpand("Changes");
     await collapseRow("a-change-in-progress");
-    await collapseRow("Repository Setup");
 
     // the-docs-catch-up-to-0-55 1.3. The caption claims a word beside
     // EACH change, and a tree that has not read its standings yet lists
@@ -518,17 +527,18 @@ test.describe("editor documentation screenshots", () => {
   test("a relation being stated from a change's row", async () => {
     await closeEditors();
     await onlyExpand("Changes");
-    const row = window.locator('.monaco-list-row:has-text("a-change-in-progress")').first();
-    await row.scrollIntoViewIfNeeded();
-    await row.click();
+    // From the row's Show Actions...: choosing the row itself shows its
+    // card in the Pipeline (the-side-panel-is-the-workspace).
+    await openContextMenu("a-change-in-progress");
+    const item = window.getByRole("menuitem", { name: "Show Actions..." });
+    await item.hover();
+    await window.keyboard.press("Enter");
+    const actions = window.locator(".quick-input-widget");
+    await expect(actions).toContainText("Actions on a-change-in-progress");
 
     // Left open on purpose: this picture is of the question, so the
     // command runs and the pick is photographed rather than answered.
-    await window.keyboard.press("F1");
-    const input = window.locator(".quick-input-widget input");
-    await input.waitFor();
-    await input.fill(">OpenSpec Workbench: Add Relation");
-    await window.locator('.quick-input-list .monaco-list-row:has-text("OpenSpec Workbench: Add Relation")').first().waitFor();
+    await actions.locator("input").fill("Add Relation");
     await window.keyboard.press("Enter");
 
     const pick = window.locator(".quick-input-widget");
@@ -627,7 +637,9 @@ function activeWebview() {
  * version bump, so it is opened by the one gesture that raises it rather
  * than by a path through the menu bar. */
 async function openContextMenu(label: string): Promise<void> {
-  const row = window.locator(`.monaco-list-row:has-text("${label}")`).first();
+  // A drawn row only: a folded pane keeps its rows, and the Human-Only
+  // Inbox above Changes names the same changes (the-side-panel-is-the-workspace).
+  const row = window.locator(`.monaco-list-row:has-text("${label}")`).locator("visible=true").first();
   await row.waitFor();
   await row.click({ button: "right" });
   await window.locator(".context-view .monaco-menu").first().waitFor();
@@ -681,6 +693,13 @@ async function onlyExpand(pane: string): Promise<void> {
     await expanded.click();
   }
   await window.locator(`.pane-header:has-text("${pane}")`).first().click();
+  await expect(window.locator(`.pane-header.expanded:has-text("${pane}")`)).toHaveCount(1);
+}
+
+/** Expands one pane, leaving the others as they are. */
+async function expandPane(pane: string): Promise<void> {
+  const header = window.locator(`.pane-header:has-text("${pane}")`).first();
+  if (!(await header.getAttribute("class"))?.includes("expanded")) await header.click();
   await expect(window.locator(`.pane-header.expanded:has-text("${pane}")`)).toHaveCount(1);
 }
 

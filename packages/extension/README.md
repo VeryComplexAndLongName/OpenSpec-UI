@@ -13,11 +13,11 @@ Project site: [https://openspec-ui.dev](https://openspec-ui.dev).
 
 #### Every view, with something in it
 
-![The OpenSpec Workbench's seven views: Changes with what the sweep cleared and a change's row saying what blocks it, the Archive, Specs with their requirement counts, Processes, the template catalogue, the Change Graph with a landed branch folded away, and the Human-Only Inbox](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/overview-expanded.png)
+![The OpenSpec Workbench's eight views: the Workspace, the Human-Only Inbox, Changes with what the sweep cleared and a change's row saying what blocks it, Specs with their requirement counts, the Archive, the template catalogue, Processes, and the Change Graph with a landed branch folded away](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/overview-expanded.png)
 
 #### Compact repository overview
 
-![Compact OpenSpec Workbench with the Changes, Archive, Specs, Processes, Templates, Change Graph and Human-Only Inbox views](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/overview-compact.png)
+![Compact OpenSpec Workbench with the Workspace, Human-Only Inbox, Changes, Specs, Archive, Templates, Processes and Change Graph views](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/overview-compact.png)
 
 ### Changes and archive
 
@@ -56,6 +56,16 @@ Refresh. Only the run records are read for that, never git.
 
 ![Changes tree with each change's state and its standing word, such as in-progress — Ready](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/changes-standings.png)
 
+The side panel's first view is the **Workspace**: Open Pipeline and Open
+Dashboard, the **Workspace Harness**, **Agents** - each agent the product
+knows, whether it is found here, its version and the stages the harness
+gives it - OpenSpec Configuration, Repository Setup, and Run Typecheck, Run
+Tests and Run Lint where the workspace declares them. The Changes view is a
+list to go by: choosing a change shows its card in the Pipeline, scrolled to
+and marked, and a change worked only in its own worktree has a row of its
+own. A change's menu is **Show Actions...**, which lists every action its
+card offers.
+
 **OpenSpec Workbench: Open Pipeline**, also in the Changes view's title bar,
 opens the Pipeline in a panel of its own. It is the same picture the
 standalone app draws: every change as a card in the order the changes
@@ -90,8 +100,8 @@ or is waiting on, is never folded.
 
 ### Stating a relation without opening a file
 
-**Add Relation** and **Remove Relation** sit on a change's row, in the
-Changes view and in the Change Graph. Adding asks which relation - Follows,
+**Add Relation** and **Remove Relation** are in a change's **Show
+Actions...** and on its card, and on its row in the Change Graph. Adding asks which relation - Follows,
 Supersedes or Blocked by, each with the sentence that says what it means -
 and then which change, from the ones the workspace has. Removing offers
 only the relations that change actually states.
@@ -226,8 +236,7 @@ it may be a change you have not written yet.
   TypeScript or Python): agent instructions (`CLAUDE.md`/`AGENTS.md`),
   `.github/dependabot.yml`, and path-scoped `.github/instructions/
   <subtype>.instructions.md`. Reachable either from the Command Palette
-  or from the "Repository Setup" node at the top of the **Changes**
-  tree. Any of these commands leaves an existing file alone (and tells
+  or from the "Repository Setup" row of the **Workspace** view. Any of these commands leaves an existing file alone (and tells
   you so) if it wasn't created by this extension — never overwrites
   hand-written content.
 

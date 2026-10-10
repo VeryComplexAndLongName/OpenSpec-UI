@@ -39,6 +39,26 @@ kind of change poorer than another.
 4. **In steps.** First the actions reach the card and the tree from one
    list; then the side panel takes its new shape in a change of its own.
 
+### Amended on 2026-10-09 (the-side-panel-is-the-workspace)
+
+Step 2, as the owner approved it on 2026-10-09:
+
+- The side panel's views are, in order: **Workspace**, Human-Only Inbox,
+  Changes, Specs, Archive, Templates, Processes and Change Graph, the last
+  two folded at first. The Workspace view holds Open Pipeline, Open
+  Dashboard, the Workspace Harness, **Agents** (each agent found or not,
+  its version, the stages the workspace harness gives it), OpenSpec
+  Configuration, Repository Setup and the declared checks.
+- Choosing a change in Changes shows its card in the Pipeline: scrolled
+  to, marked for a moment and focused. A change worked only in another
+  working directory has a row of its own that does the same; before, it
+  was one line counting such changes.
+- A change's menu is **Show Actions...** alone; the actions it lists are
+  the card's. Its files stay beneath its row.
+- Open Dashboard stays in the Changes title as well, where people found
+  it. The Change Graph keeps its own menus: they state relations between
+  changes, which is what that view is for.
+
 ## Consequences
 
 - A change's own harness, its run and every other action are reachable

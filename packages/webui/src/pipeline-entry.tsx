@@ -20,6 +20,7 @@ import { metroCss } from "./metro-css.generated.js";
 import { metroIconsCss } from "./metro-icons.generated.js";
 import { metroRootClassName, useEditorDarkTheme } from "./vscode-theme.js";
 import { taskActionsOver } from "./task-actions.js";
+import { PIPELINE_READY_MESSAGE_TYPE, shownCardOf } from "./show-card.js";
 
 /** Posted by the host when files a reading depends on have changed. */
 export const PIPELINE_CHANGED_MESSAGE_TYPE = "openspec-ui/pipeline-changed";
@@ -173,6 +174,19 @@ function PipelineApp() {
     perform: (action, changeName, { confirmed }) => vscodeApi.postMessage({ type: CHANGE_ACTION_MESSAGE_TYPE, action, changeName, confirmed }),
   }), [vscodeApi]);
 
+  // A card the host asks to show: listened for before the host is told the
+  // page runs, so the answer to that cannot be missed.
+  const [focus, setFocus] = useState<{ changeName: string; at: number } | undefined>(undefined);
+  useEffect(() => {
+    const handler = (event: MessageEvent<unknown>) => {
+      const changeName = shownCardOf(event.data);
+      if (changeName !== undefined) setFocus({ changeName, at: Date.now() });
+    };
+    window.addEventListener("message", handler);
+    vscodeApi.postMessage({ type: PIPELINE_READY_MESSAGE_TYPE });
+    return () => window.removeEventListener("message", handler);
+  }, [vscodeApi]);
+
   const editorDark = useEditorDarkTheme();
 
   return (
@@ -182,7 +196,7 @@ function PipelineApp() {
         <h2>Pipeline</h2>
         {/* Always active: the panel is not kept alive while hidden, so a
             page that exists is a page being looked at. */}
-        <PipelineView isActive load={load} survey={survey} subscribe={subscribe} onOpenChange={onOpenChange} refresh={refresh} lastRuns={lastRuns} standings={standings} stages={stages} archived={archived} columns={columns} drift={drift} onCatchUp={catchUp} liveRuns={liveRuns} onRunControl={onRunControl} onAnswerQuestion={onAnswerQuestion} onStart={onStart} onUpdatePlan={onUpdatePlan} onViewLogs={setLogsFor} copyText={copyText} viewState={viewState} onAskToStop={onAskToStop} onArchive={onArchive} taskActions={taskActions} changeActions={changeActions} />
+        <PipelineView isActive load={load} survey={survey} subscribe={subscribe} onOpenChange={onOpenChange} refresh={refresh} lastRuns={lastRuns} standings={standings} stages={stages} archived={archived} columns={columns} drift={drift} onCatchUp={catchUp} liveRuns={liveRuns} onRunControl={onRunControl} onAnswerQuestion={onAnswerQuestion} onStart={onStart} onUpdatePlan={onUpdatePlan} onViewLogs={setLogsFor} copyText={copyText} viewState={viewState} onAskToStop={onAskToStop} onArchive={onArchive} taskActions={taskActions} changeActions={changeActions} focus={focus} />
         {logsFor !== null ? (
           <ModalLayer onCancel={() => setLogsFor(null)}>
             <RunLogsView changeName={logsFor} load={logsLoad} read={logsRead} onClose={() => setLogsFor(null)} />
