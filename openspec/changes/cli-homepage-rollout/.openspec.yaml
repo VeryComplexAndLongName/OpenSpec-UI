@@ -1,0 +1,4 @@
+schema: spec-driven
+skip_specs: true
+follows:
+  - cli-is-visible-on-the-homepage
