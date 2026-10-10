@@ -35,6 +35,7 @@ const GIVEN = [
   "OSW-RUN-208", "OSW-RUN-209", "OSW-RUN-210", "OSW-RUN-211", "OSW-RUN-212",
   "OSW-QST-001", "OSW-QST-002", "OSW-QST-003", "OSW-QST-101", "OSW-QST-102", "OSW-QST-201",
   "OSW-PRM-101", "OSW-PRM-102",
+  "OSW-GIT-001", "OSW-GIT-002", "OSW-GIT-101", "OSW-GIT-102", "OSW-GIT-201", "OSW-GIT-202", "OSW-GIT-203", "OSW-GIT-103",
 ];
 
 /** Messages said in place rather than from the register, counted by

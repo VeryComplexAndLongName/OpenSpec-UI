@@ -16,6 +16,8 @@ import {
   UnknownProjectTemplateError,
   buildSprintReport,
   createChangeInItsWorktree,
+  sayChangeNotShared,
+  withMessageCode,
   customizeTemplate,
   deleteProjectTemplate,
   detectAvailableAgents,
@@ -457,11 +459,16 @@ export async function handleChangeEditorCreateRequest(req: IncomingMessage, res:
       changeName: parsed.changeName,
       createOptions: { description: parsed.description },
     });
+    // Committed on its branch and pushed as it was made, or why the server
+    // does not have it (a-change-is-committed-where-it-is-made).
+    const notShared = sayChangeNotShared(parsed.changeName, made.directory, made.shared);
     sendJson(res, 200, {
       ok: true,
       changeName: parsed.changeName,
       directory: made.directory,
       ...(made.branch !== undefined ? { branch: made.branch } : {}),
+      ...(made.shared?.ok === true ? { pushedTo: made.shared.pushedTo } : {}),
+      ...(notShared !== undefined ? { notShared: withMessageCode(notShared.text, notShared.code) } : {}),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

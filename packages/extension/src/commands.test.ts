@@ -28,6 +28,8 @@ const buildSprintReportMock = vi.fn();
 const renderSprintReportPageMock = vi.fn();
 const discoverOpenSpecWorkspaceMock = vi.fn();
 const createChangeMock = vi.fn();
+const commitChangeMock = vi.fn();
+const surveyWorktreesMock = vi.fn(async (..._args: unknown[]): Promise<unknown> => ({ directories: [], runsElsewhere: [] }));
 const workflowRulesNeedConsentMock = vi.fn(async (..._args: unknown[]) => [] as string[]);
 const commitOpenSpecSetupMock = vi.fn(async (..._args: unknown[]) => ({ state: "pushed", paths: ["openspec/"], commit: "abc" }));
 const writeWorkflowRulesMock = vi.fn(async (..._args: unknown[]): Promise<Record<string, string>> => ({ "CLAUDE.md": "created", "AGENTS.md": "created" }));
@@ -127,6 +129,11 @@ vi.mock("@openspec-ui/core", async () => ({
   // A repository with no remote, as these tests' workspace is: the change
   // is made where it always was, through `openspec new change`
   // (agents-are-told-how-work-is-done-here).
+  // Committing is git in a worktree; what is said of it is core's own
+  // (a-change-is-committed-where-it-is-made).
+  commitChange: (...args: unknown[]) => commitChangeMock(...args),
+  sayCommitChange: (await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core")).sayCommitChange,
+  sayChangeNotShared: (await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core")).sayChangeNotShared,
   createChangeInItsWorktree: async (options: { repositoryRoot: string; changeName: string }) => {
     await createChangeMock(options.changeName, { cwd: options.repositoryRoot });
     return { directory: options.repositoryRoot };
@@ -142,6 +149,9 @@ vi.mock("@openspec-ui/core", async () => ({
   deleteTaskLine: (...args: unknown[]) => deleteTaskLineMock(...args),
   detectAvailableAgentsDetailed: (...args: unknown[]) => detectAvailableAgentsDetailedMock(...args),
   discoverOpenSpecWorkspace: (...args: unknown[]) => discoverOpenSpecWorkspaceMock(...args),
+  // No other working directory: a card's Start names a change of this
+  // workspace (a-change-is-committed-where-it-is-made).
+  surveyWorktrees: (...args: unknown[]) => surveyWorktreesMock(...args),
   getChangeTimeline: (...args: unknown[]) => getChangeTimelineMock(...args),
   getChangeTimelines: (...args: unknown[]) => getChangeTimelinesMock(...args),
   readChangeSpans: (...args: unknown[]) => readChangeSpansMock(...args),
@@ -307,6 +317,24 @@ describe("registerCommands", () => {
         "openspec-ui.stopRun",
       ]),
     );
+  });
+
+  it("commits a change's worktree from its row, and says what it did, or why not", async () => {
+    // a-change-is-committed-where-it-is-made.
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+    const row = { changeName: "demo", archived: false, contextValue: "openspec-ui.activeChange.elsewhere" };
+    vscodeMock.window.withProgress = vi.fn(async (_options: unknown, task: () => Promise<unknown>) => task());
+
+    commitChangeMock.mockResolvedValueOnce({ ok: true, pushedTo: "origin/demo", commit: "abcdef1234567" });
+    await vscodeMock._registeredCommands.get("openspec-ui.commitChange")?.(row);
+    expect(commitChangeMock).toHaveBeenCalledWith({ repositoryRoot: "/workspace/repo", changeName: "demo" });
+    expect(vscodeMock.window.showInformationMessage).toHaveBeenCalledWith("OSW-GIT-201: Committed demo as abcdef12 and pushed it to origin/demo.");
+    expect(deps.refreshTrees).toHaveBeenCalled();
+
+    commitChangeMock.mockResolvedValueOnce({ ok: false, kind: "push-rejected", said: { level: "error", code: "OSW-GIT-102", text: "The push of demo was refused: denied" } });
+    await vscodeMock._registeredCommands.get("openspec-ui.commitChange")?.(row);
+    expect(vscodeMock.window.showErrorMessage).toHaveBeenCalledWith("OSW-GIT-102: The push of demo was refused: denied");
   });
 
   it("creates a change and refreshes all trees", async () => {
@@ -2089,6 +2117,36 @@ describe("registerCommands", () => {
       expect(deps.revealAiPanel).toHaveBeenCalledWith(expect.objectContaining({
         changeDir: "/workspace/repo/openspec/changes/demo-change",
         changeName: "demo-change",
+      }));
+    });
+
+    it("runs a change worked only in its own worktree, there", async () => {
+      // a-change-is-committed-where-it-is-made: its card's Start named a
+      // change this checkout does not have, and was refused.
+      discoverOpenSpecWorkspaceMock.mockResolvedValue({ changes: [], archivedChanges: [] });
+      const worktree = "/wt/repo/fresh";
+      surveyWorktreesMock.mockResolvedValueOnce({
+        directories: [
+          { path: "/workspace/repo", label: "repo", labelDeclared: false, isMain: true, isThis: true, branch: "main", runs: [], readable: true, changes: [], authorDiffers: false },
+          {
+            path: worktree, label: "fresh", labelDeclared: false, isMain: false, isThis: false, branch: "fresh", ownChange: "fresh", runs: [],
+            readable: true, changes: [{ changeName: "fresh", tasksDone: 0, tasksTotal: 1, blockers: [], alsoIn: [] }], authorDiffers: false,
+          },
+        ],
+        runsElsewhere: [],
+      });
+      resolveHarnessConfigMock.mockResolvedValue({ stepAgents: {}, autonomyLevel: "semi-autonomous", reviewGate: { mode: "human-required" } });
+      buildRunPlanMock.mockReturnValue(planFor("chain"));
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.runChange")?.("fresh");
+
+      expect(resolveHarnessConfigMock).toHaveBeenCalledWith(worktree, "fresh");
+      expect(deps.revealAiPanel).toHaveBeenCalledWith(expect.objectContaining({
+        cwd: worktree,
+        changeDir: path.join(worktree, "openspec", "changes", "fresh"),
+        changeName: "fresh",
       }));
     });
 

@@ -158,6 +158,12 @@ interface SurveyedDirectoryBase {
    * work, so this is what a press is offered beside, not what a sweep
    * acts on. */
   finishedWith?: { reason: "merged" | "branch-gone"; branch: string };
+  /** Where this directory's own change is not on the server: its branch was
+   * never pushed, or the server's copy is at another commit - usually one it has not been pushed. Read from
+   * the refs the survey already lists, so no git runs in the directory; a
+   * file not committed is not seen here
+   * (a-change-is-committed-where-it-is-made). */
+  notOnServer?: "never-pushed" | "differs";
 }
 
 export type SurveyedDirectory =

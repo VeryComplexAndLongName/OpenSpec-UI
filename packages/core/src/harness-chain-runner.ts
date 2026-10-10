@@ -30,6 +30,7 @@ import {
   type PullRequestGateway,
 } from "./gh-pr-gateway.js";
 import { pullRequestGatewayFor } from "./forge.js";
+import { commitWhatIsLeft } from "./change-commit.js";
 import { createGitWrapper, type GitWrapper } from "./git.js";
 import {
   runDeclaredChecks,
@@ -119,6 +120,9 @@ export interface HarnessChainDeps {
   /** Override hooks for tests. Production callers use defaults. */
   createGitWrapper?: (options: { cwd: string }) => GitWrapper;
   createPullRequestGateway?: (options: { cwd: string }) => PullRequestGateway;
+  /** Commits what the stages left in the tree before the push
+   * (a-change-is-committed-where-it-is-made). Test seam. */
+  commitWhatIsLeft?: (directory: string, message: string) => Promise<string | undefined>;
 }
 
 type CheckpointOutcome = "confirmed" | "cancelled" | "stopped";
@@ -2226,6 +2230,25 @@ export class HarnessChainRunner {
     if (!branch) {
       yield failedEvent(command.runId, "git stage failed: could not resolve current branch");
       return "failed";
+    }
+
+    // What the stages left uncommitted goes with the push: a push of a
+    // branch that holds none of the change's work leaves the server without
+    // it (a-change-is-committed-where-it-is-made). Never on the default
+    // branch, where nothing of a change is committed (ADR 0043).
+    if (branch !== DEFAULT_PR_BASE_BRANCH && branch !== "master") {
+      const changeName = changeNameFromDir(command.context.changeDir);
+      const message = `${changeName}: commit what the stages left`;
+      const commitInvocation: AdapterInvocation = { kind: "process", executable: "git", args: ["commit", "-m", message] };
+      try {
+        const commit = await (this.deps.commitWhatIsLeft ?? commitWhatIsLeft)(command.cwd, message);
+        if (commit !== undefined) this.recordGitAction(command, commitInvocation, "completed", { summary: `committed ${commit.slice(0, 8)}` });
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        this.recordGitAction(command, commitInvocation, "failed", { reason });
+        yield failedEvent(command.runId, say("OSW-GIT-103", { why: reason }));
+        return "failed";
+      }
     }
 
     const pushInvocation: AdapterInvocation = {

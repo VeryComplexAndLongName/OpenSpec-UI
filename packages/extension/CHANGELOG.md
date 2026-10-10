@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.103.0
+
+### Minor Changes
+
+- 152755f: **A change is on the server from the moment it is made** (a-change-is-committed-where-it-is-made, ADR 0043 amended). Create Change, in both hosts, now commits the new change on its own branch and pushes it, and says so - or says why the server refused it. The rules written into `CLAUDE.md` and `AGENTS.md` tell every agent *when* to commit, not only where: the planning artifacts on the change's branch with `git push -u origin <change-id>` as soon as they are written, the work of every task ticked, nothing left unpushed at the end of a turn, nothing of a change on `main`; run **Write Agent Workflow Rules** to give an existing repository the new rules. The `git` stage commits what the stages left before it pushes. A card whose change's branch is not on the server says "not on the server", and a new action, **Commit Change**, on the card and in Show Actions..., commits everything the change's worktree holds and pushes it. A card of a change's own worktree now offers its actions in the Pipeline's arrangement by step as well, not only on the board by stage, and **Run Change...**, which runs the change in its worktree - before, such a change could be acted on but never run from its card. New messages `OSW-GIT-001`..`OSW-GIT-203`.
+
+### Patch Changes
+
+- 6bd7d0c: The extension's README follows the side panel's new shape (the-side-panel-is-the-workspace): its features name the Workspace view, a change is acted on from its card and its **Show Actions...**, the Change Graph states relations, and the archive and template menus are described by what they now offer (Restore Change, Edit Template). The how-to on stopping a run sends you to the card or Show Actions... rather than a change's row.
+- Updated dependencies [152755f]
+  - @openspec-ui/core@0.144.0
+  - @openspec-ui/webui@1.92.0
+  - @openspec-ui/server@1.59.0
+
+## 0.102.0
+
+### Minor Changes
+
+- abbdfef: **The side panel is the Workspace** (the-side-panel-is-the-workspace, ADR 0044). A new **Workspace** view comes first: Open Pipeline and Open Dashboard, the Workspace Harness, **Agents** - each agent the product knows, whether it is found on this machine, its version and the stages the harness gives it - OpenSpec Configuration, Repository Setup, and Run Typecheck, Run Tests and Run Lint where the workspace declares them. The Human-Only Inbox follows, then Changes; Processes and the Change Graph start folded. **Changes is a list to go by**: choosing a change shows its card in the Pipeline, scrolled to, marked for a moment and focused, and a change worked only in its own worktree now has a row of its own. A change's right-click menu is **Show Actions...** alone, which lists every action its card offers; Run, Stop, the Inspect and Set Up submenus, Archive, Rollback and Delete are there and on the card.
+
+### Patch Changes
+
+- Updated dependencies [abbdfef]
+  - @openspec-ui/webui@1.91.0
+
 ## 0.101.0
 
 ### Minor Changes

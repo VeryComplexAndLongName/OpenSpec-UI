@@ -35,7 +35,7 @@ beforeEach(() => {
 });
 
 describe("ChangesTreeProvider", () => {
-  it("lists config and collapsible changes with their derived state", async () => {
+  it("lists the changes, each a row that shows its card, and nothing about the workspace", async () => {
     discoverOpenSpecWorkspaceMock.mockResolvedValue({
       configPath: "/workspace/repo/openspec/config.yaml",
       configExists: true,
@@ -48,90 +48,20 @@ describe("ChangesTreeProvider", () => {
     const provider = new ChangesTreeProvider("/workspace/repo");
     const items = await provider.getChildren();
 
-    expect(items).toHaveLength(5);
-    expect(items[0]?.contextValue).toBe("openspec-ui.config");
-    expect(items[1]?.contextValue).toBe("openspec-ui.repoBootstrapRoot");
-    expect(items[2]?.contextValue).toBe("openspec-ui.harnessSettingsRoot");
-    expect(items[3]?.label).toBe("execution-core");
-    expect(items[3]?.description).toBe("implemented");
-    expect(items[4]?.description).toBe("in-progress");
+    // The configuration, the setup and the harness are the Workspace
+    // view's (the-side-panel-is-the-workspace).
+    expect(items).toHaveLength(2);
+    expect(items[0]?.label).toBe("execution-core");
+    expect(items[0]?.description).toBe("implemented");
+    expect(items[1]?.description).toBe("in-progress");
     // Explicit stable ids, not the VS Code label-derived fallback — see
     // openspec/changes/tree-item-stable-ids/proposal.md.
     expect(items.map((item) => item.id)).toEqual([
-      "artifact:/workspace/repo/openspec/config.yaml",
-      "repo-bootstrap-root",
-      "harness-settings-root",
       "change:active:execution-core",
       "change:active:shared-ui",
     ]);
-  });
-
-  it("lists only what the rule says applies", async () => {
-    // The whole point of setup-offers-only-what-applies: an action that
-    // configures something absent writes a file nothing reads, and
-    // worse, states that a thing is configured when nothing acts on it.
-    discoverOpenSpecWorkspaceMock.mockResolvedValue({
-      configPath: "/workspace/repo/openspec/config.yaml",
-      configExists: true,
-      changes: [],
-    });
-    applicableRepoSetupActionIdsMock.mockReturnValue(["generate-agent-instructions"]);
-
-    const provider = new ChangesTreeProvider("/workspace/repo");
-    const roots = await provider.getChildren();
-    const actions = await provider.getChildren(roots[1]);
-
-    expect(actions.map((item) => item.command?.command)).toEqual([
-      "openspec-ui.generateInstructions",
-    ]);
-  });
-
-  it("decides from facts the host gathered, not from the tree's own guess", async () => {
-    discoverOpenSpecWorkspaceMock.mockResolvedValue({
-      configPath: "/workspace/repo/openspec/config.yaml",
-      configExists: true,
-      changes: [],
-    });
-    readRepoSetupFactsMock.mockResolvedValue({ originUrl: "https://gitlab.com/o/r" } as never);
-    applicableRepoSetupActionIdsMock.mockReturnValue(["generate-agent-instructions"]);
-
-    const provider = new ChangesTreeProvider("/workspace/repo");
-    const roots = await provider.getChildren();
-    await provider.getChildren(roots[1]);
-
-    expect(applicableRepoSetupActionIdsMock).toHaveBeenCalledWith({ originUrl: "https://gitlab.com/o/r" });
-  });
-
-  it("expands the Repository Setup node to the actions that apply, each with a stable id", async () => {
-    applicableRepoSetupActionIdsMock.mockReturnValue([
-      "generate-agent-instructions",
-      "configure-dependabot",
-      "generate-subtype-instructions",
-    ]);
-    discoverOpenSpecWorkspaceMock.mockResolvedValue({
-      configPath: "/workspace/repo/openspec/config.yaml",
-      configExists: true,
-      changes: [],
-    });
-
-    const provider = new ChangesTreeProvider("/workspace/repo");
-    const roots = await provider.getChildren();
-    const bootstrapRoot = roots[1];
-    const actions = await provider.getChildren(bootstrapRoot);
-
-    expect(actions.map((item) => item.command?.command)).toEqual([
-      "openspec-ui.generateInstructions",
-      "openspec-ui.configureDependabot",
-      "openspec-ui.generateScopedInstructions",
-    ]);
-    expect(actions.every((item) => item.contextValue === "openspec-ui.repoBootstrapAction")).toBe(true);
-    expect(actions.map((item) => item.id)).toEqual([
-      "repo-bootstrap-action:openspec-ui.generateInstructions",
-      "repo-bootstrap-action:openspec-ui.configureDependabot",
-      "repo-bootstrap-action:openspec-ui.generateScopedInstructions",
-    ]);
-    expect(new Set(actions.map((item) => item.id)).size).toBe(3);
-    expect(actions[0]?.id).not.toBe(bootstrapRoot?.id);
+    // A navigator: choosing a change shows its card (ADR 0044).
+    expect(items[0]?.command).toMatchObject({ command: "openspec-ui.openPipeline", arguments: ["execution-core"] });
   });
 
   it("shows standard, delta, and tasks artifacts under a change — tasks.md is collapsible, not a leaf", async () => {
@@ -153,7 +83,7 @@ describe("ChangesTreeProvider", () => {
 
     const provider = new ChangesTreeProvider("/workspace/repo");
     const roots = await provider.getChildren();
-    const change = roots[3];
+    const change = roots[0];
     const artifacts = await provider.getChildren(change);
 
     // Individual tasks are NOT flattened in here alongside Proposal/Design/
@@ -212,7 +142,7 @@ describe("ChangesTreeProvider", () => {
 
     const provider = new ChangesTreeProvider("/workspace/repo");
     const roots = await provider.getChildren();
-    const change = roots[3];
+    const change = roots[0];
     const children = await provider.getChildren(change);
 
     expect(children.map((item) => item.label)).toEqual([
@@ -254,7 +184,7 @@ describe("ChangesTreeProvider", () => {
 
     const provider = new ChangesTreeProvider("/workspace/repo");
     const roots = await provider.getChildren();
-    const children = await provider.getChildren(roots[3]);
+    const children = await provider.getChildren(roots[0]);
 
     expect(children.map((item) => [item.label, item.description])).toEqual([
       ["Spec: checkout", undefined],
@@ -280,7 +210,7 @@ describe("ChangesTreeProvider", () => {
 
     const provider = new ChangesTreeProvider("/workspace/repo");
     const roots = await provider.getChildren();
-    const artifacts = await provider.getChildren(roots[3]);
+    const artifacts = await provider.getChildren(roots[0]);
 
     expect(artifacts[0]?.collapsibleState).toBe(0); // None
     expect(artifacts[0]?.description).toBe("missing");
@@ -306,7 +236,7 @@ describe("ChangesTreeProvider", () => {
 
     const provider = new ChangesTreeProvider("/workspace/repo");
     const roots = await provider.getChildren();
-    const changeChildren = await provider.getChildren(roots[3]);
+    const changeChildren = await provider.getChildren(roots[0]);
     const tasksArtifact = changeChildren[0];
     expect(tasksArtifact?.contextValue).toBe("openspec-ui.tasksArtifact");
 
@@ -326,7 +256,7 @@ describe("ChangesTreeProvider", () => {
       "task:active:shared-ui:3",
     ]);
     expect(children[0]?.id).not.toBe(tasksArtifact?.id);
-    expect(children[0]?.id).not.toBe(roots[3]?.id);
+    expect(children[0]?.id).not.toBe(roots[0]?.id);
   });
 
   it("offers initialization when the workspace has no OpenSpec artifacts", async () => {
@@ -340,25 +270,9 @@ describe("ChangesTreeProvider", () => {
     const provider = new ChangesTreeProvider("/workspace/repo");
     const items = await provider.getChildren();
 
-    expect(items[3]?.label).toBe("Initialize OpenSpec");
-    expect(items[3]?.command?.command).toBe("openspec-ui.initializeWorkspace");
-    expect(items[3]?.id).toBe("empty:Initialize OpenSpec");
-  });
-
-  it("Harness Settings root is a direct-command leaf, not a group", async () => {
-    discoverOpenSpecWorkspaceMock.mockResolvedValue({
-      configPath: "/workspace/repo/openspec/config.yaml",
-      configExists: true,
-      changes: [],
-    });
-
-    const provider = new ChangesTreeProvider("/workspace/repo");
-    const roots = await provider.getChildren();
-    const harnessSettingsRoot = roots[2];
-
-    expect(harnessSettingsRoot?.command?.command).toBe("openspec-ui.configureWorkspaceHarness");
-    expect(harnessSettingsRoot?.collapsibleState).toBe(0); // None — not expandable
-    expect(await provider.getChildren(harnessSettingsRoot)).toEqual([]);
+    expect(items[0]?.label).toBe("Initialize OpenSpec");
+    expect(items[0]?.command?.command).toBe("openspec-ui.initializeWorkspace");
+    expect(items[0]?.id).toBe("empty:Initialize OpenSpec");
   });
 
   it("refresh() fires onDidChangeTreeData", () => {
@@ -378,7 +292,7 @@ describe("ChangesTreeProvider", () => {
       });
       const provider = new ChangesTreeProvider("/workspace/repo");
       const roots = await provider.getChildren();
-      const change = roots[3];
+      const change = roots[0];
 
       expect(provider.getParent(change!)).toBeUndefined();
     });
@@ -399,7 +313,7 @@ describe("ChangesTreeProvider", () => {
       });
       const provider = new ChangesTreeProvider("/workspace/repo");
       const roots = await provider.getChildren();
-      const change = roots[3];
+      const change = roots[0];
       const [proposal, tasks] = await provider.getChildren(change);
 
       expect(provider.getParent(proposal!)?.id).toBe(change?.id);
@@ -426,7 +340,7 @@ describe("ChangesTreeProvider", () => {
         }],
       });
       const provider = new ChangesTreeProvider("/workspace/repo");
-      const change = (await provider.getChildren())[3] as ChangeTreeItem;
+      const change = (await provider.getChildren())[0] as ChangeTreeItem;
       const [proposal, tasks] = await provider.getChildren(change);
 
       for (const child of [proposal, tasks]) {
@@ -436,17 +350,6 @@ describe("ChangesTreeProvider", () => {
       }
     });
 
-    it("resolves a workspace-level artifact to no parent, rather than to an assembled row", async () => {
-      discoverOpenSpecWorkspaceMock.mockResolvedValue({
-        configPath: "/workspace/repo/openspec/config.yaml",
-        configExists: true,
-        changes: [],
-      });
-      const provider = new ChangesTreeProvider("/workspace/repo");
-      const config = (await provider.getChildren())[0];
-
-      expect(provider.getParent(config!)).toBeUndefined();
-    });
   });
 });
 

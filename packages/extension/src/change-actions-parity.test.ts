@@ -4,9 +4,11 @@ import { fileURLToPath } from "node:url";
 import { CHANGE_ACTIONS } from "@openspec-ui/core";
 import { describe, expect, it, vi } from "vitest";
 
-// a-change-is-acted-on-from-its-card (ADR 0044): the Changes tree offers a
-// change the same actions its card does, from core's one list; neither has
-// one the other lacks. Asserted over the manifest, as one-way-in.test.ts is.
+// a-change-is-acted-on-from-its-card (ADR 0044): a change's actions come
+// from core's one list. Since the-side-panel-is-the-workspace, the card is
+// where they are offered, and a Changes row offers the way to all of them -
+// Show Actions... - and nothing else. Asserted over the manifest, as
+// one-way-in.test.ts is.
 // One synchronous read; sized above it as that file explains.
 vi.setConfig({ testTimeout: 10000 });
 
@@ -51,20 +53,10 @@ function offeredOn(contextValue: string): Set<string> {
 describe("a change's actions, on its row and on its card", () => {
   const actions = CHANGE_ACTIONS.map((action) => action.command);
 
-  it("offers a row worked in another working directory every action a row of this checkout has, and both every action of core's list", () => {
-    const here = offeredOn("openspec-ui.activeChange");
-    const related = offeredOn("openspec-ui.activeChange.related");
-    const there = offeredOn("openspec-ui.activeChange.elsewhere");
-
-    // A row here offers to open a worktree only where the change has one,
-    // and to remove a relation only where it states one: a context menu has
-    // no disabled state (relations-and-leftovers-explain-themselves). A row
-    // worked elsewhere has its relations read there, so it offers both.
-    expect(actions.filter((command) => !here.has(command))).toEqual(["openspec-ui.openWorktree", "openspec-ui.openChangeCopy", "openspec-ui.removeRelation"]);
-    expect(actions.filter((command) => !related.has(command))).toEqual(["openspec-ui.openWorktree", "openspec-ui.openChangeCopy"]);
-    expect(actions.filter((command) => !there.has(command))).toEqual([]);
-    // Nothing on a row that the card does not have, but the way to all of them.
-    expect([...there].filter((command) => !actions.includes(command))).toEqual(["openspec-ui.showActions"]);
+  it("offers on a change's row Show Actions... alone, wherever the change is worked", () => {
+    for (const contextValue of ["openspec-ui.activeChange", "openspec-ui.activeChange.related", "openspec-ui.activeChange.elsewhere"]) {
+      expect([...offeredOn(contextValue)], contextValue).toEqual(["openspec-ui.showActions"]);
+    }
   });
 
   it("titles and draws each action as core's list does", () => {
@@ -74,16 +66,12 @@ describe("a change's actions, on its row and on its card", () => {
     expect(differ.map((action) => action.command)).toEqual([]);
   });
 
-  it("groups a row's menu by the actions' groups: what runs first, Inspect and Set Up as submenus, the Danger ones last", () => {
+  it("keeps no submenu of the row's former menu, and no action drawn on the row itself", () => {
     const menus = manifest.contributes.menus;
-    const context = menus["view/item/context"] ?? [];
-    const groupOf = (command: string) => context.find((entry) => entry.command === command && holds(entry.when, "openspec-ui.activeChange") && entry.group !== "inline")?.group;
-    for (const action of CHANGE_ACTIONS) {
-      if (action.group === "run") expect(groupOf(action.command), action.id).toMatch(/^1_run@/u);
-      if (action.group === "danger") expect(groupOf(action.command), action.id).toMatch(/^9_danger@/u);
-      if (action.group === "inspect") expect((menus["openspec-ui.changeInspect"] ?? []).map((entry) => entry.command), action.id).toContain(action.command);
-      if (action.group === "set-up") expect((menus["openspec-ui.changeSetUp"] ?? []).map((entry) => entry.command), action.id).toContain(action.command);
-    }
-    expect(manifest.contributes.submenus?.map((submenu) => submenu.label)).toEqual(["Inspect", "Set Up"]);
+    const inline = (menus["view/item/context"] ?? []).filter((entry) => entry.group === "inline" && holds(entry.when, "openspec-ui.activeChange"));
+
+    expect(manifest.contributes.submenus ?? []).toEqual([]);
+    expect(inline.map((entry) => entry.command)).toEqual(["openspec-ui.showActions"]);
+    expect(actions.length).toBeGreaterThan(0);
   });
 });

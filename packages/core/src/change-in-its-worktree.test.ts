@@ -40,6 +40,7 @@ describe("createChangeInItsWorktree", () => {
     const root = await repository();
     const { git, calls, added } = fakeGit("https://example.test/shop.git");
     const created: Array<{ name: string; cwd: string }> = [];
+    const shares: unknown[] = [];
 
     const made = await createChangeInItsWorktree({
       repositoryRoot: root,
@@ -47,12 +48,33 @@ describe("createChangeInItsWorktree", () => {
       git,
       rootSources: { env: {}, homeDirectory: path.join(path.dirname(root), "no-home") },
       create: async (name, options) => { created.push({ name, cwd: options.cwd ?? "" }); return {}; },
+      share: async (shared) => { shares.push(shared); return { ok: true, pushedTo: "origin/add-cart", commit: "c0ffee" }; },
     });
 
     expect(calls).toEqual(["fetch origin"]);
     expect(added).toEqual([{ path: path.join(path.dirname(root), ".worktrees", "shop", "add-cart"), branch: "add-cart", base: "origin/main" }]);
     expect(created).toEqual([{ name: "add-cart", cwd: added[0]!.path }]);
-    expect(made).toEqual({ directory: added[0]!.path, branch: "add-cart" });
+    // Committed on its branch and pushed at once
+    // (a-change-is-committed-where-it-is-made).
+    expect(shares).toEqual([{ changeName: "add-cart", directory: added[0]!.path, branch: "add-cart", message: "add-cart: create the change" }]);
+    expect(made).toEqual({ directory: added[0]!.path, branch: "add-cart", shared: { ok: true, pushedTo: "origin/add-cart", commit: "c0ffee" } });
+  });
+
+  it("keeps the change made where the push is refused, and says why", async () => {
+    const root = await repository();
+    const { git } = fakeGit("https://example.test/shop.git");
+
+    const made = await createChangeInItsWorktree({
+      repositoryRoot: root,
+      changeName: "add-cart",
+      git,
+      rootSources: { env: {}, homeDirectory: path.join(path.dirname(root), "no-home") },
+      create: async () => ({}),
+      share: async () => { throw new Error("could not read Username"); },
+    });
+
+    expect(made.branch).toBe("add-cart");
+    expect(made.shared).toMatchObject({ ok: false, kind: "commit-failed", said: { code: "OSW-GIT-101", text: "Nothing of add-cart was committed: could not read Username" } });
   });
 
   it("makes the change where it always was in a repository with no remote", async () => {

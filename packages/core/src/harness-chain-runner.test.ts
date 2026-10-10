@@ -223,11 +223,15 @@ function makeGitStageDeps(options: {
   createPrError?: string;
   checksState?: "pass" | "fail" | "none";
   checksReason?: string;
+  /** What committing the stages' leftovers answers, or throws. */
+  leftCommit?: string;
+  commitError?: string;
 } = {}) {
   const calls = {
     gitPush: 0,
     prCreate: 0,
     prMerge: 0,
+    commits: [] as Array<{ directory: string; message: string; beforePush: boolean }>,
   };
   const git: GitWrapper = {
     status: vi.fn(),
@@ -286,6 +290,11 @@ function makeGitStageDeps(options: {
     deps: {
       createGitWrapper: () => git,
       createPullRequestGateway: () => gateway,
+      commitWhatIsLeft: vi.fn(async (directory: string, message: string) => {
+        calls.commits.push({ directory, message, beforePush: calls.gitPush === 0 });
+        if (options.commitError !== undefined) throw new Error(options.commitError);
+        return options.leftCommit;
+      }),
     },
     gateway,
     git,
@@ -597,6 +606,42 @@ describe("HarnessChainRunner — git stage gating", () => {
     expect(gitStage.calls.prCreate).toBe(1);
     expect(gitStage.calls.prMerge).toBe(1);
     expect(auditLog.entries.filter((entry) => entry.agent === "git-stage" && entry.outcome === "completed")).toHaveLength(3);
+    // What the stages left is committed before the push
+    // (a-change-is-committed-where-it-is-made); here there was nothing.
+    expect(gitStage.calls.commits).toEqual([{ directory: root, message: "demo: commit what the stages left", beforePush: true }]);
+  });
+
+  it("commits what the stages left before it pushes, and fails without pushing where that commit fails", async () => {
+    for (const outcome of ["committed", "failed"] as const) {
+      const root = await temporaryRoot();
+      await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous", stepAgents: { verify: "claude-cli" } });
+      await writeChangeHarnessConfig(root, "demo", {
+        reviewGate: { mode: "agent-sufficient" },
+        gitStageAllowlist: { remotes: ["origin"], branches: ["main", "feature/*"] },
+      });
+      mockStatus(true);
+      await writeTasks(root, 0, 3);
+      mockArchiveSucceeds();
+      const { runner } = makeCompletingRunner();
+      const gitStage = makeGitStageDeps(outcome === "committed" ? { leftCommit: "abc1234567" } : { commitError: "nothing to commit, author unknown" });
+      const auditLog = new InMemoryAuditLog();
+      const chain = new HarnessChainRunner({ resolveRunner: () => runner, auditLog, ...gitStage.deps });
+      const command = baseCommand(root);
+
+      const events: Event[] = [];
+      for await (const event of chain.run(command)) {
+        events.push(event);
+        if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+      }
+
+      if (outcome === "committed") {
+        expect(events.at(-1)).toMatchObject({ kind: "completed" });
+        expect(auditLog.entries.some((entry) => entry.agent === "git-stage" && entry.outcome === "completed" && entry.summary === "committed abc12345")).toBe(true);
+      } else {
+        expect(events.at(-1)).toMatchObject({ kind: "failed", reason: "git stage failed at commit: nothing to commit, author unknown" });
+        expect(gitStage.calls.gitPush).toBe(0);
+      }
+    }
   });
 
   it("blocks a non-allowlisted git target before any push/pr/merge call", async () => {

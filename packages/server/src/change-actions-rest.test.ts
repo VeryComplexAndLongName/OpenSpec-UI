@@ -76,6 +76,11 @@ describe("a change's actions, for the standalone app's cards", () => {
       expect((await stop.json() as { error: string }).error).toContain("nothing is running on demo");
       const open = await post({ cwd: workspace, changeName: "demo", action: "openWorktree" });
       expect(open.status).toBe(409);
+      // Never committed in the checkout: only in a change's own worktree
+      // (a-change-is-committed-where-it-is-made).
+      const commit = await post({ cwd: workspace, changeName: "demo", action: "commitChange" });
+      expect(commit.status).toBe(409);
+      expect((await commit.json() as { error: string }).error).toMatch(/^OSW-GIT-001: demo has no worktree of its own/u);
     });
   });
 

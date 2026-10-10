@@ -5,7 +5,7 @@
 // not library code reused in the extension.
 
 import { createRoot } from "react-dom/client";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { FetchTransport } from "./transport/fetch-transport.js";
 import { AiPanel, OperatorQuestionsPrompt } from "./components/AiPanel.js";
 import { describeRunCompletionNotification } from "./notify-run-completion.js";
@@ -56,6 +56,7 @@ import { AppBar } from "./components/AppBar.js";
 import { PageHead } from "./components/PageHead.js";
 import { PAGE_HEADS } from "./page-heads.js";
 import { VSCODE_LOCAL_SERVER_EMBED_SIGNAL, computeVisibleTabs, embedTheme, initialTab, readEmbedSignal } from "./host-embed.js";
+import { shownCardOf } from "./show-card.js";
 import { renderMarkdown } from "./markdown.js";
 import {
   ChangeEditorSaveConflictError,
@@ -274,6 +275,26 @@ const visibleTabIds = new Set(visibleTabs.map((tab) => tab.id));
 // keeps its own extension version visible via VS Code's Extensions view.
 const isStandaloneHost = readEmbedSignal(window.location.search) !== VSCODE_LOCAL_SERVER_EMBED_SIGNAL;
 
+// Framed by the editor, the Pipeline shows the card of a change chosen in
+// the editor's Workspace navigator (the-side-panel-is-the-workspace). The
+// request is listened for from the start, since the frame tells the editor
+// it has loaded before the page is drawn, and it is kept until the view is.
+let shownCard: { changeName: string; at: number } | undefined;
+const shownCardListeners = new Set<() => void>();
+if (!isStandaloneHost) {
+  window.addEventListener("message", (event) => {
+    if (window.parent === window || event.source !== window.parent) return;
+    const changeName = shownCardOf(event.data);
+    if (changeName === undefined) return;
+    shownCard = { changeName, at: Date.now() };
+    for (const listener of shownCardListeners) listener();
+  });
+}
+function subscribeShownCard(listener: () => void): () => void {
+  shownCardListeners.add(listener);
+  return () => shownCardListeners.delete(listener);
+}
+
 // Injected at build time by packages/server/scripts/client-build-options.mjs
 // (esbuild `define`) from packages/webui/package.json — the browser bundle
 // has no filesystem access to read its own package.json at runtime.
@@ -353,6 +374,7 @@ async function loadWorkspaceRoot(): Promise<string> {
 }
 
 function StandaloneApp() {
+  const pipelineFocus = useSyncExternalStore(subscribeShownCard, () => shownCard);
   // Framed by the editor, the editor's light or dark comes with the address.
   const { theme, toggle: toggleTheme } = useStandaloneTheme(undefined, embedTheme(window.location.search));
   const [activeTab, setActiveTab] = useState<string>(() => initialTab(window.location.search, visibleTabs));
@@ -406,7 +428,11 @@ function StandaloneApp() {
   // The command "Run one stage" opens the picker on; none until it is chosen.
   const [runStageKind, setRunStageKind] = useState<CommandKind | undefined>(undefined);
   const [runOpenedFrom, setRunOpenedFrom] = useState<"editor" | "pipeline">("editor");
-  const [pipelineChain, setPipelineChain] = useState<{ changeDir: string; budget: HarnessBudget | undefined } | null>(null);
+  const [pipelineChain, setPipelineChain] = useState<{ changeDir: string; budget: HarnessBudget | undefined; root: string } | null>(null);
+  // Where the run the dialog is for runs: this page's workspace, or the
+  // change's own worktree, for a card of one
+  // (a-change-is-committed-where-it-is-made).
+  const [runRoot, setRunRoot] = useState<string | null>(null);
   const pipelineRunLayer = useRef<HTMLDivElement | null>(null);
   const pipelineRunShown = runOpenedFrom === "pipeline" && runDispatch !== null ? "dialog" : pipelineChain ? "chain" : "none";
   // A person pressed Start on a card, and what it opened is not beside the
@@ -626,8 +652,8 @@ function StandaloneApp() {
   const logsRead = useCallback((runId: string) => readChangeRunLog(apiFetch, cwd, runId), [cwd]);
   // `handleRunWithHarness` is a hoisted declaration further down and reads
   // `cwd` itself, as `loadChangeEditor` does for `openChangeInEditor` below.
-  const pipelineStart = useCallback((changeName: string) => {
-    void handleRunWithHarness(changeName, "pipeline");
+  const pipelineStart = useCallback((changeName: string, directory?: string) => {
+    void handleRunWithHarness(changeName, "pipeline", directory);
   }, [cwd]);
   // A card whose review asked for changes opens the run panel on `update`
   // for that change (ADR 0041).
@@ -955,8 +981,9 @@ function StandaloneApp() {
    * Command" tab, anything else revealed the chain panel. Both were
    * correct and neither said so, which is why the button looked like it
    * only changed tabs. */
-  async function handleRunWithHarness(changeName: string = editorChangeName, from: "editor" | "pipeline" = "editor") {
+  async function handleRunWithHarness(changeName: string = editorChangeName, from: "editor" | "pipeline" = "editor", root: string = cwd) {
     if (cwd.trim().length === 0 || changeName.trim().length === 0) return;
+    setRunRoot(root);
     // Set first, so a failure is said where the person pressed the button.
     setRunOpenedFrom(from);
     setRunHarnessLoading(true);
@@ -968,7 +995,7 @@ function StandaloneApp() {
     setRunAppliedNote(null);
     setRunUseAgentNote(null);
     try {
-      const dispatch = await resolveRunWithHarnessDispatch(apiFetch, cwd, changeName);
+      const dispatch = await resolveRunWithHarnessDispatch(apiFetch, root, changeName);
       // Where the change stands, with refs fetched now, so the dialog asks
       // about fresh refs. A reading that fails leaves the dialog as it was.
       const reading = await loadChangeStandings(apiFetch, cwd, "now").catch(() => undefined);
@@ -978,7 +1005,7 @@ function StandaloneApp() {
       setRunDispatch(dispatch);
       // Absent rather than zeroed if it cannot be read. Zeroes would be a
       // claim about this workspace; absence is the truth about the read.
-      setRunStats(await loadWorkspaceRunStats(apiFetch, cwd).catch(() => undefined));
+      setRunStats(await loadWorkspaceRunStats(apiFetch, root).catch(() => undefined));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setRunHarnessMessage(`Run with Agentic Harness failed: ${message}`);
@@ -998,8 +1025,8 @@ function StandaloneApp() {
     if (!runDispatch) return;
     setRunHarnessLoading(true);
     try {
-      const applied = await applyTemplateToChangeApi(apiFetch, cwd, runChangeName, template);
-      setRunDispatch(await resolveRunWithHarnessDispatch(apiFetch, cwd, runChangeName));
+      const applied = await applyTemplateToChangeApi(apiFetch, runRoot ?? cwd, runChangeName, template);
+      setRunDispatch(await resolveRunWithHarnessDispatch(apiFetch, runRoot ?? cwd, runChangeName));
       // Beside the Apply button, in the dialog. It used to be set above
       // the dialog, where the person who pressed Apply could not see it
       // (a-change-is-configured-from-the-change).
@@ -1023,8 +1050,8 @@ function StandaloneApp() {
     if (!runDispatch) return;
     setRunHarnessLoading(true);
     try {
-      await putAgentOnEveryStageApi(apiFetch, cwd, runChangeName, agentId);
-      setRunDispatch(await resolveRunWithHarnessDispatch(apiFetch, cwd, runChangeName));
+      await putAgentOnEveryStageApi(apiFetch, runRoot ?? cwd, runChangeName, agentId);
+      setRunDispatch(await resolveRunWithHarnessDispatch(apiFetch, runRoot ?? cwd, runChangeName));
       setRunUseAgentNote(
         `Put ${agentId} on every stage in openspec/changes/${runChangeName}/harness.json. `
         + "The dialog now shows what the change resolves to.",
@@ -1193,7 +1220,7 @@ function StandaloneApp() {
     setRunDispatch(null);
     setRunNote(null);
     try {
-      await addScheduledRunApi(apiFetch, cwd, {
+      await addScheduledRunApi(apiFetch, runRoot ?? cwd, {
         changeName: name,
         path,
         startAt,
@@ -1221,11 +1248,17 @@ function StandaloneApp() {
     // reappeared over the next dialog a person opened themselves, which
     // said a schedule had started something that nobody scheduled.
     setRunNote(null);
+    const root = runRoot ?? cwd;
     if (path === "chain" && fromPipeline) {
-      // The chain runs in the Pipeline's layer, where Start was pressed.
-      setPipelineChain({ changeDir: targetChangeDir, budget });
+      // The chain runs in the Pipeline's layer, where Start was pressed, and
+      // in the directory the change is worked in.
+      setPipelineChain({ changeDir: targetChangeDir, budget, root });
       return;
     }
+    // Run anywhere else, a change of its own worktree is run with this page
+    // working there, as a change it makes is
+    // (a-change-is-committed-where-it-is-made).
+    if (root !== cwd) handleCwdChange(root);
     setRunOpenedFrom("editor");
     if (path === "chain") {
       setChainChangeDir(targetChangeDir);
@@ -1692,7 +1725,7 @@ function StandaloneApp() {
         throw new Error(payload.error ?? `${response.status} ${response.statusText}`);
       }
 
-      const made = (await response.json().catch(() => ({}))) as { directory?: string; branch?: string };
+      const made = (await response.json().catch(() => ({}))) as { directory?: string; branch?: string; pushedTo?: string; notShared?: string };
       setNewChangeName("");
       setNewChangeDescription("");
       // Made in a working directory of its own, where the repository has a
@@ -1702,9 +1735,12 @@ function StandaloneApp() {
       if (root !== cwd) handleCwdChange(root);
       await loadOverviewFor(root);
       await loadChangeEditor(changeName, root);
+      // Committed on its branch and pushed as it was made, or why the server
+      // does not have it (a-change-is-committed-where-it-is-made).
+      const pushed = made.pushedTo !== undefined ? `, pushed to ${made.pushedTo}` : "";
       setEditorMessage(root === cwd
         ? `Created ${changeName}.`
-        : `Created ${changeName} in its own working directory, ${root}, on branch ${made.branch ?? changeName}; this page now works there.`);
+        : made.notShared ?? `Created ${changeName} in its own working directory, ${root}, on branch ${made.branch ?? changeName}${pushed}; this page now works there.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setEditorMessage(`Create failed: ${message}`);
@@ -2833,6 +2869,7 @@ function StandaloneApp() {
                 onReadingChange={setPipelineReading}
                 taskActions={pipelineTaskActions}
                 changeActions={pipelineChangeActions}
+                {...(pipelineFocus !== undefined ? { focus: pipelineFocus } : {})}
               />
               {actionFor !== null ? (
                 <ModalLayer
@@ -2893,7 +2930,7 @@ function StandaloneApp() {
                       tabIndex={-1}
                     >
                       <h3>{`Run ${runChangeName}`}</h3>
-                      <HarnessChainPanel transport={transport} cwd={cwd} changeDir={pipelineChain.changeDir} budget={pipelineChain.budget} />
+                      <HarnessChainPanel transport={transport} cwd={pipelineChain.root} changeDir={pipelineChain.changeDir} budget={pipelineChain.budget} />
                       <button className="button" type="button" data-testid="pipeline-run-close" onClick={closePipelineRun}>Close</button>
                     </section>
                   ) : null}

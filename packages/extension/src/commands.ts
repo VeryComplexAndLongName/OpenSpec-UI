@@ -79,6 +79,9 @@ import {
   validateChange,
   writeAgentInstructions,
   createChangeInItsWorktree,
+  commitChange,
+  sayChangeNotShared,
+  sayCommitChange,
   workflowRulesNeedConsent,
   writeWorkflowRules,
   commitOpenSpecSetup,
@@ -120,6 +123,7 @@ import { ancestryOf, findGraphRows, type ChangeGraphTreeItem, type GraphTreeNode
 import { describeEvent } from "./describe-event.js";
 import { readConfig } from "./config.js";
 import { openDiffAgainstHead } from "./native/diff.js";
+import { changeItemNamed } from "./change-action-target.js";
 import { ChangeTreeItem, LeftoverTreeItem } from "./tree/changes-tree.js";
 import { withoutRelationMark } from "./relations-context.js";
 import { pickChangeToRelate, pickRelationKind, pickRelationToRemove } from "./relation-edit.js";
@@ -854,8 +858,18 @@ function announceChangeMade(changeName: string, made: ChangeMade | undefined, wo
     return;
   }
   const open = "Open its working directory";
+  // Committed on its branch and pushed as it was made, or saying why the
+  // server does not have it (a-change-is-committed-where-it-is-made).
+  const notShared = sayChangeNotShared(changeName, made.directory, made.shared);
+  if (notShared !== undefined) {
+    void vscode.window.showWarningMessage(withMessageCode(notShared.text, notShared.code), open).then((choice) => {
+      if (choice === open) void vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.file(made.directory), { forceNewWindow: true });
+    });
+    return;
+  }
+  const pushed = made.shared?.ok === true ? `, and pushed it to ${made.shared.pushedTo}` : "";
   void vscode.window.showInformationMessage(
-    `OpenSpec Workbench: created ${changeName} in its own working directory, ${made.directory}, on branch ${made.branch ?? changeName}.`,
+    `OpenSpec Workbench: created ${changeName} in its own working directory, ${made.directory}, on branch ${made.branch ?? changeName}${pushed}.`,
     open,
   ).then((choice) => {
     if (choice === open) void vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.file(made.directory), { forceNewWindow: true });
@@ -1703,6 +1717,25 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       }
       await vscode.commands.executeCommand(chosen.action.command, item);
     }),
+    // Everything the change's own worktree holds, committed on its branch
+    // and pushed, from its card or its Show Actions...
+    // (a-change-is-committed-where-it-is-made).
+    vscode.commands.registerCommand("openspec-ui.commitChange", async (invokedItem?: ChangeTreeItem) => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
+      if (!item || item.archived) { warnNoTreeSelection("change"); return; }
+      const result = await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: `OpenSpec Workbench: committing and pushing ${item.changeName}` },
+        () => commitChange({ repositoryRoot: workspaceRoot, changeName: item.changeName }),
+      );
+      const said = sayCommitChange(item.changeName, result);
+      const show = said.level === "info"
+        ? vscode.window.showInformationMessage
+        : said.level === "warning" ? vscode.window.showWarningMessage : vscode.window.showErrorMessage;
+      void show(withMessageCode(said.text, said.code));
+      deps.refreshTrees();
+    }),
     vscode.commands.registerCommand("openspec-ui.configureChangeHarness", async (invokedItem?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
@@ -1761,18 +1794,18 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       let item: ChangeTreeItem | undefined;
       if (typeof invokedItem === "string") {
         // A Pipeline card's Start names its change rather than a tree row
-        // (a-change-is-run-from-its-card). Only an active change of this
-        // workspace runs; anything else is refused, and said.
-        // A Drafted card is a change too, and its Start begins at propose
-        // (a-change-before-its-proposal).
-        const change = (await discoverOpenSpecWorkspace(workspaceRoot, { changes: "active", drafts: true })).changes.find((candidate) => candidate.name === invokedItem);
-        if (!change) {
+        // (a-change-is-run-from-its-card): an active change of this
+        // workspace, or one worked in its own worktree, where it runs
+        // (a-change-is-committed-where-it-is-made). Anything else is
+        // refused, and said. A Drafted card is a change too, and its Start
+        // begins at propose (a-change-before-its-proposal).
+        item = await changeItemNamed(workspaceRoot, invokedItem);
+        if (!item) {
           void vscode.window.showWarningMessage(
             `OpenSpec Workbench: ${invokedItem} is not an active change of this workspace, so it cannot be run.`,
           );
           return;
         }
-        item = new ChangeTreeItem(change.name, change.path, change.state, change.artifacts, false);
       } else {
         item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
       }
@@ -1785,7 +1818,10 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         // resolves fresh, never caches the autonomy level": the user may
         // have just edited this change's harness.json via "Configure
         // Harness for this Change" immediately before running.
-        const config = await resolveHarnessConfig(workspaceRoot, item.changeName);
+        // Where the change is worked: its own worktree, or this checkout.
+        // Its harness is read there, and the run runs there.
+        const at = workedIn(item, workspaceRoot);
+        const config = await resolveHarnessConfig(at.root, item.changeName);
         const plan = buildRunPlan(config, {
           hasVsCodeAgent: true,
           ...(await readRecommendationInput(deps, workspaceRoot, item)),
@@ -1815,7 +1851,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           runStanding = undefined;
         }
         deps.revealAiPanel({
-          ...dashboardContext(workspaceRoot, item.changeDir),
+          ...dashboardContext(at.root, at.changeDir),
           runPlan: plan,
           changeName: item.changeName,
           ...(runStanding !== undefined ? { runStanding } : {}),
