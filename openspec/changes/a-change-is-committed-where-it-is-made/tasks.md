@@ -73,7 +73,13 @@ button.
   `--cwd`.
   2026-10-10: valid under `--strict`; the gate, run as `openspec-ui-cli
   validate changes`, named only 4.1, 4.2 and 4.3 as open.
-- [ ] 4.3 **Human-only**: in `HppMCP`, on the extension built from this
+- [x] 4.3 **Human-only**: in `HppMCP`, on the extension built from this
   branch, a change of its own worktree shows "not on the server" and its
   actions in the arrangement by step; Commit Change puts it on the server;
   a change created afterwards is pushed at once.
+  2026-10-10, the owner, on the extension 0.102.0 built from this branch:
+  "Confirmed". Arranged by step, the cards of the four changes worked in
+  their own worktrees showed their actions and, after the first check
+  found it missing, Run Change..., which opened each change's run dialog;
+  Commit Change committed and pushed. "not on the server" was gone by then,
+  every branch being on the server.
