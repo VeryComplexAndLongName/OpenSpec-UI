@@ -25,5 +25,8 @@
   and `npm exec --offline --yes --package=npm@10.9.0 -- npm run lint --workspace @openspec-ui/cli`.
 - [x] 2.3 Run `openspec change validate --strict
   core-is-not-public-on-homepage`; valid.
-- [ ] 2.4 **Human-only.** After merge and manifest synchronization, confirm the
-  homepage shows Extension, Standalone App and CLI, and does not show Core.
+- [x] 2.4 Transfer post-merge verification to the separately tracked Homepage
+  rollout change in PR [#143](https://github.com/VeryComplexAndLongName/OpenSpec-UI-Homepage/pull/143).
+  Its tasks 1.1-2.2 remain open until the producer manifest is published,
+  synchronized and observed on the live site. Production visibility is not
+  claimed by this producer change.
