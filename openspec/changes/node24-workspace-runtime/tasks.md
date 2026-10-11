@@ -18,6 +18,8 @@
   `10.9.0`, root engine/Volta, lockfile engine, and all three workflows agree.
 - [x] 2.2 Validate with
   `openspec change validate --strict node24-workspace-runtime`; valid.
-- [ ] 2.3 **CI-required.** Confirm the full quality workflow passes on
-  Node 24.21.0, including the existing Windows VS Code integration/removal
-  test. Do not run the full suite locally.
+- [x] 2.3 **CI-required.** Confirm the full quality workflow passes on
+  Node 24.21.0, including the VS Code Electron integration/removal test. Do not
+  run the full suite locally. Verified by GitHub Actions run 38119901084:
+  Typecheck/lint/test/build job 114412291980 and extension integration/package
+  job 114412667801 both passed on Ubuntu. This is not a Windows-native run.
