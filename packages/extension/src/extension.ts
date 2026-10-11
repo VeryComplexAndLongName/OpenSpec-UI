@@ -86,6 +86,8 @@ import { registerOpenSpecChatParticipant } from "./chat-participant.js";
 import { AiPanel } from "./webview/ai-panel.js";
 import type { AiPanelContext, RunChoice } from "./webview/ai-panel.js";
 import { HarnessSettingsPanel, type ObservedHarnessRequest } from "./webview/harness-settings-panel.js";
+import { CompliancePanel } from "./webview/compliance-panel.js";
+import { dispatchCompliance, recordComplianceSweep } from "@openspec-ui/core";
 import { PipelinePanel } from "./webview/pipeline-panel.js";
 import { OptionalServerManager } from "./optional-server.js";
 import { recoveryDisabledMessage } from "./recovery-diagnostics.js";
@@ -436,6 +438,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       if (!workspaceRoot) return;
       try {
         const swept = await sweepWorkspace(workspaceRoot);
+        await recordComplianceSweep(workspaceRoot, swept).catch(() => undefined);
         for (const line of describeWorkspaceSweep(swept)) outputChannel.appendLine(`OpenSpec Workbench: ${line}.`);
         // A conflict is the one outcome a person has to act on, so it is
         // said where they will see it, not only in the output.
@@ -495,6 +498,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     };
 
     void sweepLeftovers();
+    let complianceActivity = Date.now();
+    let complianceBusy = false;
+    let complianceTimer: ReturnType<typeof setInterval> | undefined;
+    const configureComplianceBackground = (enabled: boolean) => {
+      if (!enabled && complianceTimer !== undefined) { clearInterval(complianceTimer); complianceTimer = undefined; }
+      if (!enabled || complianceTimer !== undefined) return;
+      complianceTimer = setInterval(() => {
+        if (!workspaceRoot || !vscode.window.state.focused || complianceBusy || Date.now() - complianceActivity < 60_000) return;
+        complianceBusy = true;
+        void dispatchCompliance(workspaceRoot, { op: "background", idle: true }).then(reading => configureComplianceBackground(reading.policy.backgroundEnabled), () => undefined)
+          .finally(() => { complianceBusy = false; });
+      }, 60_000);
+    };
+    const compliancePanel = new CompliancePanel(context.extensionUri, () => workspaceRoot, configureComplianceBackground);
+    context.subscriptions.push(compliancePanel, vscode.commands.registerCommand("openspec-ui.showCompliance", () => compliancePanel.show()));
+    void dispatchCompliance(workspaceRoot, { op: "read" }).then(reading => configureComplianceBackground(reading.policy.backgroundEnabled), () => undefined);
+    context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection(() => { complianceActivity = Date.now(); }));
+    context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(() => { complianceActivity = Date.now(); }));
+    context.subscriptions.push({ dispose: () => { if (complianceTimer !== undefined) clearInterval(complianceTimer); } });
     void markChangesStatingRelations();
     const sweepTimer = setInterval(() => { void sweepLeftovers(); }, LEFTOVER_SWEEP_INTERVAL_MS);
     context.subscriptions.push({ dispose: () => clearInterval(sweepTimer) });

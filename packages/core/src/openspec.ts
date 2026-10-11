@@ -626,5 +626,10 @@ export async function initOpenSpec(
   }
   const binary = options.binary ?? "openspec";
   const args = ["init", "--tools", tools.join(",")];
-  return execFileAsync(binary, args, { cwd: options.cwd, windowsHide: true });
+  const result = await execFileAsync(binary, args, { cwd: options.cwd, windowsHide: true });
+  if (options.cwd !== undefined) {
+    const { complianceFor } = await import("./compliance-service.js");
+    await complianceFor(options.cwd).then(service => service.initialize()).catch(() => undefined);
+  }
+  return result;
 }

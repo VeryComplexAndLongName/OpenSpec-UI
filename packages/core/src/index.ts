@@ -3,6 +3,9 @@
 // `server`/`extension` import from here, not directly from internal modules.
 
 export * from "./protocol.js";
+export * from "./compliance.js";
+export * from "./compliance-store.js";
+export * from "./compliance-service.js";
 export * from "./agent-runner.js";
 export * from "./security.js";
 export * from "./audit-message.js";

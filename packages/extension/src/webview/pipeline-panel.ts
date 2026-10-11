@@ -232,7 +232,12 @@ const DEFAULT_READERS: PipelineReaders = {
   }),
   catchUp: (workspaceRoot) => catchUpWithMain({ root: workspaceRoot }),
   readiness: (workspaceRoot) => readPipelineReadiness(workspaceRoot),
-  survey: (workspaceRoot) => surveyWorktrees({ workspaceRoot, sweepStatuses: true }),
+  survey: async (workspaceRoot) => {
+    const survey = await surveyWorktrees({ workspaceRoot, sweepStatuses: true });
+    const { recordComplianceSurvey } = await import("@openspec-ui/core");
+    await recordComplianceSurvey(workspaceRoot, survey).catch(() => undefined);
+    return survey;
+  },
   refreshRuns: (survey) => refreshSurveyRuns(survey, { sweepStatuses: true }),
   statusDirectory: (workspaceRoot) => resolveAgentStatusDirectory(createGitWrapper({ cwd: workspaceRoot }), workspaceRoot),
   findActiveChange: async (workspaceRoot, changeName) =>

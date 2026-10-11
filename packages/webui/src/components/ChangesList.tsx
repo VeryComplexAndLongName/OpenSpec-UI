@@ -25,6 +25,7 @@ import { STATE_LABEL, filterChanges } from "./change-filter.js";
 import { ProgressCell } from "./ProgressCell.js";
 import { SearchField } from "./SearchField.js";
 import { useVirtualList } from "./use-virtual-list.js";
+import { Shield } from "lucide-react";
 
 export interface ChangesListProps {
   changes: ChangeSummary[];
@@ -45,13 +46,14 @@ export interface ChangesListProps {
   refreshError?: string;
   /** A line for the panel's foot, such as where the workspace was read. */
   footnote?: ReactNode;
+  onCompliance?: () => void;
 }
 
 /** A row's height: one line, or the name with a standing's lines under it. */
 const ROW_HEIGHT = 44;
 const ROW_HEIGHT_WITH_LINES = 60;
 
-export function ChangesList({ changes, onSelect, states, ownerships, sources, onRefresh, refreshing = false, refreshError, footnote }: ChangesListProps) {
+export function ChangesList({ changes, onSelect, states, ownerships, sources, onRefresh, refreshing = false, refreshError, footnote, onCompliance }: ChangesListProps) {
   const [query, setQuery] = useState("");
   const visible = useMemo(() => filterChanges(changes, query), [changes, query]);
   const withLines = [...(states?.values() ?? [])].some((standing) => standing.lines.length > 0)
@@ -64,6 +66,7 @@ export function ChangesList({ changes, onSelect, states, ownerships, sources, on
     <section className="openspec-panel openspec-changes-list-container" data-testid="summary-changes">
       <div className="openspec-panel-head">
         <h2>Changes</h2>
+        {onCompliance ? <button type="button" title="Compliance" aria-label="Compliance" onClick={onCompliance}><Shield size={18} aria-hidden="true" /></button> : null}
         <SearchField label="Search changes" placeholder="Search by name or status" value={query} onChange={setQuery} />
       </div>
       <div className="openspec-rows-head openspec-change-columns" aria-hidden="true">

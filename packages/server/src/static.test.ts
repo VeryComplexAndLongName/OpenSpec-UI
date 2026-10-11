@@ -2,6 +2,7 @@
 // actually served by the server at the fixed paths.
 
 import { build } from "esbuild";
+import { readdir } from "node:fs/promises";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AgentRunner } from "@openspec-ui/core";
 import { clientBuildOptions } from "../scripts/client-build-options.mjs";
@@ -76,6 +77,17 @@ describe("server — static browser shell", () => {
   it("returns 404 for unknown paths", async () => {
     const res = await fetch(`${baseUrl}/does-not-exist`);
     expect(res.status).toBe(404);
+  });
+
+  it("serves the lazy Compliance chunk without allowing arbitrary paths", async () => {
+    const files = await readdir(new URL("../dist/chunks/", import.meta.url));
+    const chunk = files.find(file => /^ComplianceView-[A-Z0-9]+\.js$/u.test(file));
+    expect(chunk).toBeDefined();
+    const response = await fetch(`${baseUrl}/chunks/${chunk}`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("javascript");
+    expect((await fetch(`${baseUrl}/chunks/%2e%2e/package.json`)).status).toBe(404);
+    expect((await fetch(`${baseUrl}/chunks/not-a-script.txt`)).status).toBe(404);
   });
 });
 

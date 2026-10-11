@@ -83,6 +83,14 @@ export function pipelineWebviewBuildOptions() {
   };
 }
 
+export function complianceWebviewBuildOptions() {
+  return {
+    ...pipelineWebviewBuildOptions(),
+    entryPoints: [path.resolve(here, "../../webui/src/compliance-entry.tsx")],
+    outfile: path.resolve(here, "../dist/compliance.js"),
+  };
+}
+
 /** Integration test suite (tasks.md 4.1/4.2) — one output file per test
  * suite entry point (index.js + one per *.test.ts), not a single bundle:
  * `index.ts`'s `run()` finds test files via `glob("**\/*.test.js")` next
@@ -116,7 +124,10 @@ export function testSuiteBuildOptions() {
 export function standaloneAssetsBuildOptions() {
   return {
     entryPoints: [path.resolve(here, "../../webui/src/standalone-entry.tsx")],
-    outfile: path.resolve(here, "../dist/standalone/app.js"),
+    outdir: path.resolve(here, "../dist/standalone"),
+    entryNames: "app",
+    chunkNames: "chunks/[name]-[hash]",
+    splitting: true,
     bundle: true,
     format: "esm",
     platform: "browser",

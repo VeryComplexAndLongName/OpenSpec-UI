@@ -9,6 +9,8 @@ import { access, readdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
+  recordComplianceSurvey,
+  recordComplianceSweep,
   ArchivedChangeNotFoundError,
   ChangeEditorConflictError,
   TemplateAlreadyExistsError,
@@ -275,7 +277,9 @@ interface OpenSpecInitRequest {
 /** Sweeps a workspace again every few minutes while the sweep has an
  * archive pull request open, so the standalone merges it as the editor
  * does (ADR 0036). Its timers never hold the process open. */
-const archiveFollower = createArchiveFollower();
+const archiveFollower = createArchiveFollower({
+  onSwept: (root, sweep) => { void recordComplianceSweep(root, sweep).catch(() => undefined); },
+});
 
 const SUPPORTED_INIT_TOOLS = new Set([
   "amazon-q",
@@ -1603,7 +1607,9 @@ export async function handleWorktreeSurveyRequest(
     // The tab's poll is where the directory is already being looked at, so
     // it is where records of runs that will never write again are removed
     // (a-stale-status-is-swept). No timer of its own.
-    sendJson(res, 200, await surveyWorktrees({ workspaceRoot: parsed.cwd, sweepStatuses: true }));
+    const survey = await surveyWorktrees({ workspaceRoot: parsed.cwd, sweepStatuses: true });
+    await recordComplianceSurvey(parsed.cwd, survey).catch(() => undefined);
+    sendJson(res, 200, survey);
   } catch (error) {
     sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
   }
@@ -1714,6 +1720,7 @@ export async function handleWorkspaceLeftoversRequest(
     let swept: string[] = [];
     try {
       const done = await sweepWorkspace(parsed.cwd);
+      await recordComplianceSweep(parsed.cwd, done).catch(() => undefined);
       archiveFollower.observe(parsed.cwd, done);
       swept = describeWorkspaceSweep(done);
     } catch (error) {
