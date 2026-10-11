@@ -217,6 +217,19 @@ export const MESSAGES = {
     todo: "Put the answer after the question's id, in quotes.",
   },
 
+  "OSW-CLI-017": {
+    level: "error",
+    text: "{command} refused: {reason}",
+    why: "The requested subject is absent or a core policy prevents the action.",
+    todo: "Read the stated reason; inspect the change, run or workspace before retrying.",
+  },
+  "OSW-CLI-018": {
+    level: "error",
+    text: "{command} could not complete: {reason}",
+    why: "Arguments, configuration or an underlying reader prevented the command from completing.",
+    todo: "Correct the arguments or the reported configuration/tooling problem and retry.",
+  },
+
   // RUN: runs, chains, stages, checkpoints, limits.
   "OSW-RUN-001": {
     level: "error",
