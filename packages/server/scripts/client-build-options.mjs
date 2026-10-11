@@ -14,7 +14,10 @@ export function clientBuildOptions() {
   const webuiVersion = require("../../webui/package.json").version;
   return {
     entryPoints: [path.resolve(here, "../../webui/src/standalone-entry.tsx")],
-    outfile: path.resolve(here, "../dist/app.js"),
+    outdir: path.resolve(here, "../dist"),
+    entryNames: "app",
+    chunkNames: "chunks/[name]-[hash]",
+    splitting: true,
     bundle: true,
     format: "esm",
     platform: "browser",

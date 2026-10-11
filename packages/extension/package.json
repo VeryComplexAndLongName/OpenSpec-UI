@@ -85,6 +85,12 @@
         "icon": "$(settings-gear)"
       },
       {
+        "command": "openspec-ui.compliance",
+        "title": "Compliance",
+        "category": "OpenSpec Workbench",
+        "icon": "$(shield)"
+      },
+      {
         "command": "openspec-ui.setLlmKey",
         "title": "Set LLM Key...",
         "category": "OpenSpec Workbench",
@@ -525,6 +531,11 @@
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "openspec-ui.compliance",
+          "when": "view == openspecUiChanges",
+          "group": "navigation@1"
+        },
         {
           "command": "openspec-ui.findChange",
           "when": "view == openspecUiChanges",

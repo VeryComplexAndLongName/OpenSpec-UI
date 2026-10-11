@@ -80,6 +80,7 @@ import {
   handleProcessesListRequest,
 } from "./recovery-rest.js";
 import { handleChangeActionRequest } from "./change-actions-rest.js";
+import { handleComplianceRequest } from "./compliance-rest.js";
 
 export interface ServerOptions {
   workspaceRoot: string;
@@ -324,6 +325,10 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/worktree-survey") {
       void handleWorktreeSurveyRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/compliance") {
+      void handleComplianceRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/changes/archive") {

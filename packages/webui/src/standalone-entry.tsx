@@ -5,7 +5,9 @@
 // not library code reused in the extension.
 
 import { createRoot } from "react-dom/client";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import type { ComplianceApi } from "./components/ComplianceView.js";
+const LazyComplianceView = lazy(() => import("./components/ComplianceView.js").then(module => ({ default: module.ComplianceView })));
 import { FetchTransport } from "./transport/fetch-transport.js";
 import { AiPanel, OperatorQuestionsPrompt } from "./components/AiPanel.js";
 import { describeRunCompletionNotification } from "./notify-run-completion.js";
@@ -374,6 +376,8 @@ async function loadWorkspaceRoot(): Promise<string> {
 }
 
 function StandaloneApp() {
+  const [complianceOpen, setComplianceOpen] = useState(false);
+  const [complianceBackgroundEnabled, setComplianceBackgroundEnabled] = useState(false);
   const pipelineFocus = useSyncExternalStore(subscribeShownCard, () => shownCard);
   // Framed by the editor, the editor's light or dark comes with the address.
   const { theme, toggle: toggleTheme } = useStandaloneTheme(undefined, embedTheme(window.location.search));
@@ -543,6 +547,29 @@ function StandaloneApp() {
   // Stable across renders so the pipeline's polling effect is not torn
   // down and restarted on every one of them.
   const pipelineLoad = useCallback(() => loadChangeReadiness(apiFetch, cwd), [cwd]);
+  const complianceApi = useCallback<ComplianceApi>(async request => {
+    const response = await apiFetch("/api/compliance", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cwd, ...request }) });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error ?? "Compliance request failed");
+    setComplianceBackgroundEnabled(body.policy.backgroundEnabled);
+    return body;
+  }, [cwd]);
+  useEffect(() => { void complianceApi({ op: "read" }).catch(() => undefined); }, [complianceApi]);
+  useEffect(() => {
+    if (!complianceBackgroundEnabled) return;
+    let lastActivity = Date.now();
+    let active = false;
+    const activity = () => { lastActivity = Date.now(); };
+    window.addEventListener("pointerdown", activity);
+    window.addEventListener("keydown", activity);
+    window.addEventListener("pointermove", activity, { passive: true });
+    const timer = setInterval(() => {
+      if (active || document.visibilityState !== "visible" || Date.now() - lastActivity < 60_000) return;
+      active = true;
+      void complianceApi({ op: "background", idle: true }).catch(() => undefined).finally(() => { active = false; });
+    }, 60_000);
+    return () => { clearInterval(timer); window.removeEventListener("pointerdown", activity); window.removeEventListener("keydown", activity); window.removeEventListener("pointermove", activity); };
+  }, [complianceApi, complianceBackgroundEnabled]);
   const pipelineSurvey = useCallback(() => loadWorktreeSurvey(apiFetch, cwd), [cwd]);
   const pipelineLastRuns = useCallback(() => loadChangeLastRuns(apiFetch, cwd), [cwd]);
   const pipelineStandings = useCallback(() => loadChangeStandings(apiFetch, cwd), [cwd]);
@@ -1966,6 +1993,9 @@ function StandaloneApp() {
       {/* The frame is the standalone shell's alone (ADR 0033 decision 3): the
           VS Code local-server embed shows its one tab without it. */}
       {isStandaloneHost ? <AppBar workspacePath={cwd} theme={theme} onToggleTheme={toggleTheme} /> : null}
+      {complianceOpen ? <div role="dialog" aria-modal="true" aria-label="Compliance" style={{ position: "fixed", inset: "5%", zIndex: 1000, overflow: "auto", background: "var(--openspec-panel-background,white)", border: "1px solid #888", boxShadow: "0 8px 40px #0004" }}>
+        <Suspense fallback={<p>Loading Compliance...</p>}><LazyComplianceView api={complianceApi} onClose={() => setComplianceOpen(false)} /></Suspense>
+      </div> : null}
 
       <div className="openspec-page">
       {isStandaloneHost && pageHead ? (
@@ -2226,6 +2256,7 @@ function StandaloneApp() {
               </ul>
 
               <ChangesList
+                onCompliance={() => setComplianceOpen(true)}
                 changes={overview.changes.map((change) => toChangeSummary(change, toChangeState(change.status)))}
                 ownerships={changeOwners}
                 {...(standings && standingStates

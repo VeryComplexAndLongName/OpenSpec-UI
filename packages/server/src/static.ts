@@ -90,5 +90,10 @@ export async function tryServeStatic(
     await serveFile(res, appJsMapPath, "application/json; charset=utf-8");
     return true;
   }
+  if (pathname !== undefined && /^\/chunks\/[a-zA-Z0-9_-]+\.js(?:\.map)?$/u.test(pathname) && appJsPath !== undefined) {
+    await serveFile(res, path.join(path.dirname(appJsPath), pathname.slice(1)),
+      pathname.endsWith(".map") ? "application/json; charset=utf-8" : "application/javascript; charset=utf-8");
+    return true;
+  }
   return false;
 }
