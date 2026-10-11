@@ -1,5 +1,13 @@
 # @openspec-ui/core
 
+## 0.148.0
+
+### Minor Changes
+
+- 0dbbd4b: Add a durable process ledger that snapshots each spawned process by PID and
+  OS start time, surfaces overdue/orphaned processes as read-only Compliance
+  findings, and re-verifies identity before an explicit kill.
+
 ## 0.147.0
 
 ### Minor Changes
