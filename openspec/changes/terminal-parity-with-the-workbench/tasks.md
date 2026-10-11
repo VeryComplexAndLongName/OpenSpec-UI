@@ -99,11 +99,12 @@
 - [ ] 4.2 Run pinned-runtime root `npm run typecheck`, `npm run lint` and
   `npm run test` unpiped; record package counts and real failures, no guessed success.
   Full workspace checks have not been run locally; the full CI gate remains required.
-- [ ] 4.3 Run `openspec validate terminal-parity-with-the-workbench --strict`
+- [x] 4.3 Run `openspec validate terminal-parity-with-the-workbench --strict`
   and map every spec scenario to the concrete test that verified it.
-  Strict validation passed. Per-scenario evidence is listed below. The real
-  blocker/question explanation case remains unverified: the injected report
-  tests serialization, not actual reader behavior for those inputs.
+  Strict validation passed. Per-scenario evidence is listed below. The targeted
+  `reads actual blockers and open questions without changing their files` test
+  passed 1/1 on 2026-10-11 (23 other tests intentionally skipped), closing the
+  real blocker/question reader coverage gap without a production-code change.
 
 ### Scenario Evidence
 
@@ -115,7 +116,7 @@ subject to the full CI gate in task 4.2; no new local full-suite run is claimed.
 | --- | --- | --- |
 | Active changes exist only in their own worktrees | Report: lists a real active change from its own worktree with task totals | Fixture also has the checkout copy; core workspace discovery needs CI coverage |
 | A task requires a person or declared delegate | Report: reads actual task responsibility and evidence from checkout fallback; preserves delegated task ownership from the change's own worktree | Own-worktree precedence also covered by core own-worktree-tasks tests |
-| A change waits on a blocker or question | Report: returns explanation facts and next actions as parseable JSON; reads actual explanation roles and task progress without changing files | Actual reader fixture has no blocker/question; integration coverage still needed |
+| A change waits on a blocker or question | Report: reads actual blockers and open questions without changing their files; reads actual explanation roles and task progress without changing files; returns explanation facts and next actions as parseable JSON | Actual blocker/question data and read-only behavior verified; full CI remains task 4.2 |
 | Change overrides differ from defaults | Report: uses the owning change's harness override | None for tested override |
 | Configuration is invalid or terminal-incompatible | Report: resolves defaults and refuses invalid change configuration; refuses the host-only VS Code Chat target for a delegated terminal task | None for tested refusals |
 | Agents are listed | Report: lists every registered provider without claiming login | No binary detection or authentication claimed |

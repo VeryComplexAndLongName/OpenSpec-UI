@@ -191,6 +191,25 @@ describe("report commands", () => {
     expect(await readFile(tasksPath, "utf8")).toBe(before);
   });
 
+  it("reads actual blockers and open questions without changing their files", async () => {
+    const { root, changeDir, options: config } = await fixture();
+    const baseDir = path.join(root, "openspec", "changes", "foundation");
+    await mkdir(baseDir, { recursive: true });
+    await writeFile(path.join(baseDir, "proposal.md"), "# Foundation\n");
+    await writeFile(path.join(baseDir, "tasks.md"), "- [ ] 1.1 Foundation work\n");
+    await writeFile(path.join(changeDir, "proposal.md"), "# Demo\n");
+    const metadata = "schema: spec-driven\nblocked_by:\n  - foundation\n";
+    const decisions = "# Decisions\n\n## Q-fixture-1: Which target?\n- Asked: 2026-10-11T00:00:00Z by copilot-cli, stage apply, run fixture-run\n- Answer: (open)\n";
+    await writeFile(path.join(changeDir, ".openspec.yaml"), metadata);
+    await writeFile(path.join(changeDir, "decisions.md"), decisions);
+    const report = await readExplanation(config);
+    expect(report.questions).toEqual([expect.objectContaining({ id: "Q-fixture-1", text: "Which target?" })]);
+    expect(report.readiness?.run).toMatchObject({ state: "blocked", blockedBy: ["foundation"] });
+    expect(Array.isArray(report.advice)).toBe(true);
+    expect(await readFile(path.join(changeDir, ".openspec.yaml"), "utf8")).toBe(metadata);
+    expect(await readFile(path.join(changeDir, "decisions.md"), "utf8")).toBe(decisions);
+  });
+
   it("returns explanation facts and next actions as parseable JSON", async () => {
     const output = io();
     const report = {
