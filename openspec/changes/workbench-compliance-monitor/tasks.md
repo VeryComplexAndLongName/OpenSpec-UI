@@ -92,6 +92,12 @@
 
 ## Evidence (2026-10-11)
 
+- PR #892 initial Quality run exposed command title/id/icon convention failures.
+  Corrected registration to `openspec-ui.showCompliance` / `Show Compliance`,
+  added the Compliance action noun and used the unique workspace-trusted icon.
+  `action-vocabulary.test.ts` (4 tests) and `compliance-panel.test.ts` (1 test)
+  passed locally with one worker before the corrective commit.
+
 - `compliance.test.ts`, `compliance-store.test.ts`, `compliance-service.test.ts`:
   39 focused tests passed with one worker; bounded history, inheritance,
   retention, cooldown, ignore repair, active Git refusal and collision checks.

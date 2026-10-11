@@ -512,7 +512,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       }, 60_000);
     };
     const compliancePanel = new CompliancePanel(context.extensionUri, () => workspaceRoot, configureComplianceBackground);
-    context.subscriptions.push(compliancePanel, vscode.commands.registerCommand("openspec-ui.compliance", () => compliancePanel.show()));
+    context.subscriptions.push(compliancePanel, vscode.commands.registerCommand("openspec-ui.showCompliance", () => compliancePanel.show()));
     void dispatchCompliance(workspaceRoot, { op: "read" }).then(reading => configureComplianceBackground(reading.policy.backgroundEnabled), () => undefined);
     context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection(() => { complianceActivity = Date.now(); }));
     context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(() => { complianceActivity = Date.now(); }));
