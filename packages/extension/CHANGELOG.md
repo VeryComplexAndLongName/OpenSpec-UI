@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.105.0
+
+### Minor Changes
+
+- 0dbbd4b: Add a durable process ledger that snapshots each spawned process by PID and
+  OS start time, surfaces overdue/orphaned processes as read-only Compliance
+  findings, and re-verifies identity before an explicit kill.
+
+### Patch Changes
+
+- Updated dependencies [0dbbd4b]
+  - @openspec-ui/core@0.148.0
+  - @openspec-ui/server@1.61.0
+  - @openspec-ui/webui@1.93.2
+
 ## 0.104.1
 
 ### Patch Changes
