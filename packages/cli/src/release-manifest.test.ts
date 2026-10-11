@@ -59,7 +59,7 @@ describe("MANIFEST_PRODUCTS — the ids the site already uses", () => {
     expect(MANIFEST_PRODUCTS.map((p) => [p.id, p.name, p.directory, p.public])).toEqual([
       ["vscode-extension", "VS Code Extension", "packages/extension", true],
       ["standalone-app", "Standalone App", "packages/server", true],
-      ["core", "Core", "packages/core", true],
+      ["core", "Core", "packages/core", false],
       ["shared-ui", "Shared UI", "packages/webui", false],
       ["ci-cli", "CLI", "packages/cli", true],
     ]);
@@ -238,7 +238,7 @@ describe("buildReleaseManifest", () => {
 
     // The site's schema has the flag and applies it; deciding visibility
     // here as well would put the decision in two places.
-    expect(manifest.products.filter((p) => !p.public).map((p) => p.id)).toEqual(["shared-ui"]);
+    expect(manifest.products.filter((p) => !p.public).map((p) => p.id)).toEqual(["core", "shared-ui"]);
     expect(manifest.products).toHaveLength(5);
   });
 
@@ -255,7 +255,7 @@ describe("buildReleaseManifest", () => {
       artifacts: [],
     });
     expect(manifest.products.filter((product) => product.public).map((product) => product.id))
-      .toEqual(["vscode-extension", "standalone-app", "core", "ci-cli"]);
+      .toEqual(["vscode-extension", "standalone-app", "ci-cli"]);
     for (const product of manifest.products.filter((product) => product.id !== "ci-cli")) {
       expect(product.links.npm).toBeUndefined();
     }
@@ -296,6 +296,24 @@ describe("versionFingerprint", () => {
     const third = await buildReleaseManifest({ repoRoot: bumped, repository: "owner/name" });
     expect(versionFingerprint(third)).not.toBe(versionFingerprint(first));
   });
+
+  it("changes when visibility changes without a version, commit or generation-time change", async () => {
+    const root = await completeRepo("1.0.0");
+    const manifest = await buildReleaseManifest({
+      repoRoot: root,
+      repository: "owner/name",
+      commit: "aaaaaaa",
+      generatedAt: new Date("2026-09-04T09:00:00.000Z"),
+    });
+    const visibleCore = {
+      ...manifest,
+      products: manifest.products.map((product) =>
+        product.id === "core" ? { ...product, public: true } : product,
+      ),
+    };
+
+    expect(versionFingerprint(visibleCore)).not.toBe(versionFingerprint(manifest));
+  });
 });
 
 describe("this repository's own manifest", () => {
@@ -313,6 +331,8 @@ describe("this repository's own manifest", () => {
       "shared-ui",
       "ci-cli",
     ]);
+    expect(manifest.products.filter((product) => product.public).map((product) => product.id))
+      .toEqual(["vscode-extension", "standalone-app", "ci-cli"]);
     for (const product of manifest.products) {
       expect(product.version, `${product.id} has no version`).toMatch(/^\d+\.\d+\.\d+/);
       expect(product.package, `${product.id} has no package name`).toBeTruthy();

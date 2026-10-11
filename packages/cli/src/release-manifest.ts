@@ -105,7 +105,7 @@ export const MANIFEST_PRODUCTS: readonly ProductSpec[] = [
     id: "core",
     name: "Core",
     directory: "packages/core",
-    public: true,
+    public: false,
     summary: "Execution engine shared by both delivery targets.",
   },
   { id: "shared-ui", name: "Shared UI", directory: "packages/webui", public: false },
@@ -220,7 +220,7 @@ async function defaultReadFileText(filePath: string): Promise<string | undefined
   }
 }
 
-export class ReleaseManifestError extends Error {}
+export class ReleaseManifestError extends Error { }
 
 /** Builds the manifest from the repository's own records.
  *
@@ -319,12 +319,11 @@ export async function buildReleaseManifest(options: BuildManifestOptions): Promi
   };
 }
 
-/** The set the publish step compares against what the branch already
- * holds. `generated_at` and `commit` move on every push; these do not,
- * so a push that releases nothing publishes nothing. */
+/** The publish-relevant product state. `generated_at` and `commit` move
+ * on every push; versions and visibility do not unless a release changes. */
 export function versionFingerprint(manifest: ReleaseManifest): string {
   return manifest.products
-    .map((product) => `${product.id}@${product.version}`)
+    .map((product) => `${product.id}@${product.version}#public=${product.public}`)
     .sort()
     .join(",");
 }

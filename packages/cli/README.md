@@ -50,8 +50,8 @@ that has not landed is shown as waiting.
 
 Builds the `releases.json` a project site can read, so a release is
 described in one document rather than scraped. `--fingerprint` prints
-only the `id@version` set, which is how a publishing step decides whether
-anything changed at all.
+the sorted `id@version#public=<boolean>` set, which lets a publishing
+step detect either a version release or a product visibility change.
 
 ```sh
 npx @openspec-ui/cli write manifest --cwd . --repository <owner/name>

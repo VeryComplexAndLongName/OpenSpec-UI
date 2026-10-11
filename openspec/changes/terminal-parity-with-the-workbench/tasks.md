@@ -101,13 +101,42 @@
   Full workspace checks have not been run locally; the full CI gate remains required.
 - [ ] 4.3 Run `openspec validate terminal-parity-with-the-workbench --strict`
   and map every spec scenario to the concrete test that verified it.
-  Strict validation passed. Complete per-scenario mapping remains to be reviewed;
-  the prior grouped mapping was insufficient. Available coverage: change/task/harness/agents/messages/cost/run/diff/
-  explanation reports — `report-commands.test.ts` plus core change/readiness,
-  harness, message and worktree tests; signed notes, task permission/evidence/
-  cancellation and rollback protections — `operator-commands.test.ts` plus core
-  delegation/recovery tests; command vocabulary, arguments, stdout and JSON —
-  `additional-commands.test.ts`, `main.test.ts` and `subcommands.test.ts`.
+  Strict validation passed. Per-scenario evidence is listed below. The real
+  blocker/question explanation case remains unverified: the injected report
+  tests serialization, not actual reader behavior for those inputs.
+
+### Scenario Evidence
+
+Report tests below are in `packages/cli/src/report-commands.test.ts`; operator
+tests are in `packages/cli/src/operator-commands.test.ts`. Core coverage is
+subject to the full CI gate in task 4.2; no new local full-suite run is claimed.
+
+| Spec scenario | Concrete evidence | Remaining limit |
+| --- | --- | --- |
+| Active changes exist only in their own worktrees | Report: lists a real active change from its own worktree with task totals | Fixture also has the checkout copy; core workspace discovery needs CI coverage |
+| A task requires a person or declared delegate | Report: reads actual task responsibility and evidence from checkout fallback; preserves delegated task ownership from the change's own worktree | Own-worktree precedence also covered by core own-worktree-tasks tests |
+| A change waits on a blocker or question | Report: returns explanation facts and next actions as parseable JSON; reads actual explanation roles and task progress without changing files | Actual reader fixture has no blocker/question; integration coverage still needed |
+| Change overrides differ from defaults | Report: uses the owning change's harness override | None for tested override |
+| Configuration is invalid or terminal-incompatible | Report: resolves defaults and refuses invalid change configuration; refuses the host-only VS Code Chat target for a delegated terminal task | None for tested refusals |
+| Agents are listed | Report: lists every registered provider without claiming login | No binary detection or authentication claimed |
+| A message code is known or unknown | Report: explains a known message with template and remedy; refuses unknown messages with clean stdout | Registry currently has no retired entry |
+| A known run's output was pruned | Report: reads retained run output and records pruned-output absence | None |
+| A requested run is unknown | Report: reads retained run output and records pruned-output absence; returns records only for the requested run id | Packed unknown-run exit 1 also observed |
+| A change has measured and unmeasured runs across worktrees | Report: uses core aggregation to count a measured run once and retain credit units; aggregates recorded change spend from a real sibling worktree | Covered by complementary fixtures |
+| A change has no recorded runs | Report: reports zero recorded runs without inventing free usage | None |
+| Artifacts include staged and untracked edits | Report: includes staged and untracked artifacts but excludes implementation files | Test also asserts an unstaged artifact |
+| The artifact diff is empty or truncated | Report: reports an empty and truncated artifact diff without inventing changes; core change-diff.test.ts | Formatter fixture plus core truncation algorithm; core run required in CI |
+| A valid live target is addressed | Operator: writes a signed note accepted by the core receiver without claiming agent approval | Packed queued messageId is recorded in 4.4; receipt is not claimed |
+| A message is blank or its target expired | Operator: refuses blank notes before resolving the target; refuses expired or unverified targets before loading a signing key | None |
+| A delegated task records evidence and completes | Operator: honors the core delegated evidence result recorded; real packed Copilot run in 4.4 | Real artifact independently checked |
+| A run ticks without evidence or leaves the item open | Operator: honors the core delegated evidence result still-open/reverted; core delegated-item-run tests | Actual gate algorithm checked in core CI |
+| The task is human-only, not delegated or its worktree is busy | Operator: refuses an ordinary task before dispatch; core own-worktree-tasks tests | Human-only and busy/invalid integration coverage relies on core CI |
+| A permission is unanswered or execution interrupted | Operator: answers an agent permission request with false and preserves the result code; cancels the active delegated runner on SIGINT and exits unsuccessfully | Real untrusted Copilot refusal recorded in 4.4 |
+| An eligible restoration is confirmed | Operator: restores only after confirmation while holding and releasing the mutation lease; core recovery tests | CLI restoration service is injected; real core restore tested in CI |
+| Confirmation is declined or no terminal can answer | Operator: refuses declined recovery without overriding protections; refuses rollback without a terminal before reading or writing | Packed redirected-stdin refusal recorded in 4.4 |
+| Checkpoints are absent, incompatible or conflict with live work | Operator: uses real recovery eligibility to refuse an empty journal; does not restore when the recovery journal is incompatible; refuses conflict recovery; refuses rollback while a real live status record names the target worktree | Core restore-conflict implementation checked in CI |
+| Required arguments are missing | additional-commands.test.ts: rejects missing subjects without running a command; main.test.ts argument cases | None for tested cases |
+| A machine consumes new JSON output | additional-commands.test.ts: runs real known-message output with parseable stdout; report/operator JSON assertions and packed stream in 4.4 | None for tested cases |
 - [x] 4.4 **Completed by owner-authorized verification, including a real copilot-cli run.** Build/pack `packages/cli`, install into
   an isolated consumer and exercise all twelve pairs against temporary git/OpenSpec
   fixtures. Record exact commands, exit codes, JSON/event parsing, messageId and
