@@ -1,8 +1,6 @@
 import { createRoot } from "react-dom/client";
-import { ComplianceView, type ComplianceApi } from "./components/ComplianceView.js";
-import { shellThemeCss, vscodeThemeCss } from "./shell-ui.js";
-import { metroCss } from "./metro-css.generated.js";
-import { metroIconsCss } from "./metro-icons.generated.js";
+import { ComplianceApp } from "./components/ComplianceApp.js";
+import type { ComplianceApi } from "./components/ComplianceView.js";
 import type { ComplianceReading } from "@openspec-ui/core/browser";
 
 declare function acquireVsCodeApi(): { postMessage: (value: unknown) => void };
@@ -22,4 +20,4 @@ const api: ComplianceApi = request => new Promise((resolve, reject) => {
 });
 const root = document.getElementById("root");
 if (!root) throw new Error("Compliance root is missing");
-createRoot(root).render(<><style>{[metroCss, metroIconsCss, shellThemeCss, vscodeThemeCss].join(" ")}</style><ComplianceView api={api} /></>);
+createRoot(root).render(<ComplianceApp api={api} />);
