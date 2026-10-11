@@ -124,7 +124,7 @@ export function ComplianceView({ api, onClose }: { api: ComplianceApi; onClose?:
       <span className={`compliance-severity ${severity ?? ""}`}>{label}{severity ? <small> · {severity}</small> : null}</span>
       <span><input type="checkbox" role="switch" className="compliance-switch" aria-label={`Track ${label}`} disabled={saving}
         checked={setting.enabled ?? effective.enabled} onChange={event => change({ ...setting, enabled: event.target.checked })} />
-        {level !== "global" ? <button type="button" disabled={saving} title="Inherit tracking" onClick={() => { const value = { ...setting }; delete value.enabled; change(value); }}>Inherit</button> : null}
+        {level !== "global" ? <button type="button" disabled={saving} title="Inherit tracking" onClick={() => { const value = { ...setting }; delete value.enabled; change(value); }}>Restore Settings</button> : null}
         <small> {setting.enabled === undefined ? `Inherited: ${effective.enabledFrom}` : "Override"}</small></span>
       <select aria-label={`Reaction for ${label}`} disabled={saving} value={setting.reaction ?? "inherit"} onChange={event => {
         const value = { ...setting }; if (event.target.value === "inherit") delete value.reaction;
@@ -174,13 +174,13 @@ export function ComplianceView({ api, onClose }: { api: ComplianceApi; onClose?:
           Source: itemRule.source, Severity: itemRule.severity, "Recent check duration (ms)": item.durationSamplesMs?.at(-1),
           "Known finding": item.outcome === "unknown" ? item.finding?.evidence : undefined,
           Tracking: effectiveComplianceSetting(reading!.policy, itemRule).enabled ? "Enabled" : "Disabled" }).filter(([, value]) => value !== undefined).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
-        <button type="button" title="Copy finding details" onClick={() => void navigator.clipboard.writeText(JSON.stringify(item, null, 2))}>Copy details</button>
-        <button type="button" onClick={() => { setTab("settings"); setSettingsShown(true); }}>Rule settings</button>
+        <button type="button" title="Copy finding details" onClick={() => void navigator.clipboard.writeText(JSON.stringify(item, null, 2))}>Copy Details</button>
+        <button type="button" onClick={() => { setTab("settings"); setSettingsShown(true); }}>Configure Settings</button>
         {item.owner !== "sweep" && item.finding && effectiveComplianceSetting(reading!.policy, itemRule).repair && effectiveComplianceSetting(reading!.policy, itemRule).enabled
-          && effectiveComplianceSetting(reading!.policy, itemRule).reaction !== "none" ? <button type="button" disabled={busy} onClick={() => {
+          && effectiveComplianceSetting(reading!.policy, itemRule).reaction !== "none" ? <button type="button" disabled={busy} title={item.repairAdvice ? "Retry safe repair" : "Repair rules if safe"} onClick={() => {
             if (!confirm(`Apply ${itemRule.repair} to ${item.path ?? item.subject}?`)) return;
             setBusy(true); void api({ op: "repair", ruleId: item.ruleId, subject: item.subject }).then(setReading, reason => setError(String(reason))).finally(() => setBusy(false));
-          }}><Icon meaning="ok" /> {item.repairAdvice ? "Retry safe repair" : "Repair"}</button> : null}
+          }}><Icon meaning="ok" /> Repair Rules...</button> : null}
       </div> : null}
     </div>
     {settingsShown && reading ? <div role="tabpanel" hidden={tab !== "settings"}>

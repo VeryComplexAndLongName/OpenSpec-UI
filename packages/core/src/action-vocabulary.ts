@@ -61,6 +61,7 @@ export const ACTION_VERBS: readonly ActionVerb[] = [
   { verb: "Remove", group: "set-up" },
   { verb: "Join", group: "set-up" },
   { verb: "Restore", group: "set-up" },
+  { verb: "Repair", group: "set-up" },
   { verb: "Save", group: "set-up" },
   { verb: "Commit", group: "set-up" },
   { verb: "Complete", group: "set-up" },

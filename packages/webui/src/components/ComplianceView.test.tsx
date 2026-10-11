@@ -21,7 +21,7 @@ it("opens cached results and details without initiating checks or repairs", asyn
   await screen.findByText("Sweep branch");
   fireEvent.click(screen.getByText("Sweep branch"));
   expect(screen.getByText("Managed by Sweep")).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Repair" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Repair Rules..." })).not.toBeInTheDocument();
   expect(api.mock.calls).toHaveLength(1);
   expect(api).toHaveBeenCalledWith({ op: "read" });
 });
@@ -57,7 +57,7 @@ it("shows persisted repair advice and offers only an explicit safe retry", async
   await screen.findByText("Repair skipped - Advice");
   fireEvent.click(screen.getByText("Runtime ignore"));
   expect(screen.getByText(item.repairAdvice)).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Retry safe repair" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Repair Rules..." })).toHaveAttribute("title", "Retry safe repair");
   expect(api).toHaveBeenCalledTimes(1);
   expect(api).toHaveBeenCalledWith({ op: "read" });
 });

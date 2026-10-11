@@ -97,6 +97,11 @@
   added the Compliance action noun and used the unique workspace-trusted icon.
   `action-vocabulary.test.ts` (4 tests) and `compliance-panel.test.ts` (1 test)
   passed locally with one worker before the corrective commit.
+- The following Quality run exposed web control vocabulary violations.
+  Labels now use Restore Settings, Copy Details, Configure Settings and
+  Repair Rules...; safe retry remains explicit in the tooltip and Advice.
+  `control-vocabulary.test.ts` (3 tests) and `ComplianceView.test.tsx` (4 tests)
+  passed locally with one worker before the corrective commit.
 
 - `compliance.test.ts`, `compliance-store.test.ts`, `compliance-service.test.ts`:
   39 focused tests passed with one worker; bounded history, inheritance,
