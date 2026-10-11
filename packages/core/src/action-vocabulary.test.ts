@@ -26,7 +26,7 @@ describe("the action vocabulary", () => {
     expect(ACTION_VERBS.filter((verb) => !groups.has(verb.group))).toEqual([]);
     const verbs = ACTION_VERBS.map((verb) => verb.verb);
     expect(verbs.filter((verb, index) => verbs.indexOf(verb) !== index)).toEqual([]);
-    expect(ACTION_VERBS.filter((verb) => verb.group === "danger").map((verb) => verb.verb)).toEqual(["Archive", "Rollback", "Delete"]);
+    expect(ACTION_VERBS.filter((verb) => verb.group === "danger").map((verb) => verb.verb)).toEqual(["Archive", "Rollback", "Delete", "Terminate"]);
   });
 
   it("lists every noun once", () => {

@@ -2596,12 +2596,14 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       const ledger = defaultProcessLedger(workspaceRoot);
       if (ledger === undefined) {
-        void vscode.window.showWarningMessage("OpenSpec Workbench: the process ledger is not configured.");
+        const said = say("OSW-PRC-006");
+        void vscode.window.showWarningMessage(withMessageCode(said.text, said.code));
         return;
       }
       const snapshots = ledger.list().filter((snapshot) => snapshot.exitedAt === undefined);
       if (snapshots.length === 0) {
-        void vscode.window.showInformationMessage("OpenSpec Workbench: no recorded process is still detached.");
+        const said = say("OSW-PRC-007");
+        void vscode.window.showInformationMessage(withMessageCode(said.text, said.code));
         return;
       }
       const picked = await vscode.window.showQuickPick(
@@ -2614,18 +2616,18 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         { placeHolder: "Terminate a process that outlived a host restart" },
       );
       if (picked === undefined) return;
-      const answer = await vscode.window.showWarningMessage(
-        `Terminate ${path.basename(picked.snapshot.executablePath)} (pid ${picked.snapshot.pid})? Its start time is re-verified first, then the whole process tree is killed.`,
-        "Terminate",
-      );
+      const confirm = say("OSW-PRC-008", { executable: path.basename(picked.snapshot.executablePath), pid: picked.snapshot.pid });
+      const answer = await vscode.window.showWarningMessage(withMessageCode(confirm.text, confirm.code), "Terminate");
       if (answer !== "Terminate") return;
       const result = await terminateLedgerProcess(picked.snapshot.pid, picked.snapshot, terminateProcessTree);
       if (!result.terminated) {
-        void vscode.window.showErrorMessage(`OpenSpec Workbench: termination refused — ${result.reason ?? "identity mismatch"}`);
+        const refused = say("OSW-PRC-009", { reason: result.reason ?? "identity mismatch" });
+        void vscode.window.showErrorMessage(withMessageCode(refused.text, refused.code));
         return;
       }
       ledger.markExited(picked.snapshot.runId, picked.snapshot.pid, new Date().toISOString());
-      void vscode.window.showInformationMessage(`OpenSpec Workbench: terminated ${picked.label}.`);
+      const done = say("OSW-PRC-010", { label: picked.label });
+      void vscode.window.showInformationMessage(withMessageCode(done.text, done.code));
     }),
     vscode.commands.registerCommand("openspec-ui.showStatus", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();

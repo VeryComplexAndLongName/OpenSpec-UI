@@ -14,7 +14,7 @@
 
 export type MessageLevel = "error" | "warning" | "info";
 
-export type MessageGroup = "CHG" | "RUN" | "QST" | "PRM" | "HRN" | "AGT" | "TSK" | "VAL" | "ARC" | "GIT" | "WSP" | "KEY" | "NET" | "CLI";
+export type MessageGroup = "CHG" | "RUN" | "QST" | "PRM" | "HRN" | "AGT" | "TSK" | "VAL" | "ARC" | "GIT" | "WSP" | "KEY" | "NET" | "CLI" | "PRC";
 
 /** The groups, by the nouns of ADR 0045, in the order docs/messages.md
  * lists them. */
@@ -33,6 +33,7 @@ export const MESSAGE_GROUPS: ReadonlyArray<{ group: MessageGroup; about: string 
   { group: "KEY", about: "signatures, keys, the team" },
   { group: "NET", about: "network, proxy, the local LLM" },
   { group: "CLI", about: "the CLI's arguments and subcommands" },
+  { group: "PRC", about: "spawned processes: orphaned, overdue, terminated" },
 ];
 
 export interface MessageEntry {
@@ -414,6 +415,68 @@ export const MESSAGES = {
     text: "denied, nobody at this terminal to ask: {request}",
     why: "The CLI's input is not a terminal, so nobody can answer, and the request is denied.",
     todo: "Run it in a terminal to be asked, or from the card.",
+  },
+
+  // PRC: spawned processes (ADR 0050) — orphaned, overdue, terminated.
+  "OSW-PRC-001": {
+    level: "error",
+    text: "the live process start time could not be read; refusing",
+    why: "A process's identity cannot be re-verified without its operating-system start time.",
+    todo: "Check that the PID still names this product's process, then retry once the system can read it.",
+  },
+  "OSW-PRC-002": {
+    level: "error",
+    text: "no start time was recorded for this process; refusing",
+    why: "The process was spawned but its start time was never captured, so its identity is incomplete.",
+    todo: "Terminate it by hand if it is safe to, after confirming what it is.",
+  },
+  "OSW-PRC-003": {
+    level: "error",
+    text: "the recorded start time is invalid",
+    why: "The snapshot holds a start time the system cannot read as a date.",
+    todo: "Report it; the snapshot's file is corrupt.",
+  },
+  "OSW-PRC-004": {
+    level: "error",
+    text: "the live start time differs from the recorded one (PID reuse)",
+    why: "The operating system has reused this PID for a different process.",
+    todo: "Do nothing to it; the recorded process is gone.",
+  },
+  "OSW-PRC-005": {
+    level: "error",
+    text: "recorded on {host}, this host is {local}",
+    why: "The snapshot belongs to another machine, whose PID space is unrelated to this one.",
+    todo: "Terminate it on that machine, not here.",
+  },
+  "OSW-PRC-006": {
+    level: "warning",
+    text: "the process ledger is not configured",
+    why: "No shared state root has been set, so spawned processes are not recorded.",
+    todo: "Start the Workbench normally; report it if a fresh activation still says this.",
+  },
+  "OSW-PRC-007": {
+    level: "info",
+    text: "no recorded process is still detached",
+    why: "Every recorded process has exited, so nothing outlived a host restart.",
+    todo: "Nothing.",
+  },
+  "OSW-PRC-008": {
+    level: "warning",
+    text: "terminate {executable} (pid {pid})? its start time is re-verified first, then the whole process tree is killed",
+    why: "Terminating a process is irreversible, so the confirmation names what will be killed.",
+    todo: "Confirm only for a process this product started, then terminate it.",
+  },
+  "OSW-PRC-009": {
+    level: "error",
+    text: "termination refused — {reason}",
+    why: "The snapshot no longer matches the live process, so the kill was not issued.",
+    todo: "Read the reason; do not force the kill.",
+  },
+  "OSW-PRC-010": {
+    level: "info",
+    text: "terminated {label}",
+    why: "A confirmed process tree was killed after its identity re-verified.",
+    todo: "Nothing.",
   },
 } as const satisfies Record<string, MessageEntry>;
 

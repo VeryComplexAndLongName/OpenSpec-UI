@@ -14,6 +14,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { readProcessStartTime, type StartTimeReader } from "./process-start-time.js";
+import { say } from "./message-register.js";
 
 export interface ProcessSnapshot {
   /** The run this process was started for, as the product names it. */
@@ -157,21 +158,21 @@ export async function verifyProcessSnapshot(
   readStart: StartTimeReader = readProcessStartTime,
 ): Promise<ProcessSnapshotVerification> {
   if (snapshot.hostname !== hostname) {
-    return { matches: false, reason: `recorded on ${snapshot.hostname}, this host is ${hostname}` };
+    return { matches: false, reason: say("OSW-PRC-005", { host: snapshot.hostname, local: hostname }).text };
   }
   const live = await readStart(pid);
   if (live === undefined) {
-    return { matches: false, reason: "the live process start time could not be read; refusing" };
+    return { matches: false, reason: say("OSW-PRC-001").text };
   }
   if (snapshot.startTime === undefined) {
-    return { matches: false, reason: "no start time was recorded for this process; refusing" };
+    return { matches: false, reason: say("OSW-PRC-002").text };
   }
   const recorded = Date.parse(snapshot.startTime);
   if (!Number.isFinite(recorded)) {
-    return { matches: false, reason: "the recorded start time is invalid" };
+    return { matches: false, reason: say("OSW-PRC-003").text };
   }
   if (Math.abs(live.getTime() - recorded) > 1000) {
-    return { matches: false, reason: "the live start time differs from the recorded one (PID reuse)" };
+    return { matches: false, reason: say("OSW-PRC-004").text };
   }
   return { matches: true };
 }

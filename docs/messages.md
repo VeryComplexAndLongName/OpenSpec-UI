@@ -492,3 +492,85 @@ What to do: Read the stated reason; inspect the change, run or workspace before 
 Why: Arguments, configuration or an underlying reader prevented the command from completing.
 
 What to do: Correct the arguments or the reported configuration/tooling problem and retry.
+
+## PRC: spawned processes: orphaned, overdue, terminated
+
+### OSW-PRC-001
+
+> error: the live process start time could not be read; refusing
+
+Why: A process's identity cannot be re-verified without its operating-system start time.
+
+What to do: Check that the PID still names this product's process, then retry once the system can read it.
+
+### OSW-PRC-002
+
+> error: no start time was recorded for this process; refusing
+
+Why: The process was spawned but its start time was never captured, so its identity is incomplete.
+
+What to do: Terminate it by hand if it is safe to, after confirming what it is.
+
+### OSW-PRC-003
+
+> error: the recorded start time is invalid
+
+Why: The snapshot holds a start time the system cannot read as a date.
+
+What to do: Report it; the snapshot's file is corrupt.
+
+### OSW-PRC-004
+
+> error: the live start time differs from the recorded one (PID reuse)
+
+Why: The operating system has reused this PID for a different process.
+
+What to do: Do nothing to it; the recorded process is gone.
+
+### OSW-PRC-005
+
+> error: recorded on {host}, this host is {local}
+
+Why: The snapshot belongs to another machine, whose PID space is unrelated to this one.
+
+What to do: Terminate it on that machine, not here.
+
+### OSW-PRC-006
+
+> warning: the process ledger is not configured
+
+Why: No shared state root has been set, so spawned processes are not recorded.
+
+What to do: Start the Workbench normally; report it if a fresh activation still says this.
+
+### OSW-PRC-007
+
+> info: no recorded process is still detached
+
+Why: Every recorded process has exited, so nothing outlived a host restart.
+
+What to do: Nothing.
+
+### OSW-PRC-008
+
+> warning: terminate {executable} (pid {pid})? its start time is re-verified first, then the whole process tree is killed
+
+Why: Terminating a process is irreversible, so the confirmation names what will be killed.
+
+What to do: Confirm only for a process this product started, then terminate it.
+
+### OSW-PRC-009
+
+> error: termination refused — {reason}
+
+Why: The snapshot no longer matches the live process, so the kill was not issued.
+
+What to do: Read the reason; do not force the kill.
+
+### OSW-PRC-010
+
+> info: terminated {label}
+
+Why: A confirmed process tree was killed after its identity re-verified.
+
+What to do: Nothing.
