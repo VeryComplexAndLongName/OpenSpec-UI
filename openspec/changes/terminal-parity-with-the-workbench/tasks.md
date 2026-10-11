@@ -96,9 +96,14 @@
   The targeted `reads actual explanation roles and task progress without
   changing files` test passed 1/1 after fixing advice derivation through core
   `buildHints`; the other 22 report tests were deliberately skipped in that run.
-- [ ] 4.2 Run pinned-runtime root `npm run typecheck`, `npm run lint` and
+- [x] 4.2 Run pinned-runtime root `npm run typecheck`, `npm run lint` and
   `npm run test` unpiped; record package counts and real failures, no guessed success.
-  Full workspace checks have not been run locally; the full CI gate remains required.
+  Completed in GitHub Actions run 38126270991, Quality job 114431223023:
+  workspace typecheck, lint, tests and build passed through `npm run verify`
+  and `npm run build`. Extension integration/package and standalone browser/
+  accessibility also passed in that run. No full local regression was run.
+  The OpenSpec gate failed only because this CI evidence had not yet been
+  recorded under task 4.2; no code-check failure was reported.
 - [x] 4.3 Run `openspec validate terminal-parity-with-the-workbench --strict`
   and map every spec scenario to the concrete test that verified it.
   Strict validation passed. Per-scenario evidence is listed below. The targeted
