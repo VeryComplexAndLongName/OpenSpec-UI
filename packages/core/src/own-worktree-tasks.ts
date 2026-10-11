@@ -27,7 +27,7 @@ import { changeOfWorktree } from "./change-worktrees.js";
 import { createGitWrapper, type GitWrapper } from "./git.js";
 import { isValidChangeName } from "./change-name.js";
 import { parseTaskChecklist, taskNumberOf, TASK_CHECKBOX_LINE_RE, type TaskChecklistItem } from "./task-checklist.js";
-import { readWorkspaceLeaseHolder, type WorkspaceLeaseConflict } from "./workspace-lease.js";
+import { readWorkspaceLeaseHolder, withWorkspaceLease, WorkspaceLeaseManager, describeWorkspaceLeaseConflict, type WorkspaceLeaseConflict } from "./workspace-lease.js";
 
 /** Why an action on a change's own worktree was not taken. A field rather
  * than a phrase, so a surface can say more where it knows more; `reason` is
@@ -386,6 +386,7 @@ export async function readChangeTaskRows(options: OwnWorktreeOptions): Promise<C
 
 export interface OwnDelegatedRunOptions extends OwnWorktreeOptions, RunWorkingOptions {
   lineNumber: number;
+  holdMutationLease?: boolean;
   /** The runners for a working directory. A host builds them for the own
    * worktree as `openspec-ui-cli run change --cwd` does, so the run's allowlist,
    * sandbox and audit are that directory's. */
@@ -404,7 +405,7 @@ export async function runOwnDelegatedItem(options: OwnDelegatedRunOptions): Prom
   if (working !== undefined) {
     return refuse("run-working", `${options.changeName}'s worktree is being worked by ${working}; start this when that run ends.`);
   }
-  return runDelegatedItem({
+  const execute = () => runDelegatedItem({
     workspaceRoot: worktree.path,
     changeName: options.changeName,
     lineNumber: options.lineNumber,
@@ -414,6 +415,10 @@ export async function runOwnDelegatedItem(options: OwnDelegatedRunOptions): Prom
     auditLog: options.auditLog ?? new FileAuditLog(auditLogPath(worktree.path)),
     ...(options.onEvent !== undefined ? { onEvent: options.onEvent } : {}),
   });
+  if (!options.holdMutationLease) return execute();
+  const lease = new WorkspaceLeaseManager(worktree.path, { hostKind: "cli" });
+  const held = await withWorkspaceLease(lease, execute);
+  return held.ok ? held.value : refuse("run-working", describeWorkspaceLeaseConflict(held.conflict));
 }
 
 /** The line of task `<number>` in the change's own worktree, with its text,

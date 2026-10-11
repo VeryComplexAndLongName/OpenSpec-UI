@@ -7,8 +7,15 @@
 // (`findOwnTask`, `setTaskDone`, `commitTaskList`), under the same rules a
 // card's controls are.
 
-import { commitTaskList, findOwnTask, setTaskDone, formatMessage, say } from "@openspec-ui/core";
+import {
+  commitTaskList, findOwnTask, setTaskDone, readChangeTaskRows, formatMessage, say,
+  buildDefaultAgentRunners, createFileRunLogs, FileAuditLog, auditLogPath,
+  runOwnDelegatedItem, type AgentRunner, type Command
+} from "@openspec-ui/core";
 import { publicNameOf } from "./subcommands.js";
+import { reportFailure, ReportRefusal, type ReportIo, type ReportOptions } from "./report-command.js";
+import { RunTextRenderer, renderRunEventAsJsonLine } from "./render-run.js";
+import type { CheckpointPrompt } from "./run-change.js";
 
 export type TaskAction = "done" | "reopen" | "commit";
 
@@ -29,6 +36,96 @@ export interface TaskDeps {
   find?: typeof findOwnTask;
   set?: typeof setTaskDone;
   commit?: typeof commitTaskList;
+  buildRunners?: typeof buildDefaultAgentRunners;
+}
+
+export async function showTasksCommand(
+  options: { repositoryRoot: string; changeName: string; format: "text" | "json" },
+  deps: Pick<TaskDeps, "stdout" | "stderr"> & { read?: typeof readChangeTaskRows },
+): Promise<number> {
+  try {
+    const result = await (deps.read ?? readChangeTaskRows)(options);
+    if (!result.ok) {
+      return reportFailure("show tasks", new ReportRefusal(result.reason), deps);
+    }
+    if (options.format === "json") deps.stdout(JSON.stringify(result, null, 2));
+    else {
+      deps.stdout(`${result.changeName}: ${result.tasksPath} (${result.source})`);
+      for (const row of result.rows) {
+        deps.stdout(`[${row.done ? "x" : " "}] ${row.number ?? "unnumbered"} ${row.text} (${row.closedBy}${row.agent ? `: ${row.agent}` : ""})`);
+        if (row.body) deps.stdout(row.body);
+      }
+    }
+    return 0;
+  } catch (error) {
+    return reportFailure("show tasks", error, deps);
+  }
+}
+
+export async function runTaskCommand(
+  options: ReportOptions & { number: string },
+  deps: ReportIo & Pick<TaskDeps, "buildRunners"> & {
+    permission: CheckpointPrompt;
+    find?: typeof findOwnTask;
+    run?: typeof runOwnDelegatedItem;
+  },
+): Promise<number> {
+  const active = new Map<AgentRunner, Command>();
+  const pending: Promise<unknown>[] = [];
+  const cancel = () => {
+    for (const [runner, command] of active) {
+      pending.push((async () => { for await (const event of runner.run({ ...command, kind: "cancel" })) void event; })());
+    }
+  };
+  process.once("SIGINT", cancel);
+  process.once("SIGTERM", cancel);
+  const renderer = new RunTextRenderer();
+  try {
+    const subject = { repositoryRoot: options.workspaceRoot, changeName: options.changeName! };
+    const found = await (deps.find ?? findOwnTask)({ ...subject, number: options.number });
+    if (!found.ok) throw new ReportRefusal(found.reason);
+    if (found.item.done || !found.item.delegatedTo || found.item.humanOnly) throw new ReportRefusal("Only an open task with a declared delegate can run.");
+    const result = await (deps.run ?? runOwnDelegatedItem)({
+      ...subject, lineNumber: found.item.lineNumber, holdMutationLease: true,
+      runnersFor: (root) => {
+        const auditLog = new FileAuditLog(auditLogPath(root));
+        const runners = (deps.buildRunners ?? buildDefaultAgentRunners)({ workspaceRoot: root, auditLog, runLogs: createFileRunLogs(root) });
+        return (agentId) => {
+          const runner = runners.get(agentId);
+          if (!runner) return undefined;
+          return {
+            async *run(command) {
+              active.set(runner, command);
+              try {
+                for await (const event of runner.run(command)) {
+                  yield event;
+                  if (event.kind === "permissionRequest") {
+                    const allowed = await deps.permission.ask?.(`The agent asks: ${event.description}. Allow?`) ?? false;
+                    for await (const answered of runner.run({ ...command, kind: "resolvePermission", permissionRequestId: event.requestId, permissionOutcome: allowed ? "allow" : "deny" })) void answered;
+                  }
+                }
+              } finally { active.delete(runner); }
+            }
+          };
+        };
+      },
+      onEvent: (event) => {
+        if (options.format === "json") deps.stdout(renderRunEventAsJsonLine(event));
+        else { const text = renderer.render(event); if (text !== undefined) deps.stdout(text); }
+      },
+    });
+    if ("ok" in result) throw new ReportRefusal(result.reason);
+    if (result.status === "refused") throw new ReportRefusal(result.reason);
+    if (options.format === "json") deps.stdout(JSON.stringify({ kind: "taskResult", ...result }));
+    else { const tail = renderer.finish(); if (tail) deps.stdout(tail); deps.stdout(result.message); }
+    return result.outcome === "completed" && result.gate.kind === "recorded" ? 0 : 1;
+  } catch (error) {
+    return reportFailure("run task", error, deps);
+  } finally {
+    process.off("SIGINT", cancel);
+    process.off("SIGTERM", cancel);
+    await Promise.allSettled(pending);
+  }
 }
 
 /** `0` on success, `1` on a refusal with its reason, `2` where the request

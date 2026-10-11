@@ -1,18 +1,18 @@
 # @openspec-ui/cli
 
-A non-interactive CLI for using [OpenSpec](https://github.com/Fission-AI/OpenSpec)
-change validation as a CI merge gate — on GitHub Actions, Gitea Actions, or
-any other CI system that can run a Node.js process and check its exit code.
+A CLI for inspecting, validating and running [OpenSpec](https://github.com/Fission-AI/OpenSpec)
+changes from a terminal or CI. Business behavior and security rules are shared
+with the workbench through core; the terminal does not grant stronger permissions.
 
 It requires the [`openspec`](https://www.npmjs.com/package/@fission-ai/openspec)
 CLI to already be installed and available on `PATH`.
 
 ## Usage
 
-### `validate` — the merge gate
+### `validate changes` — the merge gate
 
 ```sh
-npx @openspec-ui/cli validate --cwd . --format text
+npx @openspec-ui/cli validate changes --cwd . --format text
 ```
 
 - `--cwd <path>`: repository root containing `openspec/changes/` (defaults
@@ -25,7 +25,7 @@ npx @openspec-ui/cli validate --cwd . --format text
 npx @openspec-ui/cli --help
 ```
 
-### `change-graph` — what a change follows
+### `show graph` — what a change follows
 
 Changes may state their relation to one another in `.openspec.yaml`:
 `follows` (this change exists because that one left something),
@@ -33,8 +33,8 @@ Changes may state their relation to one another in `.openspec.yaml`:
 (it cannot start until that one lands). This renders the result.
 
 ```sh
-npx @openspec-ui/cli change-graph --cwd .
-npx @openspec-ui/cli change-graph --cwd . --change <id>
+npx @openspec-ui/cli show graph --cwd .
+npx @openspec-ui/cli show graph --cwd . --change <id>
 ```
 
 - `--change <id>`: print one change's ancestry — what it follows, and
@@ -46,7 +46,7 @@ npx @openspec-ui/cli change-graph --cwd . --change <id>
 Archived changes are marked as such, and a change waiting on a blocker
 that has not landed is shown as waiting.
 
-### `release-manifest` — the published version set
+### `write manifest` — the published version set
 
 Builds the `releases.json` a project site can read, so a release is
 described in one document rather than scraped. `--fingerprint` prints
@@ -54,7 +54,7 @@ only the `id@version` set, which is how a publishing step decides whether
 anything changed at all.
 
 ```sh
-npx @openspec-ui/cli release-manifest --cwd . --repository <owner/name>
+npx @openspec-ui/cli write manifest --cwd . --repository <owner/name>
 ```
 
 See `--help` for the full flag set.
@@ -81,14 +81,58 @@ Manifest schema version remains 1, and the npm link is optional for consumers.
 
 ## Scope
 
-`validate` is what this package exists for, and the exit-code contract
-above applies to it: `change-graph` and `release-manifest` report rather
-than gate, and exit `0` unless the arguments are wrong.
+`validate changes` keeps the merge-gate exit contract above. Existing
+`run change`, `run checks`, `update plan`, status, coordination, task and
+worktree commands remain available; see `--help` for the full list.
 
-This CLI deliberately does not orchestrate agents, run changes, or edit
-anything. See
+### Workbench commands
+
+Every command below accepts `--cwd <repository>` and `--format text|json`.
+Text is the default. Read reports are one JSON document; `run task` emits
+one core event per JSON line and a final `kind: taskResult` result.
+
+| Command | What it reports or does |
+| --- | --- |
+| `show changes` | Active changes across checkout/worktrees, stage, tasks and blockers |
+| `show tasks <change>` | Tasks, evidence, completion and person/delegate responsibility |
+| `show diff <change>` | OpenSpec artifacts against HEAD, including staged and untracked artifacts |
+| `explain change-harness <change>` | Effective configuration, gates, budgets and capability facts |
+| `show agents` | Registered providers/capabilities; authentication is not checked |
+| `explain message <OSW-code>` | Message template, level, reason, remedy and documentation |
+| `show cost <change>` | Repository-wide recorded usage, units and unmeasured runs |
+| `show run <runId>` | Audit records and retained logs for the persisted runId |
+| `explain change <change>` | Stage, ownership, tasks, open questions, readiness and advice |
+| `send message <instanceId> "<text>"` | Queue a signed note to a live status instance |
+| `run task <change> <number>` | Run one open task on its declared delegate in its own worktree |
+| `rollback change <change>` | Confirmed restoration through recorded recovery checkpoints |
+
+For these additional commands, exit 0 means a successful report/action, exit 1
+means refusal, failed/cancelled task or absent requested subject, and exit 2 means
+bad arguments or tooling/configuration failure. An empty report is successful.
+Diagnostics go to stderr with an `OSW` identifier; JSON stdout stays parseable.
+
+`show diff` is an artifact-only diff, not the implementation branch's complete
+source diff. `show run` takes core's persisted runId, not the live instanceId
+printed by `show status`; missing or truncated retained output is not reconstructed.
+Cost is only recorded usage: unmeasured runs are not free, credits stay separate
+from USD, and retained audit history is bounded.
+
+Messages report a queued id, not receipt or action. An agent-marked environment
+or a non-interactive sender is not promoted to human approval. The receiver's
+signature/freshness/author policy still decides whether it acts on a note.
+`run task` refuses ordinary/human-only tasks, uses the declared agent, holds
+the mutation lease and preserves permission/cancel and recorded-evidence gates.
+No successful agent process automatically ticks a task.
+
+Rollback requires a terminal confirmation before recovery initialization.
+Its journal may then be updated by core; eligible files restore only without
+conflicts, under the mutation lease. Missing/incompatible checkpoints or live
+writers are refused. No force or consent-bypass flag exists. A run without
+captured checkpoints does not acquire rollback coverage through this command.
+
+See
 [docs/adr/0007-ci-cli-third-delivery-target.md](https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/docs/adr/0007-ci-cli-third-delivery-target.md)
-for why, and
+for the delivery target, and
 [docs/adr/0009-publish-cli-to-npm.md](https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/docs/adr/0009-publish-cli-to-npm.md)
 for why this package is published standalone rather than as part of the
 OpenSpec UI monorepo's other packages.
