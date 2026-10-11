@@ -4,6 +4,7 @@
 // openspec/changes/vscode-extension/design.md).
 
 import { stat } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import * as vscode from "vscode";
 import type { AgentRunner, Command, Event } from "@openspec-ui/core";
@@ -87,7 +88,7 @@ import { AiPanel } from "./webview/ai-panel.js";
 import type { AiPanelContext, RunChoice } from "./webview/ai-panel.js";
 import { HarnessSettingsPanel, type ObservedHarnessRequest } from "./webview/harness-settings-panel.js";
 import { CompliancePanel } from "./webview/compliance-panel.js";
-import { dispatchCompliance, recordComplianceSweep } from "@openspec-ui/core";
+import { defaultProcessLedger, dispatchCompliance, recordComplianceProcesses, recordComplianceSweep, setProcessLedgerStateRoot } from "@openspec-ui/core";
 import { PipelinePanel } from "./webview/pipeline-panel.js";
 import { OptionalServerManager } from "./optional-server.js";
 import { recoveryDisabledMessage } from "./recovery-diagnostics.js";
@@ -229,6 +230,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       }
       : agentStopRequestHandlers(runner, command, auditLog));
   const workspaceRoot = getWorkspaceRoot();
+  // Record spawned-process snapshots (ADR 0050) under the shared state root.
+  setProcessLedgerStateRoot(path.join(os.homedir(), ".openspec-ui"));
   let journal: WorkbenchRunJournal | undefined;
   let restoredRuns = { processes: [], checkpointSessions: [] } as Awaited<ReturnType<WorkbenchRunJournal["load"]>>;
   if (workspaceRoot) {
@@ -439,6 +442,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       try {
         const swept = await sweepWorkspace(workspaceRoot);
         await recordComplianceSweep(workspaceRoot, swept).catch(() => undefined);
+        const ledgerSnapshots = defaultProcessLedger(workspaceRoot)?.list() ?? [];
+        await recordComplianceProcesses(workspaceRoot, ledgerSnapshots).catch(() => undefined);
         for (const line of describeWorkspaceSweep(swept)) outputChannel.appendLine(`OpenSpec Workbench: ${line}.`);
         // A conflict is the one outcome a person has to act on, so it is
         // said where they will see it, not only in the output.

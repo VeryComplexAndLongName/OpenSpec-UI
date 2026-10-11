@@ -80,6 +80,9 @@ import {
   writeAgentInstructions,
   createChangeInItsWorktree,
   commitChange,
+  defaultProcessLedger,
+  terminateLedgerProcess,
+  terminateProcessTree,
   sayChangeNotShared,
   sayCommitChange,
   workflowRulesNeedConsent,
@@ -2584,6 +2587,45 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     }),
     vscode.commands.registerCommand("openspec-ui.stopProcess", (item?: { process?: { id?: string } }) => {
       if (item?.process?.id) deps.implementationSessions.cancel(item.process.id);
+    }),
+    // ADR 0050: a process that outlived a host restart is listed from the
+    // ledger and terminated only after a start-time re-verification. A picker
+    // rather than a tree, so the orphaned-tree flow has no new view to keep.
+    vscode.commands.registerCommand("openspec-ui.terminateLedgerProcess", async () => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      const ledger = defaultProcessLedger(workspaceRoot);
+      if (ledger === undefined) {
+        void vscode.window.showWarningMessage("OpenSpec Workbench: the process ledger is not configured.");
+        return;
+      }
+      const snapshots = ledger.list().filter((snapshot) => snapshot.exitedAt === undefined);
+      if (snapshots.length === 0) {
+        void vscode.window.showInformationMessage("OpenSpec Workbench: no recorded process is still detached.");
+        return;
+      }
+      const picked = await vscode.window.showQuickPick(
+        snapshots.map((snapshot) => ({
+          label: `${path.basename(snapshot.executablePath)} (pid ${snapshot.pid})`,
+          description: snapshot.hostname,
+          detail: snapshot.spawnedAt,
+          snapshot,
+        })),
+        { placeHolder: "Terminate a process that outlived a host restart" },
+      );
+      if (picked === undefined) return;
+      const answer = await vscode.window.showWarningMessage(
+        `Terminate ${path.basename(picked.snapshot.executablePath)} (pid ${picked.snapshot.pid})? Its start time is re-verified first, then the whole process tree is killed.`,
+        "Terminate",
+      );
+      if (answer !== "Terminate") return;
+      const result = await terminateLedgerProcess(picked.snapshot.pid, picked.snapshot, terminateProcessTree);
+      if (!result.terminated) {
+        void vscode.window.showErrorMessage(`OpenSpec Workbench: termination refused — ${result.reason ?? "identity mismatch"}`);
+        return;
+      }
+      ledger.markExited(picked.snapshot.runId, picked.snapshot.pid, new Date().toISOString());
+      void vscode.window.showInformationMessage(`OpenSpec Workbench: terminated ${picked.label}.`);
     }),
     vscode.commands.registerCommand("openspec-ui.showStatus", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();

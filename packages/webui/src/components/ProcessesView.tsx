@@ -53,11 +53,30 @@ export interface ProcessDetails {
   canRollback: boolean;
 }
 
+/** A process recorded by a previous host instance, surfaced read-only until
+ * a person confirms termination. Mirror of the server's LedgerProcessReading. */
+export interface LedgerProcessSummary {
+  runId: string;
+  pid: number;
+  executablePath: string;
+  hostname: string;
+  cwd: string;
+  changeName?: string;
+  spawnedAt: string;
+  exitedAt?: string;
+  startTimeAvailable: boolean;
+  overdue: boolean;
+  orphan: boolean;
+  expectedDurationMs?: number;
+}
+
 export interface ProcessesApi {
   list(): Promise<ProcessSummary[]>;
   details(processId: string): Promise<ProcessDetails>;
   rollback(processId: string): Promise<{ restored: string[]; conflicts: string[] }>;
   cleanup(cutoff: string): Promise<{ removed: number; retained: number }>;
+  ledgerProcesses(): Promise<LedgerProcessSummary[]>;
+  terminateLedgerProcess(runId: string, pid: number): Promise<{ terminated: boolean }>;
 }
 
 /** The columns the open row spans. Kept beside the header it mirrors: a
@@ -77,6 +96,8 @@ export function ProcessesView({
   onReadingChange?: (reading: string | null) => void;
 }) {
   const [processes, setProcesses] = useState<ProcessSummary[]>([]);
+  const [ledgerProcesses, setLedgerProcesses] = useState<LedgerProcessSummary[]>([]);
+  const [terminateTarget, setTerminateTarget] = useState<LedgerProcessSummary | null>(null);
   const [details, setDetails] = useState<ProcessDetails | null>(null);
   // Which run is open, held apart from what was read for it: the row opens
   // at the press and says it is reading, rather than staying silent until
@@ -98,6 +119,7 @@ export function ProcessesView({
     setReading("Reading persisted runs…");
     try {
       setProcesses(await api.list());
+      setLedgerProcesses(await api.ledgerProcesses());
     } catch (error) {
       setMessage(`Load failed: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
@@ -106,6 +128,21 @@ export function ProcessesView({
   }
 
   useEffect(() => { void load(); }, [api]);
+
+  async function terminateLedger() {
+    if (!terminateTarget) return;
+    setReading("Terminating the process tree…");
+    try {
+      await api.terminateLedgerProcess(terminateTarget.runId, terminateTarget.pid);
+      setMessage(`Terminated ${terminateTarget.executablePath} (pid ${terminateTarget.pid}) after verifying its identity.`);
+      setTerminateTarget(null);
+      await load();
+    } catch (error) {
+      setMessage(`Termination refused: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setReading(null);
+    }
+  }
 
   async function inspect(processId: string) {
     // A second press on the open run folds it: the control that opened it
@@ -305,6 +342,62 @@ export function ProcessesView({
           </table>
         )}
       </section>
+
+      <section className="openspec-panel" data-testid="ledger-processes">
+        <div className="openspec-panel-head">
+          <h2>Detached processes</h2>
+          {ledgerProcesses.length > 0 ? (
+            <span className="openspec-panel-head-note">{ledgerProcesses.length === 1 ? "1 process" : `${ledgerProcesses.length} processes`}</span>
+          ) : null}
+        </div>
+        {ledgerProcesses.length === 0 ? (
+          <p className="openspec-panel-body openspec-panel-empty">No process outlived a host restart.</p>
+        ) : (
+          <table className="table openspec-table">
+            <thead><tr><th>Executable</th><th>PID</th><th>Started</th><th>State</th><th>Action</th></tr></thead>
+            <tbody>{ledgerProcesses.map((item) => (
+              <tr key={`${item.runId}:${item.pid}`}>
+                <td>{item.executablePath}</td>
+                <td>{item.pid}</td>
+                <td>{item.spawnedAt}</td>
+                <td>
+                  <span className="badge openspec-process-state">{item.orphan ? "orphaned" : item.overdue ? "overdue" : "unknown"}</span>
+                  {item.startTimeAvailable ? null : <span className="openspec-process-state-note">start time unavailable</span>}
+                </td>
+                <td>
+                  <button className="button alert" type="button" data-testid={`ledger-terminate-${item.runId}-${item.pid}`} onClick={() => setTerminateTarget(item)}>
+                    <Icon meaning="stop" />Terminate Process...
+                  </button>
+                </td>
+              </tr>
+            ))}</tbody>
+          </table>
+        )}
+      </section>
+
+      {terminateTarget !== null ? (
+        <ModalLayer onCancel={() => setTerminateTarget(null)}>
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-label="Terminate Process"
+            className="openspec-pipeline-stop-form"
+            data-testid="ledger-terminate-confirm"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void terminateLedger();
+            }}
+          >
+            <p><strong>{`Terminate ${terminateTarget.executablePath} (pid ${terminateTarget.pid})?`}</strong></p>
+            <p>This verifies the process start time against the recorded snapshot, then kills its whole process tree. This cannot be undone.</p>
+            <div className="openspec-pipeline-stop-form-actions">
+              <button type="submit" className="button alert" data-testid="ledger-terminate-yes">Terminate</button>
+              <button type="button" className="button" onClick={() => setTerminateTarget(null)}>Cancel</button>
+            </div>
+          </form>
+        </ModalLayer>
+      ) : null}
+
       {asking !== null ? (
         <ModalLayer onCancel={() => setAsking(null)}>
           <form

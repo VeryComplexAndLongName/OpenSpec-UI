@@ -13,6 +13,8 @@ function createApi(): ProcessesApi {
     }),
     rollback: vi.fn().mockResolvedValue({ restored: ["src/app.ts"], conflicts: [] }),
     cleanup: vi.fn().mockResolvedValue({ removed: 1, retained: 0 }),
+    ledgerProcesses: vi.fn().mockResolvedValue([]),
+    terminateLedgerProcess: vi.fn().mockResolvedValue({ terminated: true }),
   };
 }
 
@@ -232,5 +234,32 @@ describe("ProcessesView — says what it is reading", () => {
 
     await waitFor(() => expect(onReadingChange).toHaveBeenLastCalledWith(null));
     expect(screen.getByRole("button", { name: "Delete History..." })).toBeEnabled();
+  });
+});
+
+describe("ProcessesView — detached processes", () => {
+  it("lists ledger processes and terminates one only after confirmation", async () => {
+    const api: ProcessesApi = {
+      ...createApi(),
+      ledgerProcesses: vi.fn().mockResolvedValue([{
+        runId: "run-orphan", pid: 4242, executablePath: "/usr/bin/claude", hostname: "box",
+        cwd: "/repo", spawnedAt: "2026-10-11T09:00:00.000Z", startTimeAvailable: true,
+        overdue: false, orphan: true,
+      }]),
+    };
+    render(<ProcessesView api={api} />);
+
+    await screen.findByText("Detached processes");
+    const button = screen.getByRole("button", { name: "Terminate Process..." });
+    fireEvent.click(button);
+    expect(api.terminateLedgerProcess).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Terminate" }));
+    await waitFor(() => expect(api.terminateLedgerProcess).toHaveBeenCalledWith("run-orphan", 4242));
+  });
+
+  it("shows the empty state when no process outlived a restart", async () => {
+    render(<ProcessesView api={createApi()} />);
+    await screen.findByText("Detached processes");
+    expect(screen.getByText("No process outlived a host restart.")).toBeInTheDocument();
   });
 });

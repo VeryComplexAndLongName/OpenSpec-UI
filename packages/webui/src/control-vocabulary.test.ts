@@ -17,7 +17,7 @@ const SOURCE = path.dirname(fileURLToPath(import.meta.url));
  * names its object: the verb alone, as every system dialog does. */
 const NOT_A_PAIR = new Set([
   // Inside a dialog or a prompt that names what it is about.
-  "Answer", "Allow", "Deny", "Cancel", "Close", "Archive", "Delete", "Rollback",
+  "Answer", "Allow", "Deny", "Cancel", "Close", "Archive", "Delete", "Rollback", "Terminate",
   // Switches and choices, not actions.
   "By step", "By stage", "One change", "Compare changes", "Sprint report",
   "All", "None", "Archived in the range, and under way", "agent-harness.json", "All archived changes",
