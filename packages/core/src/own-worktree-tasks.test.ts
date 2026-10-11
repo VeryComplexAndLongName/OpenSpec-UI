@@ -1,4 +1,5 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -6,6 +7,7 @@ import type { AgentStatusReport } from "./agent-status.js";
 import type { GitWorktree } from "./git.js";
 import { describeTaskDebts, parseTaskChecklist } from "./task-checklist.js";
 import { readChangeTaskRows, resolveOwnWorktree, runOwnDelegatedItem, setTaskDone, taskListCommitMessage } from "./own-worktree-tasks.js";
+import { readWorkspaceLeaseHolder } from "./workspace-lease.js";
 
 // a-card-works-its-own-tasks 2.1 and 2.3. The worktree list is a stand-in,
 // so no git process is started; the files are real.
@@ -208,6 +210,25 @@ describe("readChangeTaskRows", () => {
 });
 
 describe("runOwnDelegatedItem", () => {
+  it("holds the optional mutation lease while resolving a delegated runner and releases it after refusal", async () => {
+    const { worktree, worktrees } = await fixture({ tasks: "- [ ] 1.1 **Delegated to copilot-cli**: verify the result\n" });
+    let held = false;
+    const result = await runOwnDelegatedItem({
+      repositoryRoot: "/repo", changeName: "demo", lineNumber: 0,
+      git: { worktreeList: async () => worktrees }, ...quiet, holdMutationLease: true,
+      runnersFor: () => {
+        return () => {
+          expect(existsSync(path.join(worktree, ".openspec-ui", "workspace.lease.json"))).toBe(true);
+          held = true;
+          return undefined;
+        };
+      },
+    });
+    expect(result).toMatchObject({ status: "refused" });
+    expect(held).toBe(true);
+    expect(await readWorkspaceLeaseHolder(worktree)).toBeUndefined();
+  });
+
   it("refuses a change with no worktree of its own, and one a run is working in, before any runner is asked for", async () => {
     const { worktree, worktrees } = await fixture();
     const runnersFor = vi.fn(() => () => undefined);

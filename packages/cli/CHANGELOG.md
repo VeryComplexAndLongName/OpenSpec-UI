@@ -1,5 +1,17 @@
 # @openspec-ui/cli
 
+## 0.31.0
+
+### Minor Changes
+
+- b83820c: Make manifest fingerprints detect product visibility changes and keep the
+  internal Core package off the public homepage.
+- b0b1d28: Add twelve workbench CLI commands for change/task/diff reports, effective
+  harness and message explanations, agent/run/usage inspection, signed notes,
+  single delegated-task execution and confirmed checkpoint rollback. Core adds
+  registered CLI diagnostics and optional mutation-lease protection for delegated
+  worktree tasks. Existing public commands and transport protocols are unchanged.
+
 ## 0.30.0
 
 ### Minor Changes

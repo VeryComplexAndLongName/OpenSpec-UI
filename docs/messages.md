@@ -476,3 +476,19 @@ What to do: Use `openspec-ui-cli show lease` or `openspec-ui-cli remove lease`.
 Why: The answer was missing, or blank.
 
 What to do: Put the answer after the question's id, in quotes.
+
+### OSW-CLI-017
+
+> error: {command} refused: {reason}
+
+Why: The requested subject is absent or a core policy prevents the action.
+
+What to do: Read the stated reason; inspect the change, run or workspace before retrying.
+
+### OSW-CLI-018
+
+> error: {command} could not complete: {reason}
+
+Why: Arguments, configuration or an underlying reader prevented the command from completing.
+
+What to do: Correct the arguments or the reported configuration/tooling problem and retry.

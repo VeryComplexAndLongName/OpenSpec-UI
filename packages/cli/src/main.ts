@@ -30,6 +30,18 @@ import { answerCommand } from "./answer-command.js";
 import { publicNameOf, routeSubcommand, subcommandNames } from "./subcommands.js";
 import { worktreeCommand } from "./worktree-command.js";
 import { runValidateAll, type ValidateAllResult } from "./openspec-validate.js";
+import { showChangesCommand } from "./changes-command.js";
+import { showDiffCommand } from "./diff-command.js";
+import { explainHarnessCommand } from "./harness-command.js";
+import { showAgentsCommand } from "./agents-command.js";
+import { explainMessageCommand } from "./message-command.js";
+import { showCostCommand } from "./cost-command.js";
+import { showRunCommand } from "./show-run-command.js";
+import { explainChangeCommand } from "./explain-change-command.js";
+import { sendMessageCommand } from "./send-message-command.js";
+import { rollbackCommand } from "./rollback-command.js";
+import { showTasksCommand, runTaskCommand } from "./task-command.js";
+import { reportFailure, type ReportOptions, type ReportIo } from "./report-command.js";
 import {
   type ReleaseAssets,
   type ReleaseManifest,
@@ -92,6 +104,20 @@ Usage:
 A subcommand by its former name (validate, run, doctor, answer, ...) is
 refused with OSW-CLI-001, naming the pair that replaced it.
 
+Additional commands (all accept --cwd <path> and --format text|json):
+  openspec-ui-cli show changes
+  openspec-ui-cli show tasks <change>
+  openspec-ui-cli show diff <change>       OpenSpec artifacts against HEAD only
+  openspec-ui-cli explain change-harness <change>
+  openspec-ui-cli show agents
+  openspec-ui-cli explain message <OSW-code>
+  openspec-ui-cli show cost <change>      Recorded usage, not estimated cost
+  openspec-ui-cli show run <runId>        Persisted runId, not status instanceId
+  openspec-ui-cli explain change <change>
+  openspec-ui-cli send message <instanceId> "<text>"
+  openspec-ui-cli run task <change> <number>   One declared delegated task
+  openspec-ui-cli rollback change <change>    Interactive confirmation required
+
 Options:
   --cwd <path>        Repository root (default: current directory)
   --format json|text  Output format. Default json for 'validate changes',
@@ -137,8 +163,8 @@ Options:
   --commit <sha>      Commit the manifest records as its source
   --releases <file>   JSON file of releases to attach; see the
                       ReleaseAssets type in release-manifest.ts
-  --fingerprint       Print only the id@version set, for deciding whether
-                      a publish is needed at all
+  --fingerprint       Print the sorted id@version#public state set, for
+                      deciding whether a manifest publish is needed
   --from <file>       Read an already-published manifest instead of
                       building one, so its fingerprint can be compared
                       with a freshly built one by the same code
@@ -244,6 +270,7 @@ run one stage at a time, and none that answers a confirmation the change
 asked for — see docs/adr/0020-cli-runs-a-change.md.`;
 
 export interface MainOptions {
+  subjects?: string[];
   cwd?: string;
   format?: "json" | "text";
   repository?: string;
@@ -294,6 +321,7 @@ export interface MainOptions {
 }
 
 export interface MainDeps {
+  additionalCommand?: (command: string, options: ReportOptions, subjects: string[], io: ReportIo) => Promise<number>;
   validateAll?: (cwd: string, options?: { change?: string; archivedSince?: string }) => Promise<ValidateAllResult>;
   buildManifest?: typeof buildReleaseManifest;
   readReleasesFile?: (filePath: string) => Promise<string>;
@@ -414,6 +442,7 @@ function parseArgs(argv: string[]): {
     return { command: undefined, options, renamed: { former: routed.former, replacement: routed.replacement } };
   }
   const handler = routed.kind === "handler" ? routed.positionals : [positional.slice(0, 2).join(" ")];
+  options.subjects = handler.slice(1);
   if (handler[1] !== undefined) options.changeName = handler[1];
   if (handler[2] !== undefined) options.worktreeChange = handler[2];
   if (handler[3] !== undefined) options.taskNumber = handler[3];
@@ -426,12 +455,12 @@ function parseArgs(argv: string[]): {
  * configured to pause between stages refuse to start at all (ADR 0020
  * decision 4). A process whose input is not a terminal has nobody to ask,
  * and there is deliberately no flag that answers on their behalf. */
-function defaultCheckpointPrompt(): CheckpointPrompt {
+function defaultCheckpointPrompt(toStderr = false): CheckpointPrompt {
   if (!process.stdin.isTTY) return {};
   return {
     ask: (question: string) =>
       new Promise<boolean>((resolve) => {
-        process.stdout.write(`${question} [y/N] `);
+        (toStderr ? process.stderr : process.stdout).write(`${question} [y/N] `);
         const onData = (data: Buffer): void => {
           process.stdin.off("data", onData);
           process.stdin.pause();
@@ -493,6 +522,38 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
     stderr(formatMessage(say("OSW-CLI-001", { former: renamed.former, replacement: renamed.replacement })));
     return 2;
   }
+  const additionalArgumentCounts: Record<string, number> = {
+    "show-changes": 0, "show-agents": 0, "show-tasks": 1, "show-diff": 1,
+    "explain-harness": 1, "explain-message": 1, "show-cost": 1, "show-run": 1,
+    "explain-change": 1, "send-message": 2, "run-task": 2, rollback: 1,
+  };
+  if (command && Object.hasOwn(additionalArgumentCounts, command)) {
+    const subjects = options.subjects ?? [];
+    const allowed = new Set(["cwd", "format", "subjects", "changeName", "worktreeChange", "taskNumber"]);
+    if (subjects.length !== additionalArgumentCounts[command] || subjects.some((subject) => !subject.trim() || subject.startsWith("--"))
+      || Object.keys(options).some((key) => !allowed.has(key))) {
+      return reportFailure(publicNameOf(command), new Error("Invalid arguments; use --help. Only --cwd and --format are supported."), { stdout, stderr });
+    }
+    const reportOptions: ReportOptions = {
+      workspaceRoot: options.cwd ?? process.cwd(), changeName: subjects[0], format: options.format ?? "text",
+    };
+    const io = { stdout, stderr };
+    if (deps.additionalCommand) return deps.additionalCommand(command, reportOptions, subjects, io);
+    switch (command) {
+      case "show-changes": return showChangesCommand(reportOptions, io);
+      case "show-agents": return showAgentsCommand(reportOptions, io);
+      case "show-tasks": return showTasksCommand({ repositoryRoot: reportOptions.workspaceRoot, changeName: subjects[0]!, format: reportOptions.format }, io);
+      case "show-diff": return showDiffCommand(reportOptions, io);
+      case "explain-harness": return explainHarnessCommand(reportOptions, io);
+      case "explain-message": return explainMessageCommand(reportOptions, io);
+      case "show-cost": return showCostCommand(reportOptions, io);
+      case "show-run": return showRunCommand(reportOptions, io);
+      case "explain-change": return explainChangeCommand(reportOptions, io);
+      case "send-message": return sendMessageCommand({ ...reportOptions, words: subjects[1]! }, io);
+      case "run-task": return runTaskCommand({ ...reportOptions, number: subjects[1]! }, { ...io, permission: deps.checkpoint ?? defaultCheckpointPrompt(true) });
+      case "rollback": return rollbackCommand(reportOptions, { ...io, confirmation: deps.checkpoint ?? defaultCheckpointPrompt(true) });
+    }
+  }
   if (command === "change-graph") {
     const cwd = options.cwd ?? process.cwd();
     const nodes = await readChangeGraph(cwd);
@@ -550,7 +611,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
   }
 
   // Two agents on one machine see each other, and hold what there is one
-   // of (an-agent-says-where-it-is-working).
+  // of (an-agent-says-where-it-is-working).
   if (command === "present") {
     return await (deps.presentCommand ?? presentCommand)(
       {
