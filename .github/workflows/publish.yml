@@ -61,7 +61,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  NODE_VERSION: 22.11.0
+  NODE_VERSION: 24.21.0
   # The repository's pinned npm builds and tests everything, here as in
   # quality.yml. Trusted Publishing needs a newer one, which the npm job
   # installs for the publish step alone.

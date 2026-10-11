@@ -14,7 +14,7 @@ updates:
       # see the archived restore-typescript-eslint-compatibility change),
       # @eslint/js 9->10 (peer-requires eslint@^10, ERESOLVE conflict with
       # the pinned eslint -- PR #62), vitest 2->4 (needs native bindings
-      # that fail to resolve here plus a newer Node.js than the pinned
+      # unavailable then, as well as a newer Node than the then-pinned
       # 22.11.0 -- PR #65), and @types/vscode 1.90->1.134 (vsce package
       # refuses to build once it exceeds packages/extension's declared
       # engines.vscode -- PR #67). Rather than reactively ignoring one
