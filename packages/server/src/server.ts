@@ -81,6 +81,7 @@ import {
 } from "./recovery-rest.js";
 import { handleChangeActionRequest } from "./change-actions-rest.js";
 import { handleComplianceRequest } from "./compliance-rest.js";
+import { handleLedgerProcessesListRequest, handleLedgerProcessTerminateRequest } from "./process-ledger-rest.js";
 
 export interface ServerOptions {
   workspaceRoot: string;
@@ -445,6 +446,14 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/processes/cleanup") {
       void handleProcessesCleanupRequest(req, res, requestPolicy, resolveRecoveryService);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/processes/ledger") {
+      void handleLedgerProcessesListRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/processes/terminate") {
+      void handleLedgerProcessTerminateRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "GET" && req.url) {

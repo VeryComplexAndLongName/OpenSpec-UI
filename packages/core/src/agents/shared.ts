@@ -19,7 +19,10 @@
 // the resulting command line in a shell.
 import crossSpawn from "cross-spawn";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import os from "node:os";
 import { withoutSystemProxy } from "../direct-fetch.js";
+import { commandLineHash, defaultProcessLedger, type ProcessLedger } from "../process-ledger.js";
+import { readProcessStartTime, type StartTimeReader } from "../process-start-time.js";
 import type { CommandKind, Event } from "../protocol.js";
 
 /** Whether a CLI agent is started without the system proxy (ADR 0038
@@ -75,6 +78,12 @@ export interface SpawnAndStreamOptions {
    * exercise the survived-the-kill path without waiting ten seconds — a
    * constant a test cannot reach is a path a test does not cover. */
   killConfirmationTimeoutMs?: number;
+  /** Where to record the spawn snapshot (ADR 0050). Defaults to the shared
+   * per-working-directory ledger when omitted. */
+  ledger?: ProcessLedger;
+  /** How to read the child's OS start time; injectable for tests. Defaults
+   * to the real platform reader. */
+  startTimeReader?: StartTimeReader;
 }
 
 export interface TerminationOutcome {
@@ -260,6 +269,8 @@ function stageInstruction(kind: CommandKind): string {
 export async function* spawnAndStream(options: SpawnAndStreamOptions): AsyncGenerator<Event> {
   const { executable, args, cwd, runId, commandKind, stdin, signal } = options;
   const killConfirmationTimeoutMs = options.killConfirmationTimeoutMs ?? KILL_CONFIRMATION_TIMEOUT_MS;
+  const ledger = options.ledger ?? defaultProcessLedger(cwd);
+  const startTimeReader = options.startTimeReader ?? readProcessStartTime;
 
   // An already-aborted signal never reaches a spawn at all — no process,
   // no partial output, just `cancelled` (design.md, "Cancellation
@@ -289,6 +300,25 @@ export async function* spawnAndStream(options: SpawnAndStreamOptions): AsyncGene
       reason: err instanceof Error ? err.message : String(err),
     };
     return;
+  }
+
+  // Record the spawn snapshot synchronously so a host restart cannot lose
+  // it. The OS start time is read asynchronously next: the ledger already
+  // has a durable record before that read completes.
+  const spawnedPid = child.pid;
+  if (spawnedPid !== undefined && ledger !== undefined) {
+    ledger.record({
+      runId,
+      pid: spawnedPid,
+      executablePath: executable,
+      hostname: os.hostname(),
+      cwd,
+      commandLineHash: commandLineHash(executable, args),
+      spawnedAt: nowIso(),
+    });
+    void startTimeReader(spawnedPid).then((startTime) => {
+      if (startTime !== undefined) ledger.setStartTime(runId, spawnedPid, startTime.toISOString());
+    }).catch(() => undefined);
   }
 
   if (stdin !== undefined) {
@@ -338,6 +368,7 @@ export async function* spawnAndStream(options: SpawnAndStreamOptions): AsyncGene
     push({ kind: "__error__", error });
   });
   child.on("close", (code) => {
+    if (spawnedPid !== undefined && ledger !== undefined) ledger.markExited(runId, spawnedPid, nowIso());
     // Deliberately NOT suppressed while aborted: this is the one signal
     // that says the process actually died, and it is what turns a
     // cancellation request into a `cancelled` event.

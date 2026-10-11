@@ -6,6 +6,8 @@ export * from "./protocol.js";
 export * from "./compliance.js";
 export * from "./compliance-store.js";
 export * from "./compliance-service.js";
+export * from "./process-ledger.js";
+export * from "./process-start-time.js";
 export * from "./agent-runner.js";
 export * from "./security.js";
 export * from "./audit-message.js";
@@ -143,6 +145,7 @@ export { CopilotCliAcpAdapter } from "./agents/copilot-acp.js";
 export { GeminiCliAcpAdapter } from "./agents/gemini-acp.js";
 export { CodexCliAcpAdapter } from "./agents/codex-acp.js";
 export { ClaudeCliAcpAdapter } from "./agents/claude-acp.js";
+export { terminateProcessTree, type TerminationOutcome } from "./agents/shared.js";
 
 export {
   DEFAULT_AGENT_ID,

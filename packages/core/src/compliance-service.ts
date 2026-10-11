@@ -8,6 +8,7 @@ import {
     type CompliancePolicy, type ComplianceRule, type CachedComplianceObservation
 } from "./compliance.js";
 import { ComplianceStore, complianceRepositoryIdentity, validateCompliancePolicy } from "./compliance-store.js";
+import type { ProcessSnapshot } from "./process-ledger.js";
 import { readWorkspaceLeaseHolder } from "./workspace-lease.js";
 import type { WorktreeSurvey } from "./worktree-survey-facts.js";
 import type { WorkspaceSweep } from "./workspace-sweep.js";
@@ -22,6 +23,8 @@ export const COMPLIANCE_RULES: readonly ComplianceRule[] = Object.freeze([
     { id: "worktree-state", topic: "workspace", title: "Observed working directory state", source: "ADR-0026", severity: "info", conservativeMs: 50 },
     { id: "change-copies", topic: "changes", title: "Logical changes and physical copies", source: "ADR-0026 / ADR-0049", severity: "info", conservativeMs: 50 },
     { id: "sweep-result", topic: "sweep", title: "Workspace maintenance", source: "ADR-0034 / ADR-0035", severity: "warning", conservativeMs: 100 },
+    { id: "process-overdue", topic: "process", title: "Overdue spawned processes", source: "ADR-0050", severity: "warning", conservativeMs: 50 },
+    { id: "process-orphan", topic: "process", title: "Orphaned spawned processes", source: "ADR-0050", severity: "warning", conservativeMs: 50 },
 ]);
 
 const STALE_MS = 30 * 60_000;
@@ -360,6 +363,67 @@ export async function dispatchCompliance(root: string, value: unknown): Promise<
 export async function recordComplianceSurvey(root: string, survey: WorktreeSurvey): Promise<void> {
     const service = await complianceFor(root);
     await service.observe(complianceSurveyObservations(service.store.identity, survey));
+}
+
+/** A conservative expected duration for a spawned executable. Known tool
+ * subprocesses get a short default; anything else has no known limit and is
+ * reported rather than presumed safe. */
+export function processExpectedDurationMs(executable: string): { known: boolean; ms: number } {
+    const name = path.basename(executable).toLowerCase();
+    if (name === "git" || name === "openspec" || name === "openspec-ui-cli" || name === "node" || name === "npm") {
+        return { known: true, ms: 5 * 60_000 };
+    }
+    return { known: false, ms: Number.POSITIVE_INFINITY };
+}
+
+/** Turns ledger snapshots into read-only Compliance observations. A process
+ * started before this host instance began is orphaned; a process past its
+ * known duration is overdue; a process with no known limit is reported, not
+ * presumed safe. Nothing here terminates a process. */
+export function complianceProcessObservations(
+    repository: string,
+    snapshots: readonly ProcessSnapshot[],
+    checkedAt = new Date().toISOString(),
+    thisHostStartedAtMs = Date.now() - process.uptime() * 1000,
+): ComplianceObservation[] {
+    const observations: ComplianceObservation[] = [];
+    for (const snapshot of snapshots) {
+        if (snapshot.exitedAt !== undefined) continue;
+        const ageMs = Date.now() - Date.parse(snapshot.spawnedAt);
+        const orphan = Date.parse(snapshot.spawnedAt) < thisHostStartedAtMs - 1_000;
+        const duration = processExpectedDurationMs(snapshot.executablePath);
+        const overdue = duration.known && ageMs > duration.ms;
+        const subject = `${snapshot.runId}:${snapshot.pid}`;
+        const base = {
+            subject, producer: "process-ledger", owner: "compliance" as const, repository,
+            worktree: snapshot.cwd, path: snapshot.executablePath,
+            ...(snapshot.changeName !== undefined ? { change: snapshot.changeName } : {}),
+            revision: snapshot.commandLineHash, checkedAt,
+        };
+        if (orphan) {
+            observations.push({ ...base, ruleId: "process-orphan", outcome: "finding",
+                evidence: `Process ${snapshot.pid} (${path.basename(snapshot.executablePath)}) was started by a previous host instance and has not exited. Confirm its identity before terminating it from recovery.` });
+        } else if (overdue) {
+            observations.push({ ...base, ruleId: "process-overdue", outcome: "finding",
+                evidence: `Process ${snapshot.pid} (${path.basename(snapshot.executablePath)}) has run ${Math.round(ageMs / 60_000)}m against an expected ${Math.round(duration.ms / 60_000)}m. Terminate it from recovery if it is ours.` });
+        } else if (!duration.known) {
+            observations.push({ ...base, ruleId: "process-overdue", outcome: "unknown",
+                evidence: `Process ${snapshot.pid} (${path.basename(snapshot.executablePath)}) has no declared duration limit and is still running.` });
+        } else {
+            observations.push({ ...base, ruleId: "process-overdue", outcome: "pass",
+                evidence: `Within its expected duration.` });
+        }
+    }
+    return observations;
+}
+
+export async function recordComplianceProcesses(
+    root: string,
+    snapshots: readonly ProcessSnapshot[],
+    thisHostStartedAtMs = Date.now() - process.uptime() * 1000,
+): Promise<void> {
+    const service = await complianceFor(root);
+    await service.observe(complianceProcessObservations(service.store.identity, snapshots, new Date().toISOString(), thisHostStartedAtMs));
 }
 
 export function complianceSurveyObservations(repository: string, survey: WorktreeSurvey, checkedAt = new Date().toISOString()): ComplianceObservation[] {

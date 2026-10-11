@@ -28,7 +28,10 @@ import {
   type Stream,
   type ToolCallUpdate,
 } from "@agentclientprotocol/sdk";
+import os from "node:os";
 import type { AgentUsage } from "../agent-usage.js";
+import { commandLineHash, defaultProcessLedger, type ProcessLedger } from "../process-ledger.js";
+import { readProcessStartTime, type StartTimeReader } from "../process-start-time.js";
 import type { CommandKind, Event } from "../protocol.js";
 import { agentSpawnEnvironment, KILL_CONFIRMATION_TIMEOUT_MS, terminateProcessTree } from "./shared.js";
 
@@ -116,9 +119,11 @@ export interface RunAcpProcessOptions {
   commandKind: CommandKind;
   prompt: string;
   signal: AbortSignal;
-  /** Set by `runProcess`, which owns the child and therefore owns the
-   * terminal event on abort — see the `__aborted__` branch in `run()`. */
-  deferAbortTerminalEvent?: boolean;
+  /** Where to record the spawn snapshot (ADR 0050). Defaults to the shared
+   * per-working-directory ledger when omitted. */
+  ledger?: ProcessLedger;
+  /** How to read the child's OS start time; injectable for tests. */
+  startTimeReader?: StartTimeReader;
 }
 
 /** Builds this project's own usage shape from what ACP reported, taking
@@ -382,6 +387,8 @@ export class AcpSessionDriver {
    * turn finishes. */
   async *runProcess(options: RunAcpProcessOptions): AsyncGenerator<Event> {
     const { executable, args, cwd, runId, commandKind, prompt, signal } = options;
+    const ledger = options.ledger ?? defaultProcessLedger(cwd);
+    const startTimeReader = options.startTimeReader ?? readProcessStartTime;
 
     if (signal.aborted) {
       yield { kind: "cancelled", runId, timestamp: nowIso() };
@@ -403,6 +410,22 @@ export class AcpSessionDriver {
 
     const { target, child } = spawned;
 
+    const spawnedPid = child.pid;
+    if (spawnedPid !== undefined && ledger !== undefined) {
+      ledger.record({
+        runId,
+        pid: spawnedPid,
+        executablePath: executable,
+        hostname: os.hostname(),
+        cwd,
+        commandLineHash: commandLineHash(executable, args),
+        spawnedAt: nowIso(),
+      });
+      void startTimeReader(spawnedPid).then((startTime) => {
+        if (startTime !== undefined) ledger.setStartTime(runId, spawnedPid, startTime.toISOString());
+      }).catch(() => undefined);
+    }
+
     // The child's own exit is the only authority on whether cancellation
     // took effect. An ACP process is long-lived, which is why this
     // adapter kills a tree at all — and why it is the adapter the
@@ -411,6 +434,7 @@ export class AcpSessionDriver {
     const exitedPromise = new Promise<void>((resolve) => {
       child.once("close", () => {
         exited = true;
+        if (spawnedPid !== undefined && ledger !== undefined) ledger.markExited(runId, spawnedPid, nowIso());
         resolve();
       });
     });

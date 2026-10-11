@@ -427,6 +427,12 @@
         "category": "OpenSpec Workbench"
       },
       {
+        "command": "openspec-ui.terminateLedgerProcess",
+        "title": "Terminate Ledger Process",
+        "icon": "$(output)",
+        "category": "OpenSpec Workbench"
+      },
+      {
         "command": "openspec-ui.rollbackChange",
         "title": "Rollback Change",
         "icon": "$(debug-reverse-continue)",
@@ -608,6 +614,10 @@
         {
           "command": "openspec-ui.showComparison",
           "when": "view == openspecUiChanges"
+        },
+        {
+          "command": "openspec-ui.terminateLedgerProcess",
+          "when": "view == openspecUiProcesses"
         }
       ],
       "view/item/context": [

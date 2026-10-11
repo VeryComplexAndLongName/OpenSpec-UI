@@ -80,6 +80,9 @@ import {
   writeAgentInstructions,
   createChangeInItsWorktree,
   commitChange,
+  defaultProcessLedger,
+  terminateLedgerProcess,
+  terminateProcessTree,
   sayChangeNotShared,
   sayCommitChange,
   workflowRulesNeedConsent,
@@ -2584,6 +2587,47 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     }),
     vscode.commands.registerCommand("openspec-ui.stopProcess", (item?: { process?: { id?: string } }) => {
       if (item?.process?.id) deps.implementationSessions.cancel(item.process.id);
+    }),
+    // ADR 0050: a process that outlived a host restart is listed from the
+    // ledger and terminated only after a start-time re-verification. A picker
+    // rather than a tree, so the orphaned-tree flow has no new view to keep.
+    vscode.commands.registerCommand("openspec-ui.terminateLedgerProcess", async () => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      const ledger = defaultProcessLedger(workspaceRoot);
+      if (ledger === undefined) {
+        const said = say("OSW-PRC-006");
+        void vscode.window.showWarningMessage(withMessageCode(said.text, said.code));
+        return;
+      }
+      const snapshots = ledger.list().filter((snapshot) => snapshot.exitedAt === undefined);
+      if (snapshots.length === 0) {
+        const said = say("OSW-PRC-007");
+        void vscode.window.showInformationMessage(withMessageCode(said.text, said.code));
+        return;
+      }
+      const picked = await vscode.window.showQuickPick(
+        snapshots.map((snapshot) => ({
+          label: `${path.basename(snapshot.executablePath)} (pid ${snapshot.pid})`,
+          description: snapshot.hostname,
+          detail: snapshot.spawnedAt,
+          snapshot,
+        })),
+        { placeHolder: "Terminate a process that outlived a host restart" },
+      );
+      if (picked === undefined) return;
+      const confirm = say("OSW-PRC-008", { executable: path.basename(picked.snapshot.executablePath), pid: picked.snapshot.pid });
+      const answer = await vscode.window.showWarningMessage(withMessageCode(confirm.text, confirm.code), "Terminate");
+      if (answer !== "Terminate") return;
+      const result = await terminateLedgerProcess(picked.snapshot.pid, picked.snapshot, terminateProcessTree);
+      if (!result.terminated) {
+        const refused = say("OSW-PRC-009", { reason: result.reason ?? "identity mismatch" });
+        void vscode.window.showErrorMessage(withMessageCode(refused.text, refused.code));
+        return;
+      }
+      ledger.markExited(picked.snapshot.runId, picked.snapshot.pid, new Date().toISOString());
+      const done = say("OSW-PRC-010", { label: picked.label });
+      void vscode.window.showInformationMessage(withMessageCode(done.text, done.code));
     }),
     vscode.commands.registerCommand("openspec-ui.showStatus", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();

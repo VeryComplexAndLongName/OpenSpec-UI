@@ -533,6 +533,8 @@ function StandaloneApp() {
       details: (processId) => request("/api/processes/details", { processId }),
       rollback: (processId) => request("/api/processes/rollback", { processId }),
       cleanup: (cutoff) => request("/api/processes/cleanup", { cutoff }),
+      ledgerProcesses: () => request("/api/processes/ledger", {}),
+      terminateLedgerProcess: (runId, pid) => request("/api/processes/terminate", { runId, pid }),
     };
   }, [cwd]);
 

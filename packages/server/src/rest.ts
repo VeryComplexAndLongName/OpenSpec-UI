@@ -9,6 +9,8 @@ import { access, readdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
+  defaultProcessLedger,
+  recordComplianceProcesses,
   recordComplianceSurvey,
   recordComplianceSweep,
   ArchivedChangeNotFoundError,
@@ -1609,6 +1611,7 @@ export async function handleWorktreeSurveyRequest(
     // (a-stale-status-is-swept). No timer of its own.
     const survey = await surveyWorktrees({ workspaceRoot: parsed.cwd, sweepStatuses: true });
     await recordComplianceSurvey(parsed.cwd, survey).catch(() => undefined);
+    await recordComplianceProcesses(parsed.cwd, defaultProcessLedger(parsed.cwd)?.list() ?? []).catch(() => undefined);
     sendJson(res, 200, survey);
   } catch (error) {
     sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
