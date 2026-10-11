@@ -137,8 +137,8 @@ Options:
   --commit <sha>      Commit the manifest records as its source
   --releases <file>   JSON file of releases to attach; see the
                       ReleaseAssets type in release-manifest.ts
-  --fingerprint       Print only the id@version set, for deciding whether
-                      a publish is needed at all
+  --fingerprint       Print the sorted id@version#public state set, for
+                      deciding whether a manifest publish is needed
   --from <file>       Read an already-published manifest instead of
                       building one, so its fingerprint can be compared
                       with a freshly built one by the same code
@@ -550,7 +550,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
   }
 
   // Two agents on one machine see each other, and hold what there is one
-   // of (an-agent-says-where-it-is-working).
+  // of (an-agent-says-where-it-is-working).
   if (command === "present") {
     return await (deps.presentCommand ?? presentCommand)(
       {
