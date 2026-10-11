@@ -1,5 +1,11 @@
 # @openspec-ui/webui
 
+## 1.93.1
+
+### Patch Changes
+
+- 1b3ddaa: Make the Compliance webview follow VS Code light, dark and high-contrast themes.
+
 ## 1.93.0
 
 ### Minor Changes
