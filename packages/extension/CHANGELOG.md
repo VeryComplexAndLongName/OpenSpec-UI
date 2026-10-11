@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.104.0
+
+### Minor Changes
+
+- bc7990b: Add cache-first repository Compliance with shared observations, inherited
+  tracking/reaction policy, low-impact incremental checks and safe runtime-ignore
+  repair. Existing workspace sweep remains independent and read-only in Compliance.
+
+### Patch Changes
+
+- Updated dependencies [bc7990b]
+  - @openspec-ui/core@0.147.0
+  - @openspec-ui/webui@1.93.0
+  - @openspec-ui/server@1.60.0
+
 ## 0.103.2
 
 ### Patch Changes
