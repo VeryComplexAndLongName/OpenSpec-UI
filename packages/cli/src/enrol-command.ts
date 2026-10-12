@@ -13,6 +13,7 @@ import {
   readEnrolmentRequests,
   type AgentRosterEntry,
   type EnrolmentReading,
+  withMessageCode,
 } from "@openspec-ui/core";
 
 export interface EnrolOptions {
@@ -74,7 +75,7 @@ export async function enrolCommand(options: EnrolOptions, deps: EnrolDeps): Prom
     );
   } catch (error) {
     if (error instanceof EnrolmentRefusedError) {
-      deps.stderr(`openspec-ui-cli: ${error.message}`);
+      deps.stderr(withMessageCode(error.message, error.code));
       return 1;
     }
     deps.stderr(`openspec-ui-cli: could not enrol ${options.keyId}: ${message(error)}`);

@@ -4,6 +4,7 @@ import {
   describeEnrolmentRequest,
   describeMessageOutcome,
   describeWaitingOn,
+  withMessageCode,
   DECISIONS_FILE,
   type EnrolmentRequest,
   type InboxQuestion,
@@ -106,7 +107,8 @@ export class HumanOnlyInboxItemTreeItem extends vscode.TreeItem {
     // assigned to an agent that has not run and an item nobody can
     // close read the same otherwise. See
     // a-live-check-names-who-performs-it.
-    const waiting = `${changeName} — waiting on ${describeWaitingOn(waitingOn)}`;
+    const who = describeWaitingOn(waitingOn);
+    const waiting = `${changeName} — waiting on ${withMessageCode(who.text, who.code)}`;
     this.description = outcome === undefined ? waiting : `${waiting} — ${outcome}`;
     this.contextValue = waitingOn.kind === "agent" && waitingOn.known
       ? RUNNABLE_INBOX_ITEM_CONTEXT

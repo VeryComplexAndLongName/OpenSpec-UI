@@ -26,6 +26,7 @@ describe("groupHarnessFindings", () => {
       kind: "ceiling-cannot-act",
       agent: "claude-cli",
       stages: ["propose", "review", "apply", "verify"],
+      code: "OSW-HRN-106",
       message: '"claude-cli" reports no usage at all, so no spending ceiling can act on "propose", "review", "apply" and "verify" however large the spend.',
     }]);
   });
@@ -84,6 +85,7 @@ describe("findHarnessConfigLimits", () => {
 
     const finding = findings.find((f) => f.stage === "apply");
     expect(finding?.kind).toBe("ceiling-cannot-act");
+    expect(finding?.code).toBe("OSW-HRN-108");
     expect(finding?.message).toContain("reports tokens and no cost");
   });
 
@@ -282,6 +284,7 @@ describe("findHarnessConfigLimits - an agent that edits no file", () => {
     expect(groupHarnessFindings(cannotWrite)).toEqual([expect.objectContaining({
       agent: "local-llm",
       stages: ["propose", "verify"],
+      code: "OSW-HRN-103",
       message: expect.stringContaining('"local-llm" answers in text and edits no file, so "propose" and "verify" on it writes nothing'),
     })]);
   });

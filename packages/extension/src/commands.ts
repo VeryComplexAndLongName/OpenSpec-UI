@@ -1294,9 +1294,8 @@ async function refusedAsAnothersChange(
 }
 
 function warnArchivedRelation(change: string): void {
-  void vscode.window.showWarningMessage(
-    `OpenSpec Workbench: ${change} is archived, and an archived change's relations are history.`,
-  );
+  const said = say("OSW-VAL-005", { change });
+  void vscode.window.showWarningMessage(withMessageCode(said.text, said.code));
 }
 
 export function registerCommands(context: vscode.ExtensionContext, deps: CommandsDeps): void {
@@ -1359,7 +1358,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       try {
         const result = await removeWorkingDirectory(directoryPath);
         if (!result.ok) {
-          void vscode.window.showWarningMessage(`OpenSpec Workbench: ${result.reason}.`);
+          void vscode.window.showWarningMessage(withMessageCode(result.reason, result.code));
           return;
         }
         deps.refreshTrees();
@@ -1502,7 +1501,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         if (!result.ok) {
           // The refusal core wrote, as it wrote it: a cycle names the
           // changes in it, and an unknown id names the id.
-          void vscode.window.showWarningMessage(`OpenSpec Workbench: ${result.message}.`);
+          void vscode.window.showWarningMessage(withMessageCode(result.message, result.code));
           return;
         }
         deps.refreshTrees();
@@ -1531,7 +1530,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           remove: stated.id,
         });
         if (!result.ok) {
-          void vscode.window.showWarningMessage(`OpenSpec Workbench: ${result.message}.`);
+          void vscode.window.showWarningMessage(withMessageCode(result.message, result.code));
           return;
         }
         deps.refreshTrees();
@@ -2502,7 +2501,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         void vscode.window.showInformationMessage(`OpenSpec Workbench: deleted task from ${item.changeName}.`);
       } catch (error) {
         if (error instanceof TaskListChangedError) {
-          void vscode.window.showWarningMessage(`OpenSpec Workbench: ${error.message}`);
+          void vscode.window.showWarningMessage(withMessageCode(error.message, error.code));
           return;
         }
         await showCommandError("delete task", error);

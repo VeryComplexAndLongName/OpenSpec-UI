@@ -61,7 +61,7 @@ import { DEFAULT_AGENT_ID } from "./agents/registry.js";
 import { checkAllowlist, type AllowlistConfig, type AuditEntry, type AuditLog } from "./security.js";
 import type { AgentUsage } from "./agent-usage.js";
 import { readTaskChecklist, TASK_CHECKBOX_LINE_RE, writeTaskCheckStates } from "./task-checklist.js";
-import { buildUsageReport, unitKey, type UsageTotal } from "./usage-report.js";
+import { buildUsageReport, unitKey, type UsageTotal } from "./usage-report.js";
 import { say, type SaidMessage } from "./message-register.js";
 
 /** The subsequence of `HarnessStage` a chain drives. Each entry's
@@ -984,7 +984,7 @@ export class HarnessChainRunner {
         cwd: command.cwd,
         timestamp: nowIso(),
         changeDir: command.context.changeDir,
-        reason: `a request to stop after ${due.task} named a task this change does not have; the run goes on`,
+        reason: say("OSW-TSK-101", { task: due.task }).text,
       });
       return;
     }
@@ -1387,10 +1387,10 @@ export class HarnessChainRunner {
         // before a return existed.
         const canReturn = applyIndex !== -1 && applyMaxAttempts > 1 && applyAttempts < applyMaxAttempts;
         if (!canReturn) {
-          yield failedEvent(runId, `mechanical checks failed, verifying agent was not invoked: ${summary}`);
+          yield failedEvent(runId, say("OSW-VAL-121", { summary }));
           return;
         }
-        state.returnReason = `mechanical checks failed, verifying agent was not invoked: ${summary}`;
+        state.returnReason = say("OSW-VAL-121", { summary }).text;
         index = applyIndex - 1; // the loop's own increment moves it to `apply`
         continue;
       }
@@ -1836,7 +1836,7 @@ export class HarnessChainRunner {
         : normalizeStepAgent(stepAgent);
     const runner = this.deps.resolveRunner(agentId, cwd);
     if (!runner) {
-      yield failedEvent(runId, `no agent available to run the "${stage}" stage`);
+      yield failedEvent(runId, say("OSW-AGT-221", { stage }));
       return "failed";
     }
     const ranOn = agentId ?? DEFAULT_AGENT_ID;

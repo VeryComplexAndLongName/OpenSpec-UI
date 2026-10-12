@@ -25,6 +25,7 @@ import type { AuditLog } from "./security.js";
 import { normalizeStepAgent } from "./harness-step-agent.js";
 import type { AgentRunner } from "./agent-runner.js";
 import type { Command, Event } from "./protocol.js";
+import { say, type MessageCode, type SaidMessage } from "./message-register.js";
 import {
   TASK_CHECKBOX_LINE_RE,
   readTaskChecklist,
@@ -44,14 +45,15 @@ export type DelegatedItemGate =
    * agent wrote it; nothing here says the evidence is true. */
   | { kind: "recorded" }
   /** Ticked with the text otherwise unchanged. The tick was reverted. */
-  | { kind: "reverted"; reason: string }
+  | { kind: "reverted"; reason: string; code: MessageCode }
   /** The item could not be found again after the run, so nothing could
    * be compared — reported rather than assumed either way. */
-  | { kind: "item-not-found"; reason: string };
+  | { kind: "item-not-found"; reason: string; code: MessageCode };
 
 export type DelegatedItemRunResult =
-  /** Nothing was spawned. */
-  | { status: "refused"; reason: string; message: string }
+  /** Nothing was spawned. `reason` is the register's words and `code`
+   * their identifier; `message` wraps them for a surface. */
+  | { status: "refused"; reason: string; code: MessageCode; message: string }
   | {
     status: "ran";
     runId: string;
@@ -66,6 +68,8 @@ export type DelegatedItemRunResult =
      * that wrote nothing there (a-delegated-run-says-what-happened). */
     lastStderr?: string;
     gate: DelegatedItemGate;
+    /** `message`, from the register, and its identifier. */
+    code: MessageCode;
     message: string;
     /** The agent's reply: the end of what it last said, and how it left the
      * item. Kept whatever the outcome (a-change-says-where-it-stands). */
@@ -221,8 +225,13 @@ async function findBlockAfterRun(
   return readTaskBlockAt(lines, before.lineNumber);
 }
 
-function refused(reason: string): DelegatedItemRunResult {
-  return { status: "refused", reason, message: `No run was started: ${reason}.` };
+function refused(said: SaidMessage): DelegatedItemRunResult {
+  return {
+    status: "refused",
+    reason: said.text,
+    code: said.code,
+    message: `No run was started: ${said.text}.`,
+  };
 }
 
 /** What the surface says about a finished run. Says what the gate
@@ -234,7 +243,7 @@ function describeRun(
   outcome: "completed" | "failed" | "cancelled",
   reason: string | undefined,
   gate: DelegatedItemGate,
-): string {
+): SaidMessage {
   const named = item.taskNumber !== undefined ? `Task ${item.taskNumber}` : "The item";
   const ended = outcome === "completed"
     ? "The run finished."
@@ -242,14 +251,13 @@ function describeRun(
 
   switch (gate.kind) {
     case "reverted":
-      return `${ended} ${named} came back ticked with nothing written, so the tick was reverted and the run is refused.`;
+      return say("OSW-TSK-029", { ending: ended, item: named });
     case "recorded":
-      return `${ended} ${named} is ticked and its text carries more than it did.`
-        + " Something was recorded; whether it is true was not checked.";
+      return say("OSW-TSK-030", { ending: ended, item: named });
     case "item-not-found":
-      return `${ended} ${named} could not be found again afterwards, so nothing was compared: ${gate.reason}.`;
+      return say("OSW-TSK-031", { ending: ended, item: named, reason: gate.reason });
     case "still-open":
-      return `${ended} ${named} is still open.`;
+      return say("OSW-TSK-032", { ending: ended, item: named });
   }
 }
 
@@ -286,42 +294,40 @@ export async function runDelegatedItem(request: DelegatedItemRunRequest): Promis
 
   const tasksPath = await tasksFilePath(workspaceRoot, changeName, false);
   if (tasksPath === undefined) {
-    return refused(`change "${changeName}" has no tasks.md`);
+    return refused(say("OSW-TSK-001", { change: changeName }));
   }
 
   const tasks = await readTaskChecklist(workspaceRoot, changeName, false);
   const task = tasks.find((candidate) => candidate.lineNumber === lineNumber);
-  if (!task) return refused(`no task at line ${lineNumber + 1} of ${changeName}/tasks.md`);
-  if (task.done) return refused(`task at line ${lineNumber + 1} of ${changeName}/tasks.md is already ticked`);
+  if (!task) return refused(say("OSW-TSK-002", { line: lineNumber + 1, change: changeName }));
+  if (task.done) return refused(say("OSW-TSK-003", { line: lineNumber + 1, change: changeName }));
   if (task.humanOnly) {
     // Not "no agent is configured" — the marking is the whole point. An
     // item nobody can close is offered no run, and saying why is what
     // keeps the two markings distinguishable.
-    return refused(
-      `the item at line ${lineNumber + 1} of ${changeName}/tasks.md is marked for a person, and no agent is offered for it`,
-    );
+    return refused(say("OSW-TSK-004", { line: lineNumber + 1, change: changeName }));
   }
 
   const resolved = await resolveDelegatedItems(workspaceRoot, changeName);
   const item: DelegatedItem | undefined = resolved.items.find((candidate) => candidate.lineNumber === lineNumber);
   if (!item) {
-    return refused(`the item at line ${lineNumber + 1} of ${changeName}/tasks.md names no agent`);
+    return refused(say("OSW-TSK-005", { line: lineNumber + 1, change: changeName }));
   }
   if (!item.known) {
-    return refused(`"${item.agent}" is not an agent this build recognises`);
+    return refused(say("OSW-TSK-006", { agent: item.agent }));
   }
   if (item.changeDir.length === 0) {
-    return refused(`change "${changeName}" was not found in this workspace`);
+    return refused(say("OSW-TSK-007", { change: changeName }));
   }
 
   const runner = request.resolveRunner(item.agent);
   if (!runner) {
-    return refused(`no runner is configured for agent "${item.agent}"`);
+    return refused(say("OSW-TSK-008", { agent: item.agent }));
   }
 
   const before = readTaskBlockAt(await readLines(tasksPath), lineNumber);
   if (!before) {
-    return refused(`the line at ${lineNumber + 1} of ${changeName}/tasks.md is not a checklist item`);
+    return refused(say("OSW-TSK-009", { line: lineNumber + 1, change: changeName }));
   }
   const beforeText = blockTextWithoutState(before);
 
@@ -429,6 +435,8 @@ export async function runDelegatedItem(request: DelegatedItemRunRequest): Promis
     },
   });
 
+  const reported = describeRun(item, outcome, told, gate);
+
   return {
     status: "ran",
     runId,
@@ -438,7 +446,8 @@ export async function runDelegatedItem(request: DelegatedItemRunRequest): Promis
     ...(reason !== undefined ? { reason } : {}),
     ...(lastStderr !== undefined ? { lastStderr } : {}),
     gate,
-    message: describeRun(item, outcome, told, gate),
+    code: reported.code,
+    message: reported.text,
     reply,
   };
 }
@@ -482,7 +491,7 @@ function withLastWords(reason: string | undefined, lastStderr: string): string {
   const lines = lastStderr.split(LINE_BREAK);
   const last = (lines[lines.length - 1] ?? "").trim();
   const said = last.endsWith(".") ? last.slice(0, -1) : last;
-  return `${reason ?? "no reason was given"}. It last said: ${said}`;
+  return say("OSW-TSK-036", { reason: reason ?? "no reason was given", said }).text;
 }
 
 async function checkRubberStamp(
@@ -501,12 +510,10 @@ async function checkRubberStamp(
     lines,
   );
   if (!after) {
-    return {
-      kind: "item-not-found",
-      reason: taskNumber !== undefined
-        ? `no open task numbered ${taskNumber} is left in ${changeName}/tasks.md`
-        : `line ${before.lineNumber + 1} of ${changeName}/tasks.md is no longer a checklist item`,
-    };
+    const said = taskNumber !== undefined
+      ? say("OSW-TSK-033", { task: taskNumber, change: changeName })
+      : say("OSW-TSK-034", { line: before.lineNumber + 1, change: changeName });
+    return { kind: "item-not-found", reason: said.text, code: said.code };
   }
 
   if (!after.done) return { kind: "still-open" };
@@ -517,8 +524,6 @@ async function checkRubberStamp(
   await writeTaskCheckStates(workspaceRoot, changeName, false, [
     { lineNumber: after.lineNumber, expectedText: text, done: false },
   ]);
-  return {
-    kind: "reverted",
-    reason: "the item became ticked while saying nothing it did not say before",
-  };
+  const said = say("OSW-TSK-035");
+  return { kind: "reverted", reason: said.text, code: said.code };
 }

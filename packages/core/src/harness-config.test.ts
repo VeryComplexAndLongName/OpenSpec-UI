@@ -2002,3 +2002,20 @@ describe("archive.whenLanded", () => {
   });
 });
 
+// every-message-has-an-identifier: the validator's messages carry their
+// register identifier beside the register words.
+describe("InvalidHarnessConfigError identifiers", () => {
+  it("carries the register code beside the register words", async () => {
+    const root = await temporaryRoot();
+
+    const globalGate = new GlobalAgentSufficientReviewGateError();
+    expect(globalGate.code).toBe("OSW-HRN-001");
+    expect(globalGate.message).toBe(
+      "reviewGate.mode \"agent-sufficient\" is only valid in a per-change harness.json, never in the global openspec/agent-harness.json",
+    );
+
+    await expect(writeGlobalHarnessConfig(root, { budget: { maxCostUsd: 0 } }))
+      .rejects.toMatchObject({ code: "OSW-HRN-066" });
+  });
+});
+

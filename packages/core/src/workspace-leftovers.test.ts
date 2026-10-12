@@ -141,6 +141,7 @@ describe("removeWorkingDirectory", () => {
 
     expect(result.ok).toBe(false);
     expect(!result.ok && result.reason).toContain("not clean");
+    expect(!result.ok && result.code).toBe("OSW-WSP-009");
     expect(await namesUnder(directory, ".")).toEqual(["kept.txt"]);
   });
 
@@ -358,7 +359,8 @@ describe("withHolders", () => {
   it("says the original error where nothing names the directory", async () => {
     const said = await withHolders(path.join(os.tmpdir(), "openspec-unheld"), new Error("EBUSY: resource busy"));
 
-    expect(said).toContain("EBUSY: resource busy");
-    expect(said).toContain("No process names this directory");
+    expect(said.text).toContain("EBUSY: resource busy");
+    expect(said.text).toContain("No process names this directory");
+    expect(said.code).toBe("OSW-WSP-104");
   });
 });

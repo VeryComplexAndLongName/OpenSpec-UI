@@ -19,6 +19,7 @@ import { isValidChangeName } from "./change-name.js";
 import type { GitWorktree, GitWrapper } from "./git.js";
 import { discoverOpenSpecWorkspace } from "./workbench.js";
 import { resolveWorktreeRoot, worktreePathUnder, type WorktreeRootSources } from "./worktree-root.js";
+import { say, type MessageCode, type SaidMessage } from "./message-register.js";
 
 /** One working directory, said in this product's terms. */
 export interface ChangeWorktree extends GitWorktree {
@@ -43,9 +44,11 @@ export interface ChangeWorktree extends GitWorktree {
 
 /** Why a working directory will not be created. `remedy` is the point of
  * this being a structure: a refusal a reader can act on says what to do
- * next, not only what went wrong. */
+ * next, not only what went wrong. `reason` is the register's sentence and
+ * `code` its identifier (ADR 0046). */
 export interface ChangeWorktreeRefusal {
   reason: string;
+  code: MessageCode;
   remedy: string;
 }
 
@@ -88,6 +91,12 @@ async function exists(target: string): Promise<boolean> {
   }
 }
 
+/** A refusal whose words come from the register, under their identifier
+ * (ADR 0046). */
+function refusalOf(said: SaidMessage, remedy: string): ChangeWorktreeRefusal {
+  return { reason: said.text, code: said.code, remedy };
+}
+
 /** Resolves everything that must hold before a working directory is
  * created, and returns either what to create or the one reason not to.
  *
@@ -114,10 +123,10 @@ export async function planChangeWorktree(options: {
   if (!isValidChangeName(changeName)) {
     return {
       ok: false,
-      refusal: {
-        reason: `"${changeName}" is not a valid change name`,
-        remedy: "name the change as it is named in openspec/changes",
-      },
+      refusal: refusalOf(
+        say("OSW-WSP-004", { name: changeName }),
+        "name the change as it is named in openspec/changes",
+      ),
     };
   }
 
@@ -134,10 +143,10 @@ export async function planChangeWorktree(options: {
   ) {
     return {
       ok: false,
-      refusal: {
-        reason: `"${changeName}" is not in ${base}`,
-        remedy: `commit ${changePathInRepo(changeName)} to ${base} first, or pass a base that has it`,
-      },
+      refusal: refusalOf(
+        say("OSW-WSP-005", { name: changeName, base }),
+        `commit ${changePathInRepo(changeName)} to ${base} first, or pass a base that has it`,
+      ),
     };
   }
 
@@ -146,20 +155,20 @@ export async function planChangeWorktree(options: {
   if (onBranch) {
     return {
       ok: false,
-      refusal: {
-        reason: `branch "${changeName}" is already checked out at ${onBranch.path}`,
-        remedy: "run the chain in that directory, or remove it first",
-      },
+      refusal: refusalOf(
+        say("OSW-WSP-006", { name: changeName, path: onBranch.path }),
+        "run the chain in that directory, or remove it first",
+      ),
     };
   }
 
   if (await exists(target)) {
     return {
       ok: false,
-      refusal: {
-        reason: `${target} already exists`,
-        remedy: "remove it, or pass another path",
-      },
+      refusal: refusalOf(
+        say("OSW-WSP-007", { path: target }),
+        "remove it, or pass another path",
+      ),
     };
   }
 
@@ -170,10 +179,10 @@ export async function planChangeWorktree(options: {
   if (await git.branchExists(changeName)) {
     return {
       ok: false,
-      refusal: {
-        reason: `branch "${changeName}" already exists, with no working directory on it`,
-        remedy: `check it out where you want it, or delete it with "git branch -D ${changeName}" if its work has landed`,
-      },
+      refusal: refusalOf(
+        say("OSW-WSP-008", { name: changeName }),
+        `check it out where you want it, or delete it with "git branch -D ${changeName}" if its work has landed`,
+      ),
     };
   }
 

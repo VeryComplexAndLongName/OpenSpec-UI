@@ -84,6 +84,7 @@ describe("checkNamedSuccessors", () => {
     expect(violations).toHaveLength(1);
     expect(violations[0]?.changeId).toBe("earlier");
     expect(violations[0]?.successorId).toBe("later");
+    expect(violations[0]?.code).toBe("OSW-VAL-116");
     expect(violations[0]?.reason).toContain("earlier");
     expect(violations[0]?.reason).toContain("later");
     expect(violations[0]?.reason).toContain("follows");

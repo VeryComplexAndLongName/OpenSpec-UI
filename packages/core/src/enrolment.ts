@@ -16,6 +16,7 @@ import {
 } from "./agent-roster.js";
 import { readAgentStatuses, resolveAgentStatusDirectory } from "./agent-status.js";
 import { createGitWrapper, type GitWrapper } from "./git.js";
+import { say } from "./message-register.js";
 import type { EnrolmentRequest } from "./signature-facts.js";
 import type { WorktreeRootSources } from "./worktree-root.js";
 
@@ -59,7 +60,8 @@ export async function confirmEnrolmentFor(
   const { requests, rosterDirectory } = await readEnrolmentRequests(workspaceRoot, options);
   const request = requests.find((candidate) => candidate.keyId === keyId);
   if (request === undefined) {
-    throw new EnrolmentRefusedError(`no live run signed by ${keyId} is waiting to be enrolled`);
+    const said = say("OSW-KEY-029", { keyId });
+    throw new EnrolmentRefusedError(said.text, said.code);
   }
   return await confirmEnrolment({
     rosterDirectory,

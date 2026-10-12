@@ -24,6 +24,7 @@ import { discoverOpenSpecWorkspace, type WorkbenchChange } from "./workbench.js"
 import { taskInHand } from "./task-marker.js";
 import { readWorkspaceLeaseHolder } from "./workspace-lease.js";
 import { resolveWorktreeRoot, type WorktreeRootSources } from "./worktree-root.js";
+import { say, type MessageCode } from "./message-register.js";
 import type { SurveyedChange, SurveyedDirectory, SurveyedRun, SurveyedTask, WorktreeSurvey } from "./worktree-survey-facts.js";
 
 // The shape and the wording live in a leaf the browser can import; this
@@ -96,12 +97,15 @@ function taskListKey(directoryPath: string, changeName: string): string {
   return `${pathKey(directoryPath)}|${changeName}`;
 }
 
-async function whyUnreadable(directory: string): Promise<string | undefined> {
+/** Why a directory cannot be read, said by its identifier where the
+ * register has one (ADR 0046); a bare operating-system error is carried
+ * as it is. */
+async function whyUnreadable(directory: string): Promise<{ text: string; code?: MessageCode } | undefined> {
   try {
     const info = await stat(directory);
-    return info.isDirectory() ? undefined : "it is not a directory";
+    return info.isDirectory() ? undefined : say("OSW-WSP-102");
   } catch (error) {
-    return isMissing(error) ? "it does not exist" : message(error);
+    return isMissing(error) ? say("OSW-WSP-103") : { text: message(error) };
   }
 }
 
@@ -375,7 +379,12 @@ export async function surveyWorktrees(options: WorktreeSurveyOptions): Promise<W
 
     const unreadable = await whyUnreadable(worktree.path);
     if (unreadable !== undefined) {
-      directories.push({ ...base, readable: false, reason: unreadable });
+      directories.push({
+        ...base,
+        readable: false,
+        reason: unreadable.text,
+        ...(unreadable.code !== undefined ? { code: unreadable.code } : {}),
+      });
       continue;
     }
 

@@ -48,6 +48,7 @@ import {
   resolveRunner as resolveAgentRunner,
   runDelegatedItem,
   shortDelegatedItemOutcome,
+  withMessageCode,
   agentsByRunRoot,
   resolveWorktreeRoot,
 } from "@openspec-ui/core";
@@ -717,12 +718,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
           const stopped = result.status === "ran" && result.outcome !== "completed";
           const show = refused || stopped ? vscode.window.showWarningMessage : vscode.window.showInformationMessage;
           const lastStderr = result.status === "ran" ? result.lastStderr : undefined;
+          const said = withMessageCode(result.message, result.code);
           if (lastStderr === undefined) {
-            void show(`OpenSpec Workbench: ${result.message}`);
+            void show(said);
           } else {
             // What the agent last said is one click away rather than lost
             // behind an exit code (a-delegated-run-says-what-happened).
-            void show(`OpenSpec Workbench: ${result.message}`, "Show output").then((choice) => {
+            void show(said, "Show output").then((choice) => {
               if (choice !== "Show output") return;
               outputChannel.appendLine(`${item.changeName} — ${item.text}: what the agent last said`);
               outputChannel.appendLine(lastStderr);

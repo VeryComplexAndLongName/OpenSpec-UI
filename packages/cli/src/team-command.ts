@@ -5,7 +5,7 @@
 // what is wrong with a file are core's (`joinTheTeam`, `readPeople`), the
 // same calls the editor makes.
 
-import { JoinRefusedError, joinTheTeam, readPeople, type JoinResult, type PeopleReading } from "@openspec-ui/core";
+import { JoinRefusedError, joinTheTeam, readPeople, type JoinResult, type PeopleReading, withMessageCode } from "@openspec-ui/core";
 
 export interface JoinCommandOptions {
   workspaceRoot: string;
@@ -39,7 +39,7 @@ export async function joinCommand(options: JoinCommandOptions, deps: TeamCommand
     });
   } catch (error) {
     if (error instanceof JoinRefusedError) {
-      deps.stderr(`openspec-ui-cli: ${error.message}`);
+      deps.stderr(withMessageCode(error.message, error.code));
       return 1;
     }
     deps.stderr(`openspec-ui-cli: could not join: ${message(error)}`);
@@ -88,6 +88,6 @@ export async function peopleCommand(options: PeopleCommandOptions, deps: TeamCom
     const retired = person.keys.length - current;
     deps.stdout(`${person.handle}  ${person.name}  ${current} key${current === 1 ? "" : "s"}${retired > 0 ? `, ${retired} retired` : ""}`);
   }
-  for (const problem of reading.problems) deps.stderr(`${problem.file}: ${problem.problem}`);
+  for (const problem of reading.problems) deps.stderr(withMessageCode(`${problem.file}: ${problem.problem}`, problem.code));
   return reading.problems.length === 0 ? 0 : 1;
 }

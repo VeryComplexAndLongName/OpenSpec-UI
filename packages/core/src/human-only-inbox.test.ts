@@ -69,7 +69,10 @@ describe("collectHumanOnlyInbox", () => {
       expect.objectContaining({ changeName: "change-a", changeDir, questionId: "Q-run1-1", text: "Which database?" }),
     ]);
     expect(inbox.questions?.[0]?.lineNumber).toBeGreaterThan(0);
-    expect(describeHumanOnlyInbox(inbox)).toContain("1 question from an agent waits for your answer.");
+    expect(describeHumanOnlyInbox(inbox).text).toContain("1 question from an agent waits for your answer.");
+    // The question's own TSK-025 is folded into the "nothing is waiting"
+    // sentence, which carries its identifier.
+    expect(describeHumanOnlyInbox(inbox).code).toBe("OSW-TSK-020");
   });
 
   it("reads a question where its run asked it, in the change's own worktree, and lists it once", async () => {
@@ -187,26 +190,32 @@ describe("collectHumanOnlyInbox", () => {
 
 describe("describeWaitingOn", () => {
   it("names a person, a registered agent, and an unregistered one differently", () => {
-    expect(describeWaitingOn({ kind: "person" })).toBe("a person");
-    expect(describeWaitingOn({ kind: "agent", agent: "copilot-cli", known: true })).toBe("copilot-cli");
+    expect(describeWaitingOn({ kind: "person" }))
+      .toEqual({ code: "OSW-TSK-015", level: "info", text: "a person" });
+    expect(describeWaitingOn({ kind: "agent", agent: "copilot-cli", known: true }))
+      .toEqual({ text: "copilot-cli" });
     expect(describeWaitingOn({ kind: "agent", agent: "nope", known: false }))
-      .toBe("\"nope\", which is not a registered agent");
+      .toEqual({ code: "OSW-TSK-016", level: "warning", text: "\"nope\", which is not a registered agent" });
   });
 });
 
 describe("describeHumanOnlyInbox", () => {
   it("tells an empty workspace apart from one where nothing is waiting", () => {
     // Both show no items, and they are different facts.
-    expect(describeHumanOnlyInbox({ items: [], changesRead: 0 })).toContain("No active change");
-    expect(describeHumanOnlyInbox({ items: [], changesRead: 3 }))
-      .toContain("Nothing is waiting — 3 active changes read");
+    const empty = describeHumanOnlyInbox({ items: [], changesRead: 0 });
+    expect(empty.text).toContain("No active change");
+    expect(empty.code).toBe("OSW-TSK-019");
+    const nothing = describeHumanOnlyInbox({ items: [], changesRead: 3 });
+    expect(nothing.text).toContain("Nothing is waiting — 3 active changes read");
+    expect(nothing.code).toBe("OSW-TSK-020");
   });
 
   it("says how much is waiting and across how many changes", () => {
     const items = [person("a", 1), person("a", 2), person("b", 1)];
 
-    expect(describeHumanOnlyInbox({ items, changesRead: 6 }))
-      .toBe("3 items waiting, across 2 of 6 active changes: 3 on a person.");
+    const said = describeHumanOnlyInbox({ items, changesRead: 6 });
+    expect(said.text).toBe("3 items waiting, across 2 of 6 active changes: 3 on a person.");
+    expect(said.code).toBe("OSW-TSK-021");
   });
 
   it("counts what waits on a person apart from what waits on each agent", () => {
@@ -217,14 +226,14 @@ describe("describeHumanOnlyInbox", () => {
       agent("b", 2, "claude-cli"),
     ];
 
-    expect(describeHumanOnlyInbox({ items, changesRead: 4 }))
+    expect(describeHumanOnlyInbox({ items, changesRead: 4 }).text)
       .toBe("4 items waiting, across 2 of 4 active changes: 1 on a person, 2 on copilot-cli, 1 on claude-cli.");
   });
 
   it("names an unregistered agent as such in the count", () => {
     const items = [agent("a", 1, "copilto-cli", false)];
 
-    expect(describeHumanOnlyInbox({ items, changesRead: 1 }))
+    expect(describeHumanOnlyInbox({ items, changesRead: 1 }).text)
       .toContain("1 on \"copilto-cli\", which is not a registered agent");
   });
 });
@@ -235,20 +244,21 @@ describe("describeHumanOnlyInboxState", () => {
     // a block that has not loaded yet, which is the distinction this
     // surface exists to make. See
     // a-check-that-passes-checked-something.
-    expect(describeHumanOnlyInboxState({ status: "failed", reason: "EACCES: permission denied" }))
-      .toBe("What is waiting could not be read: EACCES: permission denied.");
+    const said = describeHumanOnlyInboxState({ status: "failed", reason: "EACCES: permission denied" });
+    expect(said.text).toBe("What is waiting could not be read: EACCES: permission denied.");
+    expect(said.code).toBe("OSW-TSK-028");
   });
 
   it("says so even when the failure carried no reason", () => {
-    expect(describeHumanOnlyInboxState({ status: "failed", reason: "  " }))
+    expect(describeHumanOnlyInboxState({ status: "failed", reason: "  " }).text)
       .toBe("What is waiting could not be read: no reason given.");
   });
 
   it("says what a successful read says", () => {
     const inbox = { items: [person("a", 1)], changesRead: 2 };
 
-    expect(describeHumanOnlyInboxState({ status: "loaded", inbox }))
-      .toBe(describeHumanOnlyInbox(inbox));
+    expect(describeHumanOnlyInboxState({ status: "loaded", inbox }).text)
+      .toBe(describeHumanOnlyInbox(inbox).text);
   });
 });
 
@@ -275,7 +285,7 @@ describe("collectHumanOnlyInbox — a change whose harness.json cannot be read",
       source: "task-text",
     });
     expect(inbox.unreadableTaskAgents?.map((entry) => entry.changeName)).toEqual(["broken-config"]);
-    expect(describeHumanOnlyInbox(inbox)).toContain("harness.json could not be read");
-    expect(describeHumanOnlyInbox(inbox)).toContain("broken-config");
+    expect(describeHumanOnlyInbox(inbox).text).toContain("harness.json could not be read");
+    expect(describeHumanOnlyInbox(inbox).text).toContain("broken-config");
   });
 });

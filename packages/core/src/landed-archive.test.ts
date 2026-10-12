@@ -248,7 +248,7 @@ describe("archiveLandedChanges", () => {
 
     const result = await archiveLandedChanges(depsFor(fixture, forge));
 
-    expect(result.followed?.outcome).toEqual({ state: "blocked", reason: "check failed: build (failure)", cause: "check-failed" });
+    expect(result.followed?.outcome).toEqual({ state: "blocked", reason: "check failed: build (failure)", cause: "check-failed", code: "OSW-ARC-104" });
     expect(forge.mergeNow).not.toHaveBeenCalled();
     expect(describeLandedArchive(result)).toEqual(["#650 cannot merge yet: check failed: build (failure)"]);
   });
@@ -260,7 +260,7 @@ describe("archiveLandedChanges", () => {
 
     const result = await archiveLandedChanges(depsFor(fixture, forge));
 
-    expect(result.followed?.outcome).toEqual({ state: "blocked", reason: `TestForge refused the merge: ${refusal}`, cause: "refused" });
+    expect(result.followed?.outcome).toEqual({ state: "blocked", reason: `TestForge refused the merge: ${refusal}`, cause: "refused", code: "OSW-ARC-106" });
     expect(forge.mergeNow).toHaveBeenCalledTimes(1);
   });
 
@@ -316,7 +316,7 @@ describe("archiveLandedChanges", () => {
     const result = await archiveLandedChanges(depsFor(fixture, forge));
 
     expect(result.due).toEqual([]);
-    expect(result.owing).toEqual([{ changeName: "landed-owing", pullRequest: 44, owes: ["still open: 1.2 Not yet"] }]);
+    expect(result.owing).toEqual([{ changeName: "landed-owing", pullRequest: 44, owes: ["still open: 1.2 Not yet"], code: "OSW-ARC-208" }]);
     expect(describeLandedArchive(result).join(" ")).toContain("landed-owing landed in #44 but still owes an item");
   });
 
@@ -342,7 +342,7 @@ describe("archiveLandedChanges", () => {
     }));
 
     expect(result.opened?.changes).toEqual(["works"]);
-    expect(result.notArchived).toEqual([{ changeName: "breaks", reason: "openspec archive refused: a spec delta does not apply" }]);
+    expect(result.notArchived).toEqual([{ changeName: "breaks", reason: "openspec archive refused: a spec delta does not apply", code: "OSW-ARC-207" }]);
   });
 
   it("says why where the forge cannot be asked", async () => {
@@ -352,6 +352,7 @@ describe("archiveLandedChanges", () => {
     const result = await archiveLandedChanges(depsFor(fixture, forge));
 
     expect(result.failed).toBe("TestForge could not be asked about pull requests: gh is not signed in");
+    expect(result.failedCode).toBe("OSW-ARC-102");
   });
 
   it("says what it opened, and that the sweep merges it", async () => {
@@ -377,6 +378,7 @@ describe("archiveLandedChanges", () => {
     const result = await archiveLandedChanges(depsFor(fixture, forge, { archive: async () => undefined }));
 
     expect(result.failed).toBe("archiving changed nothing, so there was nothing to commit");
+    expect(result.failedCode).toBe("OSW-ARC-209");
     expect(forge.openPullRequest).not.toHaveBeenCalled();
     expect(await git(fixture.remote, ["branch", "--list", `${LANDED_ARCHIVE_BRANCH_PREFIX}*`])).toBe("");
   });
@@ -399,6 +401,7 @@ describe("archiveLandedChanges", () => {
     }));
 
     expect(result.failed).toBe("remote rejected: protected branch");
+    expect(result.failedCode).toBe("OSW-ARC-209");
     expect(forge.openPullRequest).not.toHaveBeenCalled();
     expect(await exists(made)).toBe(false);
     expect(await git(fixture.work, ["branch", "--list", `${LANDED_ARCHIVE_BRANCH_PREFIX}*`])).toBe("");
@@ -423,6 +426,7 @@ describe("archiveLandedChanges", () => {
     }));
 
     expect(result.failed).toBe("! [rejected]        archive-landed-x -> archive-landed-x (fetch first); error: failed to push some refs to 'https://github.com/owner/repo.git'");
+    expect(result.failedCode).toBe("OSW-ARC-209");
   });
 });
 

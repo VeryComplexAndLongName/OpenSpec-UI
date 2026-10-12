@@ -81,7 +81,7 @@ describe("readAgentRoster (a-run-is-signed-by-its-person 4.5)", () => {
     const roster = await readAgentRoster(rosterDirectory);
 
     expect(roster.entries).toEqual([]);
-    expect(roster.malformed).toEqual([{ fileName: "someone.json", reason: `its file name does not match its key id "${key.keyId}"` }]);
+    expect(roster.malformed).toEqual([{ fileName: "someone.json", reason: `its file name does not match its key id "${key.keyId}"`, code: "OSW-AGT-007" }]);
   });
 
   it("does not trust a file whose key does not match its key id", async () => {
@@ -99,6 +99,7 @@ describe("readAgentRoster (a-run-is-signed-by-its-person 4.5)", () => {
 
     expect(roster.entries).toEqual([]);
     expect(roster.malformed[0]?.reason).toBe("its key does not match its key id");
+    expect(roster.malformed[0]?.code).toBe("OSW-AGT-008");
   });
 });
 
@@ -164,7 +165,10 @@ describe("enrolment (a-run-is-signed-by-its-person 4.5)", () => {
     const request = { keyId: key.keyId, publicKey: key.publicKey, label: "alpha", machine: "ada-laptop", gitAuthor: null };
 
     await expect(confirmEnrolment({ rosterDirectory, request })).rejects.toBeInstanceOf(EnrolmentRefusedError);
+    await expect(confirmEnrolment({ rosterDirectory, request })).rejects.toMatchObject({ code: "OSW-AGT-010" });
     await expect(confirmEnrolment({ rosterDirectory, request: { ...request, publicKey: other.publicKey } }))
       .rejects.toBeInstanceOf(EnrolmentRefusedError);
+    await expect(confirmEnrolment({ rosterDirectory, request: { ...request, publicKey: other.publicKey } }))
+      .rejects.toMatchObject({ code: "OSW-AGT-009" });
   });
 });

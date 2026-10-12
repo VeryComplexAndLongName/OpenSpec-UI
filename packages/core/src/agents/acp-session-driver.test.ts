@@ -383,3 +383,24 @@ describe("AcpSessionDriver — reporting what the agent said it spent", () => {
     }
   });
 });
+
+describe("AcpSessionDriver — a refused prompt", () => {
+  it("a refusal stop reason fails the run under the register's identifier", async () => {
+    const mockAgent = agent({ name: "mock-agent" })
+      .onRequest(AGENT_METHODS.initialize, () => ({ protocolVersion: PROTOCOL_VERSION }))
+      .onRequest(AGENT_METHODS.session_new, () => ({ sessionId: "session-1" }))
+      .onRequest(AGENT_METHODS.session_prompt, () => ({ stopReason: "refusal" }));
+
+    const driver = new AcpSessionDriver();
+    const events = await collect(
+      driver.run({ target: mockAgent, cwd: "/tmp/work", runId: "run-r1", commandKind: "implement", prompt: "do it" }),
+    );
+
+    const failed = events.find((event) => event.kind === "failed");
+    expect(failed).toBeDefined();
+    if (failed?.kind === "failed") {
+      expect(failed.reason).toBe("agent refused the prompt");
+      expect(failed.code).toBe("OSW-AGT-218");
+    }
+  });
+});

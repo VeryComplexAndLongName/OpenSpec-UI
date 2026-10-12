@@ -22,10 +22,11 @@
 
 import type { AgentStatusReport } from "./agent-status.js";
 import { AGENT_REGISTRY, type AgentProvider } from "./agents/registry.js";
-import { describeDiagnosis, type FailureDiagnosis } from "./failure-diagnosis.js";
+import { describeDiagnosis, failureCauseCode, type FailureDiagnosis } from "./failure-diagnosis.js";
 import type { ResolvedSupervisor } from "./harness-config.js";
 import type { HarnessStepAgentStage } from "./harness-step-agent.js";
 import type { Hint } from "./hints.js";
+import { say, type MessageCode, type SaidMessage } from "./message-register.js";
 import type { LastRunsReport } from "./last-runs-facts.js";
 import { describeWaiting } from "./worktree-survey-facts.js";
 
@@ -161,9 +162,9 @@ function isHarnessStepAgentStageName(stage: string): stage is HarnessStepAgentSt
 /** What the supervisor does about a failed stage under `act`
  * (the-supervisor-changes-agents, ADR 0039 decision 4). */
 export type FailureDecision =
-  | { action: "repeat"; agent: string; because: string }
-  | { action: "move"; agent: string; because: string }
-  | { action: "none"; why: string };
+  | { action: "repeat"; agent: string; because: string; code: MessageCode }
+  | { action: "move"; agent: string; because: string; code: MessageCode }
+  | { action: "none"; why: string; code: MessageCode };
 
 export interface FailureFactsForDecision {
   stage: HarnessStepAgentStage;
@@ -187,15 +188,15 @@ export function fallbackRefusal(
   current: string,
   candidate: string,
   supervisor: Pick<ResolvedSupervisor, "allowCostIncrease" | "allowProviderChange">,
-): string | undefined {
+): SaidMessage | undefined {
   const from = providerOf(current);
   const to = providerOf(candidate);
-  if (to === undefined) return `${candidate} is not a registered agent`;
+  if (to === undefined) return say("OSW-HRN-120", { agent: candidate });
   if (to !== from && !supervisor.allowProviderChange) {
-    return `${candidate} is another provider (${to}), and allowProviderChange is false`;
+    return say("OSW-HRN-121", { agent: candidate, provider: to });
   }
   if (to !== "local" && !supervisor.allowCostIncrease) {
-    return `${candidate} may cost money, and allowCostIncrease is false`;
+    return say("OSW-HRN-122", { agent: candidate });
   }
   return undefined;
 }
@@ -206,33 +207,42 @@ export function fallbackRefusal(
 export function superviseFailure(facts: FailureFactsForDecision): FailureDecision {
   const { diagnosis } = facts;
   if (diagnosis === undefined || diagnosis.repeatHelps === "unknown") {
-    return { action: "none", why: "the cause is not known, so the stage is neither repeated nor moved" };
+    const said = say("OSW-HRN-123");
+    return { action: "none", why: said.text, code: said.code };
   }
   const cause = describeDiagnosis(diagnosis);
+  const causeCode = failureCauseCode(diagnosis.cause);
   if (diagnosis.repeatHelps === "likely") {
-    return { action: "repeat", agent: facts.current, because: `${cause}` };
+    return { action: "repeat", agent: facts.current, because: cause, code: causeCode };
   }
   const fallback = facts.supervisor.fallback[facts.stage] ?? [];
   if (fallback.length === 0) {
-    return { action: "none", why: `${cause}, and ${facts.stage} names no fallback agent` };
+    const said = say("OSW-HRN-124", { cause, stage: facts.stage });
+    return { action: "none", why: said.text, code: said.code };
   }
-  const refusals: string[] = [];
+  const refusals: SaidMessage[] = [];
   for (const candidate of fallback) {
     if (facts.tried.includes(candidate)) continue;
     const refusal = fallbackRefusal(facts.current, candidate, facts.supervisor);
     // A fallback passed over on the way is named too: a move that skipped
     // one says why, not only where it went.
     if (refusal === undefined) {
-      return { action: "move", agent: candidate, because: refusals.length > 0 ? `${cause} (passed over: ${refusals.join("; ")})` : cause };
+      const passedOver = refusals.length > 0
+        ? say("OSW-HRN-127", { cause, refusals: refusals.map((one) => one.text).join("; ") })
+        : undefined;
+      return {
+        action: "move",
+        agent: candidate,
+        because: passedOver?.text ?? cause,
+        code: passedOver?.code ?? causeCode,
+      };
     }
     refusals.push(refusal);
   }
-  return {
-    action: "none",
-    why: refusals.length > 0
-      ? `${cause}, and the policy refuses every fallback left: ${refusals.join("; ")}`
-      : `${cause}, and every fallback for ${facts.stage} has been tried`,
-  };
+  const said = refusals.length > 0
+    ? say("OSW-HRN-125", { cause, refusals: refusals.map((one) => one.text).join("; ") })
+    : say("OSW-HRN-126", { cause, stage: facts.stage });
+  return { action: "none", why: said.text, code: said.code };
 }
 
 /** What the supervisor points out, in the order a person deals with it:

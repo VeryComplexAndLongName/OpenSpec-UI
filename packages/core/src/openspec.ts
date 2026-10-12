@@ -7,6 +7,7 @@
 // not hand-crafted, see tasks.md 5.3).
 
 import crossSpawn from "cross-spawn";
+import { say, type MessageCode, type SaidMessage } from "./message-register.js";
 
 // `cross-spawn` rather than `node:child_process.execFile`: on Windows
 // `openspec` (like `copilot`, see agents/shared.ts) is installed as a
@@ -73,9 +74,9 @@ function failureMessage(
   code: number | null,
   stdout: string,
   stderr: string,
-): string {
+): SaidMessage {
   const reason = diagnosisFrom(stdout, stderr) ?? "no diagnosis reported";
-  return `${binary} ${args.join(" ")} exited with code ${code ?? "unknown"}: ${reason}`;
+  return say("OSW-ARC-003", { binary, args: args.join(" "), code: code ?? "unknown", reason });
 }
 
 export interface OpenSpecCliOptions {
@@ -235,11 +236,26 @@ export class OpenSpecCliCompatibilityError extends Error {
     options: { cause?: unknown } = {},
   ) {
     super(
-      `OpenSpec CLI returned ${code === "invalid-json" ? "invalid JSON" : "incompatible JSON"} for '${command}'. `
-      + `Expected ${expectedContract}. Update OpenSpec CLI or OpenSpec Workbench to compatible versions.`,
+      say("OSW-ARC-002", {
+        kind: code === "invalid-json" ? "invalid" : "incompatible",
+        command,
+        contract: expectedContract,
+      }).text,
       { cause: options.cause },
     );
     this.name = "OpenSpecCliCompatibilityError";
+  }
+}
+
+/** A failure this wrapper reports, with the register's identifier beside
+ * its words (ADR 0046). */
+export class OpenSpecCommandError extends Error {
+  /** The register's identifier for the words. */
+  readonly code: MessageCode;
+  constructor(said: SaidMessage) {
+    super(said.text);
+    this.code = said.code;
+    this.name = "OpenSpecCommandError";
   }
 }
 
@@ -405,7 +421,7 @@ async function runJson<T>(
   const command = args.join(" ");
   const failed = code !== 0;
   if (failed && !opts.acceptNonZeroExit) {
-    throw new Error(failureMessage(binary, args, code, stdout, stderr));
+    throw new OpenSpecCommandError(failureMessage(binary, args, code, stdout, stderr));
   }
   let parsed: unknown;
   try {
@@ -414,7 +430,7 @@ async function runJson<T>(
     // A non-zero exit with nothing readable on stdout is the case the
     // exit code was the only signal for all along — report it as the
     // failure it is, not as a compatibility problem with the contract.
-    if (failed) throw new Error(failureMessage(binary, args, code, stdout, stderr));
+    if (failed) throw new OpenSpecCommandError(failureMessage(binary, args, code, stdout, stderr));
     throw new OpenSpecCliCompatibilityError(
       "invalid-json",
       command,
@@ -424,7 +440,7 @@ async function runJson<T>(
     );
   }
   if (!validator(parsed)) {
-    if (failed) throw new Error(failureMessage(binary, args, code, stdout, stderr));
+    if (failed) throw new OpenSpecCommandError(failureMessage(binary, args, code, stdout, stderr));
     throw new OpenSpecCliCompatibilityError(
       "incompatible-output",
       command,
@@ -536,7 +552,7 @@ export async function archiveChange(
       ...debts.open.map((item) => `still open: ${item}`),
       ...debts.unrecorded.map((item) => `closed with nothing written under it: ${item}`),
     ].join("; ");
-    throw new Error(`could not archive "${changeName}": it still owes ${said}`);
+    throw new OpenSpecCommandError(say("OSW-ARC-004", { change: changeName, debts: said }));
   }
 
   const args = ["archive", changeName, "--yes", "--json"];
@@ -548,7 +564,7 @@ export async function archiveChange(
   // worked and why not, rather than for a result to render.
   const result = await runJson(args, options, "a JSON object", isObjectResult, { acceptNonZeroExit: true });
   const refusal = describeArchiveRefusal(result);
-  if (refusal) throw new Error(`could not archive "${changeName}": ${refusal}`);
+  if (refusal) throw new OpenSpecCommandError(say("OSW-ARC-007", { change: changeName, refusal }));
   return result;
 }
 
@@ -574,7 +590,7 @@ function describeArchiveRefusal(result: OpenSpecArchiveResult): string | undefin
   const archived = (result as { archive?: unknown }).archive;
   const status = (result as { status?: unknown }).status;
   if (!Array.isArray(status)) {
-    return archived === null ? "the archive did not happen, and no reason was given" : undefined;
+    return archived === null ? say("OSW-ARC-005").text : undefined;
   }
   const messages = (status as ArchiveStatusEntry[])
     .filter((entry) => entry.severity === "error")
@@ -588,7 +604,7 @@ function describeArchiveRefusal(result: OpenSpecArchiveResult): string | undefin
     })
     .filter((message): message is string => message !== undefined);
   if (messages.length > 0) return messages.join("; ");
-  return archived === null ? "the archive did not happen, and the report gave no reason" : undefined;
+  return archived === null ? say("OSW-ARC-006").text : undefined;
 }
 
 /** Returns the project's own instructions for `artifact` (e.g. `"tasks"`),
@@ -622,7 +638,7 @@ export async function initOpenSpec(
 ): Promise<OpenSpecInitResult> {
   const tools = initOptions.tools.map((tool) => tool.trim()).filter((tool) => tool.length > 0);
   if (tools.length === 0) {
-    throw new Error("initOpenSpec requires at least one tool");
+    throw new OpenSpecCommandError(say("OSW-ARC-001"));
   }
   const binary = options.binary ?? "openspec";
   const args = ["init", "--tools", tools.join(",")];

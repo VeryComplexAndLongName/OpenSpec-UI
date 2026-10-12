@@ -224,7 +224,7 @@ describe("superviseFailure", () => {
 
   it("repeats on the same agent where repeating is likely to help", () => {
     expect(superviseFailure(facts({ diagnosis: { cause: "rate-limited", repeatHelps: "likely" } })))
-      .toEqual({ action: "repeat", agent: "copilot-cli-acp", because: expect.stringContaining("rate") });
+      .toEqual({ action: "repeat", agent: "copilot-cli-acp", because: expect.stringContaining("rate"), code: "OSW-AGT-205" });
   });
 
   it("moves to the first fallback the policy allows that was not tried", () => {
@@ -235,12 +235,12 @@ describe("superviseFailure", () => {
 
   it("refuses a provider change, and names the rule", () => {
     const decision = superviseFailure(facts({ policy: { fallback: { apply: ["claude-cli-acp"] }, allowProviderChange: false } }));
-    expect(decision).toEqual({ action: "none", why: expect.stringContaining("claude-cli-acp is another provider (anthropic), and allowProviderChange is false") });
+    expect(decision).toEqual({ action: "none", why: expect.stringContaining("claude-cli-acp is another provider (anthropic), and allowProviderChange is false"), code: "OSW-HRN-125" });
   });
 
   it("refuses a cost increase, and names the rule", () => {
     const decision = superviseFailure(facts({ policy: { fallback: { apply: ["copilot-cli"] }, allowCostIncrease: false } }));
-    expect(decision).toEqual({ action: "none", why: expect.stringContaining("copilot-cli may cost money, and allowCostIncrease is false") });
+    expect(decision).toEqual({ action: "none", why: expect.stringContaining("copilot-cli may cost money, and allowCostIncrease is false"), code: "OSW-HRN-125" });
   });
 
   it("allows the local model without allowCostIncrease, and names the fallback it passed over", () => {
@@ -248,19 +248,20 @@ describe("superviseFailure", () => {
       action: "move",
       agent: "local-llm-acp",
       because: expect.stringContaining("passed over: claude-cli-acp may cost money, and allowCostIncrease is false"),
+      code: "OSW-HRN-127",
     });
   });
 
   it("tries nothing twice", () => {
     expect(superviseFailure(facts({ tried: ["copilot-cli-acp", "claude-cli-acp", "local-llm-acp"] })))
-      .toEqual({ action: "none", why: expect.stringContaining("every fallback for apply has been tried") });
+      .toEqual({ action: "none", why: expect.stringContaining("every fallback for apply has been tried"), code: "OSW-HRN-126" });
   });
 
   it("does nothing where the cause is unknown, or the stage has no fallback", () => {
     expect(superviseFailure(facts({ diagnosis: { cause: "unknown", repeatHelps: "unknown" } }))).toMatchObject({ action: "none" });
     expect(superviseFailure(facts({ diagnosis: undefined }))).toMatchObject({ action: "none" });
     expect(superviseFailure(facts({ policy: { fallback: {} } })))
-      .toEqual({ action: "none", why: expect.stringContaining("apply names no fallback agent") });
+      .toEqual({ action: "none", why: expect.stringContaining("apply names no fallback agent"), code: "OSW-HRN-124" });
   });
 });
 

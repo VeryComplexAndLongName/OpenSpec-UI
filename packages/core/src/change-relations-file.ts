@@ -20,6 +20,7 @@ import {
   type ChangeGraph,
   type ChangeRelationKey,
 } from "./change-graph.js";
+import { say, type MessageCode, type SaidMessage } from "./message-register.js";
 
 const KEY_LINE = /^(follows|supersedes|blocked_by)\s*:(.*)$/u;
 const COMMENT = /^\s*#/u;
@@ -96,9 +97,18 @@ export interface RelationEditRefusal {
   /** The changes the refusal is about: the id nothing matches, or the
    * changes in the cycle, in the order they close it. */
   ids: string[];
-  /** One sentence, ready to show. A host decides where it goes; core
-   * decides what is wrong with the edit. */
+  /** One sentence, ready to show — the register's words (ADR 0046). A
+   * host decides where it goes; core decides what is wrong with the
+   * edit. */
   message: string;
+  /** The identifier of the message in `message`. */
+  code: MessageCode;
+}
+
+/** A refusal carrying the register's words and the identifier beside
+ * them. */
+function refusal(reason: RelationRefusalReason, ids: string[], said: SaidMessage): RelationEditRefusal {
+  return { ok: false, reason, ids, message: said.text, code: said.code };
 }
 
 export interface RelationEditApplied {
@@ -140,44 +150,27 @@ export async function editChangeRelation(root: string, edit: RelationEdit): Prom
   const graph = await readChangeGraph(root, { changes: "all" });
   const node = graph.get(edit.change);
   if (!node) {
-    return { ok: false, reason: "unknown-change", ids: [edit.change], message: `No change named ${edit.change}` };
+    return refusal("unknown-change", [edit.change], say("OSW-VAL-004", { change: edit.change }));
   }
   if (node.archived) {
-    return {
-      ok: false,
-      reason: "archived-change",
-      ids: [edit.change],
-      message: `${edit.change} is archived, and an archived change's relations are history`,
-    };
+    return refusal("archived-change", [edit.change], say("OSW-VAL-005", { change: edit.change }));
   }
   if (node.errors.length > 0) {
-    return {
-      ok: false,
-      reason: "unreadable-metadata",
-      ids: [edit.change],
-      message: `${node.metadataPath} cannot be read as relations: ${node.errors[0]}`,
-    };
+    return refusal("unreadable-metadata", [edit.change], say("OSW-VAL-006", {
+      path: node.metadataPath,
+      error: String(node.errors[0]),
+    }));
   }
 
   const named = edit.add ?? edit.remove;
   if (named === undefined) {
-    return { ok: false, reason: "unknown-change", ids: [], message: "The edit names no change to relate" };
+    return refusal("unknown-change", [], say("OSW-VAL-007"));
   }
   if (named === edit.change) {
-    return {
-      ok: false,
-      reason: "self-relation",
-      ids: [edit.change],
-      message: `A change cannot state ${edit.key} on itself`,
-    };
+    return refusal("self-relation", [edit.change], say("OSW-VAL-008", { key: edit.key }));
   }
   if (edit.add !== undefined && !graph.has(edit.add)) {
-    return {
-      ok: false,
-      reason: "unknown-change",
-      ids: [edit.add],
-      message: `No change named ${edit.add}, active or archived`,
-    };
+    return refusal("unknown-change", [edit.add], say("OSW-VAL-009", { change: edit.add }));
   }
 
   const field = fieldOf(edit.key);
@@ -192,12 +185,7 @@ export async function editChangeRelation(root: string, edit: RelationEdit): Prom
     after.set(node.id, { ...node, [field]: ids });
     const closed = findChangeGraphCycles(after).find((cycle) => !before.has([...cycle].sort().join(">")));
     if (closed) {
-      return {
-        ok: false,
-        reason: "cycle",
-        ids: closed,
-        message: `That would close a cycle: ${closed.join(" then ")}`,
-      };
+      return refusal("cycle", closed, say("OSW-VAL-010", { cycle: closed.join(" then ") }));
     }
   }
 

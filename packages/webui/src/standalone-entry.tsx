@@ -131,6 +131,7 @@ import {
   describeStandingSources,
   describeWaitingOn,
   RUN_START_COMMAND,
+  withMessageCode,
   withoutArchivePrefix,
   type ChangeStandings,
   type ComparisonPeriodId,
@@ -147,6 +148,8 @@ import { toChangeState, toChangeSummary } from "./overview-mapping.js";
  * sentence and, for a run that stopped, what the agent last said. */
 interface DelegatedOutcome {
   message: string;
+  /** The register's identifier for `message`, where it has one. */
+  code?: string;
   lastStderr?: string;
 }
 
@@ -1223,7 +1226,11 @@ function StandaloneApp() {
       const lastStderr = result.status === "ran" ? result.lastStderr : undefined;
       setDelegatedOutcomes((current) => ({
         ...current,
-        [key]: { message: result.message, ...(lastStderr !== undefined ? { lastStderr } : {}) },
+        [key]: {
+          message: result.message,
+          ...(result.code !== undefined ? { code: result.code } : {}),
+          ...(lastStderr !== undefined ? { lastStderr } : {}),
+        },
       }));
       try {
         setHumanOnly({ status: "loaded", inbox: await loadHumanOnlyInbox(apiFetch, cwd) });
@@ -2294,7 +2301,10 @@ function StandaloneApp() {
               className={humanOnly.status === "failed" ? "openspec-overview-error" : "openspec-shell-note"}
               data-testid="human-only-inbox-basis"
             >
-              {describeHumanOnlyInboxState(humanOnly)}
+              {(() => {
+                const said = describeHumanOnlyInboxState(humanOnly);
+                return withMessageCode(said.text, said.code);
+              })()}
             </p>
             {humanOnly.status === "loaded" && humanOnly.inbox.items.length > 0 ? (
               <ul className="openspec-shell-note">
@@ -2306,10 +2316,11 @@ function StandaloneApp() {
                   // carry. See a-delegated-item-runs-its-agent.
                   const runnable = item.waitingOn.kind === "agent" && item.waitingOn.known;
                   const outcome = delegatedOutcomes[key];
+                  const who = describeWaitingOn(item.waitingOn);
                   return (
                     <li key={key} data-testid={`waiting-row-${key}`}>
                       <strong>{item.changeName}</strong>{` — ${item.text}`}
-                      {` (waiting on ${describeWaitingOn(item.waitingOn)})`}
+                      {` (waiting on ${withMessageCode(who.text, who.code)})`}
                       {runnable ? (
                         <>
                           {" "}
@@ -2332,7 +2343,7 @@ function StandaloneApp() {
                       {item.reply ? <DelegatedReply reply={item.reply} testId={`delegated-reply-${key}`} /> : null}
                       {outcome ? (
                         <div data-testid={`delegated-outcome-${key}`}>
-                          {outcome.message}
+                          {withMessageCode(outcome.message, outcome.code)}
                           {outcome.lastStderr ? (
                             // The whole tail, one click away; the message
                             // already quotes its last line.

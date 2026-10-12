@@ -712,7 +712,8 @@ export class PipelinePanel {
     const workspaceRoot = this.deps.getWorkspaceRoot();
     if (!workspaceRoot || this.deps.runChange === undefined) return;
     if (!isValidChangeName(changeName)) {
-      void vscode.window.showInformationMessage(`OpenSpec Workbench: "${String(changeName)}" is not a change name this workspace can have.`);
+      const refused = say("OSW-CHG-001", { name: String(changeName) });
+      void vscode.window.showInformationMessage(withMessageCode(refused.text, refused.code));
       return;
     }
     const change = await this.readers.findActiveChange(workspaceRoot, changeName);
@@ -842,7 +843,8 @@ export class PipelinePanel {
     const workspaceRoot = this.deps.getWorkspaceRoot();
     if (!workspaceRoot) return;
     if (!isValidChangeName(changeName)) {
-      void vscode.window.showInformationMessage(`OpenSpec Workbench: "${String(changeName)}" is not a change name this workspace can have.`);
+      const refused = say("OSW-CHG-001", { name: String(changeName) });
+      void vscode.window.showInformationMessage(withMessageCode(refused.text, refused.code));
       return;
     }
     let root: string;

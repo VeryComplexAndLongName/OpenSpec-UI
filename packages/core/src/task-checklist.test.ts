@@ -247,9 +247,9 @@ describe("readTaskChecklist — mechanical check declarations", () => {
       "- [ ] A misspelled check. `check(typechek)`\n",
     );
 
-    await expect(
-      readTaskChecklist(root, "active-change", false),
-    ).rejects.toThrow(UnknownMechanicalCheckError);
+    const error = await readTaskChecklist(root, "active-change", false).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(UnknownMechanicalCheckError);
+    expect((error as UnknownMechanicalCheckError).code).toBe("OSW-TSK-010");
   });
 
   it("throws InvalidMechanicalCheckParameterError for a path-unchanged path that escapes the workspace", async () => {
@@ -261,9 +261,9 @@ describe("readTaskChecklist — mechanical check declarations", () => {
       "- [ ] Sneaky task. `check(path-unchanged, ../../outside-the-repo)`\n",
     );
 
-    await expect(
-      readTaskChecklist(root, "active-change", false),
-    ).rejects.toThrow(InvalidMechanicalCheckParameterError);
+    const error = await readTaskChecklist(root, "active-change", false).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(InvalidMechanicalCheckParameterError);
+    expect((error as InvalidMechanicalCheckParameterError).code).toBe("OSW-TSK-011");
   });
 });
 
@@ -305,15 +305,15 @@ describe("deleteTaskLine", () => {
     const original = "- [ ] First\n- [ ] Second\n";
     await writeFile(tasksPath, original);
 
-    await expect(
-      deleteTaskLine(
-        root,
-        "active-change",
-        false,
-        0,
-        "A task that no longer exists",
-      ),
-    ).rejects.toThrow(TaskListChangedError);
+    const error = await deleteTaskLine(
+      root,
+      "active-change",
+      false,
+      0,
+      "A task that no longer exists",
+    ).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(TaskListChangedError);
+    expect((error as TaskListChangedError).code).toBe("OSW-TSK-014");
     expect(await readFile(tasksPath, "utf8")).toBe(original);
   });
 

@@ -158,6 +158,7 @@ describe("planChangeWorktree", () => {
     expect(plan).toMatchObject({ ok: false });
     if (!plan.ok) {
       expect(plan.refusal.reason).toContain("is not in main");
+      expect(plan.refusal.code).toBe("OSW-WSP-005");
       expect(plan.refusal.remedy).toContain("commit openspec/changes/a-change");
     }
     expect(git.added).toHaveLength(0);
@@ -198,7 +199,10 @@ describe("planChangeWorktree", () => {
     const plan = await planChangeWorktree({ git, repositoryRoot: root, changeName: "a-change" });
 
     expect(plan).toMatchObject({ ok: false });
-    if (!plan.ok) expect(plan.refusal.reason).toContain("/repo.worktrees/a-change");
+    if (!plan.ok) {
+      expect(plan.refusal.reason).toContain("/repo.worktrees/a-change");
+      expect(plan.refusal.code).toBe("OSW-WSP-006");
+    }
     expect(git.added).toHaveLength(0);
   });
 
@@ -211,7 +215,10 @@ describe("planChangeWorktree", () => {
     const plan = await planChangeWorktree({ git, repositoryRoot: root, changeName: "a-change", path: target });
 
     expect(plan).toMatchObject({ ok: false });
-    if (!plan.ok) expect(plan.refusal.reason).toContain("already exists");
+    if (!plan.ok) {
+      expect(plan.refusal.reason).toContain("already exists");
+      expect(plan.refusal.code).toBe("OSW-WSP-007");
+    }
     expect(git.added).toHaveLength(0);
   });
 
@@ -222,7 +229,10 @@ describe("planChangeWorktree", () => {
     const plan = await planChangeWorktree({ git, repositoryRoot: root, changeName: "../../etc" });
 
     expect(plan).toMatchObject({ ok: false });
-    if (!plan.ok) expect(plan.refusal.reason).toContain("not a valid change name");
+    if (!plan.ok) {
+      expect(plan.refusal.reason).toContain("not a valid change name");
+      expect(plan.refusal.code).toBe("OSW-WSP-004");
+    }
   });
 });
 
@@ -287,6 +297,7 @@ describe("planChangeWorktree — a branch left behind by a removal", () => {
     expect(plan.ok).toBe(false);
     if (!plan.ok) {
       expect(plan.refusal.reason).toContain("no working directory on it");
+      expect(plan.refusal.code).toBe("OSW-WSP-008");
       // Git's own message is true and says nothing about what to do next.
       expect(plan.refusal.remedy).toContain("git branch -D a-change");
     }

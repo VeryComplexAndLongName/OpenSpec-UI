@@ -17,6 +17,8 @@
 // - Act. It is a diagnosis; what to do with it is a person's, or, where a
 //   change allows it, the supervisor's (`the-supervisor-changes-agents`).
 
+import { isMessageCode, say, type MessageCode } from "./message-register.js";
+
 export type FailureCause =
   | "agent-not-installed"
   | "not-signed-in"
@@ -33,6 +35,10 @@ export type RepeatHelps = "no" | "likely" | "unknown";
 export interface FailureDiagnosis {
   cause: FailureCause;
   repeatHelps: RepeatHelps;
+  /** The register's identifier for the cause's words. */
+  code?: MessageCode;
+  /** The register's identifier for the remedy's words. */
+  remedyCode?: MessageCode;
   /** The line the cause was found in, as printed, cut to
    * `QUOTED_LINE_LIMIT` characters. Absent for `unknown`. A diagnosis a
    * reader can check against its evidence is one they can disagree with. */
@@ -167,42 +173,37 @@ function quoted(line: string): string {
   return trimmed.length <= QUOTED_LINE_LIMIT ? trimmed : `${trimmed.slice(0, QUOTED_LINE_LIMIT - 1)}…`;
 }
 
-function remedyFor(cause: Exclude<FailureCause, "unknown">, agentId: string): Pick<FailureDiagnosis, "remedy" | "commands"> {
+function remedyFor(cause: Exclude<FailureCause, "unknown">, agentId: string): Pick<FailureDiagnosis, "remedy" | "remedyCode" | "commands"> {
   const executable = EXECUTABLE_BY_AGENT[agentId];
   const local = LOCAL_LLM_AGENTS.has(agentId);
   switch (cause) {
     case "agent-not-installed":
-      return {
-        remedy: executable !== undefined
-          ? `Install \`${executable}\` and make sure it is on the PATH, or choose another agent for this stage.`
-          : "Install the agent and make sure it is on the PATH, or choose another agent for this stage.",
-        commands: ["openspec-ui-cli diagnose workspace"],
-      };
+      return executable !== undefined
+        ? {
+            remedy: say("OSW-AGT-211", { executable }).text,
+            remedyCode: "OSW-AGT-211",
+            commands: ["openspec-ui-cli diagnose workspace"],
+          }
+        : {
+            remedy: say("OSW-AGT-212").text,
+            remedyCode: "OSW-AGT-212",
+            commands: ["openspec-ui-cli diagnose workspace"],
+          };
     case "not-signed-in":
       if (local) {
-        return {
-          remedy: "The local LLM's server refused the key. Set the key the server expects"
-            + " (the local LLM settings, or OPENSPEC_UI_LOCAL_LLM_API_KEY), then start the run again.",
-        };
+        return { remedy: say("OSW-NET-204").text, remedyCode: "OSW-NET-204" };
       }
       return executable !== undefined
-        ? { remedy: `Run \`${executable}\` in a terminal and sign in, then start the run again.`, commands: [executable] }
-        : { remedy: "Sign the agent in, then start the run again." };
+        ? { remedy: say("OSW-AGT-213", { executable }).text, remedyCode: "OSW-AGT-213", commands: [executable] }
+        : { remedy: say("OSW-AGT-214").text, remedyCode: "OSW-AGT-214" };
     case "blocked-by-the-machine":
-      return {
-        remedy: "Something on this machine refused the agent a file or a program: security software, or the"
-          + " file's permissions. Allow it there, then start the run again.",
-      };
+      return { remedy: say("OSW-AGT-215").text, remedyCode: "OSW-AGT-215" };
     case "network-unreachable":
-      return {
-        remedy: "The agent could not reach its service. Check the address and the connection. Where a system"
-          + " proxy is in the way, turn on openspec-ui.agents.ignoreSystemProxy in the editor, or set"
-          + " OPENSPEC_UI_IGNORE_SYSTEM_PROXY=1 for the server and the CLI.",
-      };
+      return { remedy: say("OSW-NET-205").text, remedyCode: "OSW-NET-205" };
     case "rate-limited":
-      return { remedy: "The service limited how often it may be asked. Wait, then start the run again." };
+      return { remedy: say("OSW-AGT-216").text, remedyCode: "OSW-AGT-216" };
     case "server-error":
-      return { remedy: "The service failed on its side. Starting the run again is likely to work." };
+      return { remedy: say("OSW-AGT-217").text, remedyCode: "OSW-AGT-217" };
   }
 }
 
@@ -219,38 +220,44 @@ export function diagnoseFailure(facts: FailureFacts): FailureDiagnosis {
     return {
       cause: rule.cause,
       repeatHelps: rule.repeatHelps,
+      code: failureCauseCode(rule.cause),
       evidence: quoted(line),
       ...remedyFor(rule.cause, facts.agentId),
     };
   }
-  return { cause: "unknown", repeatHelps: "unknown" };
+  return { cause: "unknown", repeatHelps: "unknown", code: "OSW-AGT-207" };
 }
 
-const CAUSE_WORDS: Readonly<Record<FailureCause, string>> = {
-  "agent-not-installed": "the agent is not installed",
-  "not-signed-in": "the agent is not signed in",
-  "blocked-by-the-machine": "the machine blocked the agent",
-  "network-unreachable": "the network could not be reached",
-  "rate-limited": "the service rate-limited the agent",
-  "server-error": "the service failed",
-  unknown: "the cause is not known",
-};
+const CAUSE_CODES = {
+  "agent-not-installed": "OSW-AGT-201",
+  "not-signed-in": "OSW-AGT-202",
+  "blocked-by-the-machine": "OSW-AGT-203",
+  "network-unreachable": "OSW-AGT-204",
+  "rate-limited": "OSW-AGT-205",
+  "server-error": "OSW-AGT-206",
+  unknown: "OSW-AGT-207",
+} as const satisfies Record<FailureCause, MessageCode>;
 
-const REPEAT_WORDS: Readonly<Record<RepeatHelps, string>> = {
-  no: "repeating will not help",
-  likely: "repeating is likely to help",
-  unknown: "whether repeating helps is not known",
-};
+const REPEAT_CODES = {
+  no: "OSW-AGT-208",
+  likely: "OSW-AGT-209",
+  unknown: "OSW-AGT-210",
+} as const satisfies Record<RepeatHelps, MessageCode>;
+
+/** The register's identifier for a cause's words. */
+export function failureCauseCode(cause: FailureCause): MessageCode {
+  return CAUSE_CODES[cause];
+}
 
 /** The cause, in a reader's words. */
 export function describeFailureCause(cause: FailureCause): string {
-  return CAUSE_WORDS[cause];
+  return say(CAUSE_CODES[cause]).text;
 }
 
 /** One line: the cause, and whether repeating helps. The words every
  * surface shows, so no two describe one failure differently. */
 export function describeDiagnosis(diagnosis: FailureDiagnosis): string {
-  return `${CAUSE_WORDS[diagnosis.cause]}: ${REPEAT_WORDS[diagnosis.repeatHelps]}`;
+  return `${say(CAUSE_CODES[diagnosis.cause]).text}: ${say(REPEAT_CODES[diagnosis.repeatHelps]).text}`;
 }
 
 /** A value read back from a log or a payload, as a diagnosis, or
@@ -259,14 +266,16 @@ export function describeDiagnosis(diagnosis: FailureDiagnosis): string {
 export function readFailureDiagnosis(value: unknown): FailureDiagnosis | undefined {
   if (typeof value !== "object" || value === null) return undefined;
   const record = value as Record<string, unknown>;
-  if (typeof record.cause !== "string" || !(record.cause in CAUSE_WORDS)) return undefined;
-  if (typeof record.repeatHelps !== "string" || !(record.repeatHelps in REPEAT_WORDS)) return undefined;
+  if (typeof record.cause !== "string" || !(record.cause in CAUSE_CODES)) return undefined;
+  if (typeof record.repeatHelps !== "string" || !(record.repeatHelps in REPEAT_CODES)) return undefined;
   const commands = Array.isArray(record.commands) && record.commands.every((item) => typeof item === "string")
     ? record.commands as string[]
     : undefined;
   return {
     cause: record.cause as FailureCause,
     repeatHelps: record.repeatHelps as RepeatHelps,
+    ...(isMessageCode(record.code) ? { code: record.code } : {}),
+    ...(isMessageCode(record.remedyCode) ? { remedyCode: record.remedyCode } : {}),
     ...(typeof record.evidence === "string" ? { evidence: record.evidence } : {}),
     ...(typeof record.remedy === "string" ? { remedy: record.remedy } : {}),
     ...(commands !== undefined ? { commands } : {}),

@@ -8,6 +8,7 @@
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { say, type MessageCode, type SaidMessage } from "./message-register.js";
 import { discoverOpenSpecWorkspace } from "./workbench.js";
 
 export interface SpecRequirement {
@@ -65,7 +66,10 @@ export interface SpecDeltaViolation {
   changeId: string;
   specId: string;
   filePath: string;
+  /** The register's words (ADR 0046). */
   reason: string;
+  /** The identifier of the message in `reason`. */
+  code: MessageCode;
 }
 
 /** Compares one delta's `## MODIFIED Requirements` block against the
@@ -78,27 +82,22 @@ export interface SpecDeltaViolation {
 export function checkSpecDeltaAgainstSpec(
   deltaModifiedSection: string,
   currentSpecSource: string,
-): string[] {
+): SaidMessage[] {
   const deltaRequirements = parseSpecRequirements(deltaModifiedSection);
   const currentRequirements = parseSpecRequirements(currentSpecSource);
   const currentByHeader = new Map(currentRequirements.map((requirement) => [requirement.header, requirement]));
 
-  const reasons: string[] = [];
+  const reasons: SaidMessage[] = [];
   for (const delta of deltaRequirements) {
     const current = currentByHeader.get(delta.header);
     if (!current) {
-      reasons.push(
-        `requirement header ${JSON.stringify(delta.header)} does not exist in the current specification`,
-      );
+      reasons.push(say("OSW-VAL-114", { header: delta.header }));
       continue;
     }
     const deltaScenarios = new Set(delta.scenarios);
     for (const scenario of current.scenarios) {
       if (!deltaScenarios.has(scenario)) {
-        reasons.push(
-          `scenario ${JSON.stringify(scenario)} under requirement ${JSON.stringify(delta.header)}`
-            + " exists in the current specification but is omitted from this change's modified block",
-        );
+        reasons.push(say("OSW-VAL-115", { scenario, header: delta.header }));
       }
     }
   }
@@ -130,8 +129,14 @@ export async function checkSpecDeltaDrift(root: string): Promise<SpecDeltaViolat
       const modifiedSection = extractModifiedSection(deltaSource);
       if (!modifiedSection) continue;
 
-      for (const reason of checkSpecDeltaAgainstSpec(modifiedSection, currentSpecSource)) {
-        violations.push({ changeId: change.name, specId, filePath: artifact.path, reason });
+      for (const said of checkSpecDeltaAgainstSpec(modifiedSection, currentSpecSource)) {
+        violations.push({
+          changeId: change.name,
+          specId,
+          filePath: artifact.path,
+          reason: said.text,
+          code: said.code,
+        });
       }
     }
   }

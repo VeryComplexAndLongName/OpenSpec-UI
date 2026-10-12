@@ -15,6 +15,7 @@ import type { AdapterInvocation } from "./agent-runner.js";
 import type { AuditMessage } from "./audit-message.js";
 import type { AgentUsage } from "./agent-usage.js";
 import type { FailureDiagnosis } from "./failure-diagnosis.js";
+import { say, type MessageCode } from "./message-register.js";
 import { instructionsForArtifact } from "./openspec.js";
 import type { HarnessEffort } from "./harness-step-agent.js";
 import type { HarnessStage } from "./harness-stage.js";
@@ -35,6 +36,8 @@ export type AllowlistConfig = Record<string, AllowlistRule[]>;
 export interface AllowlistDecision {
   allowed: boolean;
   reason?: string;
+  /** The register's identifier for `reason`, on a refusal. */
+  code?: MessageCode;
 }
 
 /** The allowlist's executable for an agent that runs in process and starts
@@ -49,41 +52,44 @@ export function checkAllowlist(
 ): AllowlistDecision {
   const rules = allowlist[agentName];
   if (!rules || rules.length === 0) {
-    return { allowed: false, reason: `Agent "${agentName}" is not present in the workspace allowlist` };
+    const said = say("OSW-KEY-001", { agent: agentName });
+    return { allowed: false, reason: said.text, code: said.code };
   }
   if (invocation.kind === "in-process") {
     const rule = rules.find((r) => r.executable === IN_PROCESS_SENTINEL);
     if (!rule || !rule.argsAllowed([invocation.agent])) {
-      return { allowed: false, reason: `Agent "${agentName}" is not permitted to run in process` };
+      const said = say("OSW-KEY-002", { agent: agentName });
+      return { allowed: false, reason: said.text, code: said.code };
     }
     return { allowed: true };
   }
   if (invocation.kind === "http") {
     const rule = rules.find((r) => r.executable === "__http__");
     if (!rule) {
-      return { allowed: false, reason: `HTTP call is not permitted by the allowlist for agent "${agentName}"` };
+      const said = say("OSW-KEY-003", { agent: agentName });
+      return { allowed: false, reason: said.text, code: said.code };
     }
     const ok = rule.argsAllowed([invocation.url, invocation.method]);
-    return ok
-      ? { allowed: true }
-      : { allowed: false, reason: `URL/method "${invocation.method} ${invocation.url}" is not permitted by the allowlist` };
+    if (ok) return { allowed: true };
+    const said = say("OSW-KEY-004", { method: invocation.method, url: invocation.url });
+    return { allowed: false, reason: said.text, code: said.code };
   }
   const rule = rules.find((r) => r.executable === invocation.executable);
   if (!rule) {
-    return {
-      allowed: false,
-      reason: `Executable "${invocation.executable}" is not permitted by the allowlist for agent "${agentName}"`,
-    };
+    const said = say("OSW-KEY-005", { executable: invocation.executable, agent: agentName });
+    return { allowed: false, reason: said.text, code: said.code };
   }
   const ok = rule.argsAllowed(invocation.args);
-  return ok
-    ? { allowed: true }
-    : { allowed: false, reason: `Arguments [${invocation.args.join(" ")}] are not permitted by the allowlist` };
+  if (ok) return { allowed: true };
+  const said = say("OSW-KEY-006", { arguments: invocation.args.join(" ") });
+  return { allowed: false, reason: said.text, code: said.code };
 }
 
 export interface CwdDecision {
   allowed: boolean;
   reason?: string;
+  /** The register's identifier for `reason`, on a refusal. */
+  code?: MessageCode;
 }
 
 export interface CwdSandboxOptions {
@@ -109,9 +115,9 @@ export function checkCwdSandbox(cwd: string, workspaceRoot: string, options: Cwd
   const normalizedRoot = process.platform === "win32" ? resolvedRoot.toLowerCase() : resolvedRoot;
   const normalizedRootWithSep = process.platform === "win32" ? rootWithSep.toLowerCase() : rootWithSep;
   const withinRoot = normalizedCwd === normalizedRoot || normalizedCwd.startsWith(normalizedRootWithSep);
-  return withinRoot
-    ? { allowed: true }
-    : { allowed: false, reason: `cwd "${cwd}" is outside the workspace "${workspaceRoot}"` };
+  if (withinRoot) return { allowed: true };
+  const said = say("OSW-KEY-007", { cwd, workspace: workspaceRoot });
+  return { allowed: false, reason: said.text, code: said.code };
 }
 
 export interface AgentPromptContext {

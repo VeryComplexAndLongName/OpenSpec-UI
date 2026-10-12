@@ -35,6 +35,7 @@ import {
   type Event,
   formatMessage,
   say,
+  withMessageCode,
 } from "@openspec-ui/core";
 import { RunTextRenderer, renderRunEventAsJsonLine } from "./render-run.js";
 
@@ -102,7 +103,10 @@ export async function runChange(options: RunChangeOptions, deps: RunChangeDeps):
     author: await readGitAuthor(workspaceRoot),
   });
   const held = await withWorkspaceLease(lease, async (hold) => {
-    if (hold.reclaimedFrom) deps.stderr(`openspec-ui-cli: ${describeWorkspaceLeaseReclamation(hold.reclaimedFrom)}`);
+    if (hold.reclaimedFrom) {
+      const said = describeWorkspaceLeaseReclamation(hold.reclaimedFrom);
+      deps.stderr(withMessageCode(said.text, said.code));
+    }
     return await driveChain(
       {
         workspaceRoot,
@@ -134,7 +138,8 @@ export async function runChange(options: RunChangeOptions, deps: RunChangeDeps):
   });
 
   if (!held.ok) {
-    deps.stderr(`openspec-ui-cli: ${describeWorkspaceLeaseConflict(held.conflict)}`);
+    const said = describeWorkspaceLeaseConflict(held.conflict);
+    deps.stderr(withMessageCode(said.text, said.code));
     return 2;
   }
   return held.value;

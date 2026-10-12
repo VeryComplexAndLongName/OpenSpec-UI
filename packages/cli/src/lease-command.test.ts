@@ -78,6 +78,7 @@ describe("leaseCommand", () => {
       kind: "refused",
       holder: HOLDER,
       reason: "process 777 is still running. ... stop that process instead.",
+      code: "OSW-WSP-003",
     };
 
     const code = await leaseCommand(

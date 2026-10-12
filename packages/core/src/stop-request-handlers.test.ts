@@ -41,7 +41,7 @@ describe("chainStopRequestHandlers", () => {
   it("records a refused request as a message entry, without the reason nobody verified", () => {
     const auditLog = new InMemoryAuditLog();
 
-    chainStopRequestHandlers({ requestStop: () => true }, command, auditLog).onStopRequestRefused?.({ messageId: "m-2", why: "unverified", reason: "unverified words" });
+    chainStopRequestHandlers({ requestStop: () => true }, command, auditLog).onStopRequestRefused?.({ messageId: "m-2", why: "unverified", reason: "unverified words", code: "OSW-AGT-101" });
 
     expect(auditLog.entries).toEqual([
       expect.objectContaining({
@@ -77,7 +77,7 @@ describe("agentStopRequestHandlers", () => {
     const auditLog = new InMemoryAuditLog();
     const single: Command = { ...command, kind: "implement", agentId: "claude-cli" };
 
-    agentStopRequestHandlers({ run: async function* () {} }, single, auditLog).onStopRequestRefused?.({ messageId: "m-4", why: "stale", reason: "x" });
+    agentStopRequestHandlers({ run: async function* () {} }, single, auditLog).onStopRequestRefused?.({ messageId: "m-4", why: "stale", reason: "x", code: "OSW-AGT-102" });
 
     expect(auditLog.entries).toEqual([expect.objectContaining({ agent: "claude-cli", outcome: "message", stopRequestRefused: { messageId: "m-4", why: "stale" } })]);
   });

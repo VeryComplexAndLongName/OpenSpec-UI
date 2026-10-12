@@ -26,6 +26,7 @@ import {
   type Command,
   formatMessage,
   say,
+  withMessageCode,
 } from "@openspec-ui/core";
 import { RunTextRenderer, renderRunEventAsJsonLine } from "./render-run.js";
 import type { CheckpointPrompt } from "./run-change.js";
@@ -120,7 +121,8 @@ export async function updatePlan(options: UpdatePlanOptions, deps: UpdatePlanDep
     return outcome === "completed" ? 0 : 1;
   });
   if (!held.ok) {
-    deps.stderr(`openspec-ui-cli: ${describeWorkspaceLeaseConflict(held.conflict)}`);
+    const said = describeWorkspaceLeaseConflict(held.conflict);
+    deps.stderr(withMessageCode(said.text, said.code));
     return 2;
   }
   return held.value;

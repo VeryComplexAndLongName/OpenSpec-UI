@@ -1,6 +1,6 @@
 import path from "node:path";
 import { createGitWrapper, describeWorkspaceLeaseConflict, readAgentStatuses, resolveAgentStatusDirectory,
-  withWorkspaceLease, WorkbenchRecoveryService, WorkspaceLeaseManager } from "@openspec-ui/core";
+  withMessageCode, withWorkspaceLease, WorkbenchRecoveryService, WorkspaceLeaseManager } from "@openspec-ui/core";
 import { changeSource, reportFailure, ReportRefusal, type ReportIo, type ReportOptions } from "./report-command.js";
 import type { CheckpointPrompt } from "./run-change.js";
 
@@ -35,7 +35,10 @@ export async function rollbackCommand(options: ReportOptions, deps: RollbackDeps
       deps.stdout(options.format === "json" ? JSON.stringify(result, null, 2) : `Restored ${result.restored.length} files.`);
       return 0;
     });
-    if (!held.ok) throw new ReportRefusal(describeWorkspaceLeaseConflict(held.conflict));
+    if (!held.ok) {
+      const said = describeWorkspaceLeaseConflict(held.conflict);
+      throw new ReportRefusal(withMessageCode(said.text, said.code));
+    }
     return held.value;
   } catch (error) {
     return reportFailure("rollback change", error, deps);

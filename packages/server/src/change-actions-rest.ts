@@ -48,6 +48,7 @@ import {
   type ChangeActionRoot,
   type ChangeGraphNode,
   type ChangeRelationKey,
+  type MessageCode,
   type WorkbenchRecoveryService,
 } from "@openspec-ui/core";
 import { authorizeCwd, readJsonBody, sendBodyError, sendJson, type RestRequestPolicy } from "./rest.js";
@@ -115,7 +116,14 @@ function done(message: string): ChangeActionAnswer {
 }
 
 /** A refusal is an answer, not a transport failure. */
-class Refused extends Error {}
+class Refused extends Error {
+  /** The register's identifier for the refusal, where it has one. */
+  readonly code: MessageCode | undefined;
+  constructor(message: string, code?: MessageCode) {
+    super(message);
+    this.code = code;
+  }
+}
 
 async function perform(request: ChangeActionRequest, at: ChangeActionRoot, seams: ChangeActionSeams): Promise<ChangeActionAnswer> {
   const { changeName, cwd } = request;
@@ -194,7 +202,7 @@ async function perform(request: ChangeActionRequest, at: ChangeActionRoot, seams
       // pushed (a-change-is-committed-where-it-is-made).
       const result = await commitChange({ repositoryRoot: cwd, changeName: name });
       const said = sayCommitChange(name, result);
-      if (!result.ok) throw new Refused(withMessageCode(said.text, said.code));
+      if (!result.ok) throw new Refused(withMessageCode(said.text, said.code), said.code);
       return done(withMessageCode(said.text, said.code));
     }
     case "openWorktree": {
@@ -292,6 +300,10 @@ export async function handleChangeActionRequest(req: IncomingMessage, res: Serve
     }
     sendJson(res, 200, await perform(parsed, at, seams));
   } catch (error) {
-    sendJson(res, error instanceof Refused ? 409 : 500, { error: error instanceof Error ? error.message : String(error) });
+    const refused = error instanceof Refused;
+    sendJson(res, refused ? 409 : 500, {
+      error: error instanceof Error ? error.message : String(error),
+      ...(refused && error.code !== undefined ? { code: error.code } : {}),
+    });
   }
 }

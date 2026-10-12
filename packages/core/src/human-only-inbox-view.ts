@@ -14,6 +14,7 @@
 // on rather than being assumed to wait on a person.
 
 import type { ItemReply } from "./audit-message.js";
+import { say, type MessageCode, type MessageLevel, type SaidMessage } from "./message-register.js";
 import type { EnrolmentRequest } from "./signature-facts.js";
 
 /** Who an open item waits on.
@@ -119,28 +120,50 @@ export type HumanOnlyInboxState =
   | { status: "loaded"; inbox: HumanOnlyInbox }
   | { status: "failed"; reason: string };
 
+/** A formatter's line: the words to render, and the identifier they are
+ * said under. `code` is absent where the words are a bare value the
+ * register holds no entry for — a registered agent's own id, which is
+ * data rather than a sentence. */
+export type SaidLine = {
+  code?: MessageCode;
+  level?: MessageLevel;
+  text: string;
+};
+
 /** Who one item waits on, in words — for a row's label in either host.
  *
  * A disagreement between the change's configuration and the task's own
  * text is said out loud here rather than settled quietly, which is the
  * one case this sentence grew past naming an agent. */
-export function describeWaitingOn(waitingOn: WaitingOn): string {
-  if (waitingOn.kind === "person") return "a person";
-  const named = waitingOn.known ? waitingOn.agent : `"${waitingOn.agent}", which is not a registered agent`;
-  if (waitingOn.alsoNamedInText === undefined) return named;
-  return `${named} (this change's harness.json names it; the task text names ${waitingOn.alsoNamedInText})`;
+export function describeWaitingOn(waitingOn: WaitingOn): SaidLine {
+  if (waitingOn.kind === "person") return say("OSW-TSK-015");
+  const unregistered = waitingOn.known ? undefined : say("OSW-TSK-016", { agent: waitingOn.agent });
+  const named = unregistered?.text ?? waitingOn.agent;
+  if (waitingOn.alsoNamedInText === undefined) return unregistered ?? { text: named };
+  return say("OSW-TSK-017", { waiting: named, textagent: waitingOn.alsoNamedInText });
 }
 
 /** One unmatched `taskAgents` entry, in words. */
-export function describeUnmatchedTaskAgent(unmatched: UnmatchedTaskAgent): string {
+export function describeUnmatchedTaskAgent(unmatched: UnmatchedTaskAgent): SaidMessage {
   const where = unmatched.reason === "task-waits-on-a-person"
     ? "that task is marked for a person"
     : "no open task carries that number";
-  return `${unmatched.changeName} names ${unmatched.agent} for task ${unmatched.taskNumber}, but ${where}`;
+  return say("OSW-TSK-018", {
+    change: unmatched.changeName,
+    agent: unmatched.agent,
+    task: unmatched.taskNumber,
+    where,
+  });
 }
 
 function changesRead(count: number): string {
   return `${count} active change${count === 1 ? "" : "s"}`;
+}
+
+/** The trailing sentences, each on the same line, in the order they are
+ * appended: empty where a formatter had nothing to say. */
+function appended(...said: Array<SaidMessage | undefined>): string {
+  return said.map((line) => (line === undefined ? "" : ` ${line.text}`)).join("");
 }
 
 /** The sentence above the list.
@@ -149,23 +172,24 @@ function changesRead(count: number): string {
  * surface that shows an empty list for both says neither. A third fact
  * joins them here: how much of what is waiting is a question for a
  * person, and how much is assigned to an agent that has not run yet. */
-export function describeHumanOnlyInbox(inbox: HumanOnlyInbox): string {
-  const stale = describeUnmatched(inbox.unmatchedTaskAgents)
-    + describeUnreadable(inbox.unreadableTaskAgents)
-    + describeEnrolments(inbox.enrolments)
-    + describeQuestions(inbox.questions);
-  if (inbox.changesRead === 0) return `No active change to look at.${describeEnrolments(inbox.enrolments)}`;
+export function describeHumanOnlyInbox(inbox: HumanOnlyInbox): SaidMessage {
+  const stale = appended(
+    describeUnmatched(inbox.unmatchedTaskAgents),
+    describeUnreadable(inbox.unreadableTaskAgents),
+    describeEnrolments(inbox.enrolments),
+    describeQuestions(inbox.questions),
+  );
+  if (inbox.changesRead === 0) {
+    return say("OSW-TSK-019", { enrolments: appended(describeEnrolments(inbox.enrolments)) });
+  }
   if (inbox.items.length === 0) {
-    return `Nothing is waiting — ${changesRead(inbox.changesRead)} read.${stale}`;
+    return say("OSW-TSK-020", { changes: changesRead(inbox.changesRead), stale });
   }
 
   const changes = new Set(inbox.items.map((item) => item.changeName)).size;
-  const head = `${inbox.items.length} item${inbox.items.length === 1 ? "" : "s"} waiting,`
-    + ` across ${changes} of ${changesRead(inbox.changesRead)}`;
-
   const parts: string[] = [];
   const people = inbox.items.filter((item) => item.waitingOn.kind === "person").length;
-  if (people > 0) parts.push(`${people} on a person`);
+  if (people > 0) parts.push(`${people} on ${say("OSW-TSK-015").text}`);
 
   // Busiest first, then by name, so the sentence is stable across reads
   // of the same workspace.
@@ -180,10 +204,30 @@ export function describeHumanOnlyInbox(inbox: HumanOnlyInbox): string {
     (left, right) => right[1].count - left[1].count || left[0].localeCompare(right[0]),
   );
   for (const [agent, group] of ordered) {
-    parts.push(`${group.count} on ${describeWaitingOn({ kind: "agent", agent, known: group.known })}`);
+    parts.push(`${group.count} on ${describeWaitingOn({ kind: "agent", agent, known: group.known }).text}`);
   }
 
-  return `${head}: ${parts.join(", ")}.${stale}`;
+  const waiting = parts.join(", ");
+  const total = changesRead(inbox.changesRead);
+  const said = say("OSW-TSK-021", {
+    items: inbox.items.length,
+    changes,
+    total: inbox.changesRead,
+    waiting,
+    stale,
+  });
+  // TSK-021's text is plural-only on both counts ("{items} items waiting",
+  // "{total} active changes"), so a singular item or a single active change
+  // is said in the carrier's own words rather than the register's; the
+  // identifier still rides beside them.
+  if (inbox.items.length === 1 || inbox.changesRead === 1) {
+    return {
+      ...said,
+      text: `${inbox.items.length} item${inbox.items.length === 1 ? "" : "s"} waiting,`
+        + ` across ${changes} of ${total}: ${waiting}.${stale}`,
+    };
+  }
+  return said;
 }
 
 /** The trailing sentence naming `taskAgents` entries nothing matched.
@@ -196,36 +240,39 @@ export function describeHumanOnlyInbox(inbox: HumanOnlyInbox): string {
 /** Appended for the same reason as the unmatched entries: a change
  * whose configuration could not be read still has its items listed, and
  * a reader who is not told would take the list as complete. */
-function describeUnreadable(unreadable: readonly UnreadableTaskAgentsConfig[] | undefined): string {
-  if (!unreadable || unreadable.length === 0) return "";
+function describeUnreadable(unreadable: readonly UnreadableTaskAgentsConfig[] | undefined): SaidMessage | undefined {
+  if (!unreadable || unreadable.length === 0) return undefined;
   const listed = unreadable.map((entry) => `${entry.changeName} (${entry.reason})`).join("; ");
   const count = unreadable.length === 1 ? "1 change's" : `${unreadable.length} changes'`;
-  return ` ${count} harness.json could not be read, so their items are resolved from the task text alone: ${listed}.`;
+  return say("OSW-TSK-022", { count, listed });
 }
 
 /** Appended too: a key waiting to be enrolled waits on a person as surely as
  * an item does, and it is not a task, so it is not in the count. */
-function describeEnrolments(enrolments: readonly EnrolmentRequest[] | undefined): string {
-  if (!enrolments || enrolments.length === 0) return "";
+function describeEnrolments(enrolments: readonly EnrolmentRequest[] | undefined): SaidMessage | undefined {
+  if (!enrolments || enrolments.length === 0) return undefined;
   return enrolments.length === 1
-    ? " 1 key that signs a run waits to be enrolled."
-    : ` ${enrolments.length} keys that sign runs wait to be enrolled.`;
+    ? say("OSW-TSK-023")
+    : say("OSW-TSK-024", { count: enrolments.length });
 }
 
 /** Appended as the keys are: a question holds a run until it is answered,
  * and it is not a task, so it is not in the count. */
-function describeQuestions(questions: readonly InboxQuestion[] | undefined): string {
-  if (!questions || questions.length === 0) return "";
+function describeQuestions(questions: readonly InboxQuestion[] | undefined): SaidMessage | undefined {
+  if (!questions || questions.length === 0) return undefined;
   return questions.length === 1
-    ? " 1 question from an agent waits for your answer."
-    : ` ${questions.length} questions from agents wait for your answer.`;
+    ? say("OSW-TSK-025")
+    : say("OSW-TSK-026", { count: questions.length });
 }
 
-function describeUnmatched(unmatched: readonly UnmatchedTaskAgent[] | undefined): string {
-  if (!unmatched || unmatched.length === 0) return "";
-  const listed = unmatched.map(describeUnmatchedTaskAgent).join("; ");
+function describeUnmatched(unmatched: readonly UnmatchedTaskAgent[] | undefined): SaidMessage | undefined {
+  if (!unmatched || unmatched.length === 0) return undefined;
+  const listed = unmatched.map((entry) => describeUnmatchedTaskAgent(entry).text).join("; ");
   const count = `${unmatched.length} taskAgents entr${unmatched.length === 1 ? "y" : "ies"}`;
-  return ` ${count} matched no open task: ${listed}.`;
+  // TSK-027's text says "taskAgents entry(ies)", where this sentence has
+  // always said "entry" or "entries"; the carrier's own words are kept
+  // with the identifier beside them.
+  return { ...say("OSW-TSK-027", { count: unmatched.length, listed }), text: `${count} matched no open task: ${listed}.` };
 }
 
 /** The same sentence, over a read that may have failed.
@@ -234,8 +281,8 @@ function describeUnmatched(unmatched: readonly UnmatchedTaskAgent[] | undefined)
  * been: "nothing is waiting" and "nobody could find out" are different
  * facts about a workspace, and only one of them means the reader can
  * stop looking. */
-export function describeHumanOnlyInboxState(state: HumanOnlyInboxState): string {
+export function describeHumanOnlyInboxState(state: HumanOnlyInboxState): SaidMessage {
   if (state.status === "loaded") return describeHumanOnlyInbox(state.inbox);
   const reason = state.reason.trim();
-  return `What is waiting could not be read: ${reason.length > 0 ? reason : "no reason given"}.`;
+  return say("OSW-TSK-028", { reason: reason.length > 0 ? reason : "no reason given" });
 }

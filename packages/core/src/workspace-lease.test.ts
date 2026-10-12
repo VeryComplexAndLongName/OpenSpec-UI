@@ -62,7 +62,9 @@ describe("WorkspaceLeaseManager", () => {
       expect(result.conflict.author).toBe("ada@example.com");
       // "git author", never "user": nothing is gated on a self-declared
       // label, and the message must not imply otherwise.
-      expect(describeWorkspaceLeaseConflict(result.conflict)).toContain("git author ada@example.com");
+      const said = describeWorkspaceLeaseConflict(result.conflict);
+      expect(said.text).toContain("git author ada@example.com");
+      expect(said.code).toBe("OSW-WSP-001");
     }
   });
 
@@ -80,10 +82,11 @@ describe("WorkspaceLeaseManager", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       const described = describeWorkspaceLeaseConflict(result.conflict);
-      expect(described).not.toContain("git author");
-      expect(described).toContain("standalone server");
+      expect(described.text).not.toContain("git author");
+      expect(described.text).toContain("standalone server");
+      expect(described.code).toBe("OSW-WSP-001");
       // No stray punctuation where the name would have been.
-      expect(described).not.toContain(", ,");
+      expect(described.text).not.toContain(", ,");
     }
   });
 
@@ -113,7 +116,9 @@ describe("WorkspaceLeaseManager", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.conflict).toMatchObject({ hostKind: "standalone-server", pid: process.pid });
-      expect(describeWorkspaceLeaseConflict(result.conflict)).toContain("standalone server");
+      const said = describeWorkspaceLeaseConflict(result.conflict);
+      expect(said.text).toContain("standalone server");
+      expect(said.code).toBe("OSW-WSP-001");
     }
   });
 
@@ -131,7 +136,9 @@ describe("WorkspaceLeaseManager", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.reclaimedFrom).toMatchObject({ hostKind: "standalone-server" });
-      expect(describeWorkspaceLeaseReclamation(result.reclaimedFrom!)).toContain("Reclaimed");
+      const said = describeWorkspaceLeaseReclamation(result.reclaimedFrom!);
+      expect(said.text).toContain("Reclaimed");
+      expect(said.code).toBe("OSW-WSP-101");
     }
     const document = await readLease(root);
     expect(document.hostKind).toBe("vscode-extension");
@@ -175,8 +182,9 @@ describe("a terminal run as a lease holder", () => {
       heartbeatAgeMs: 3_000,
     });
 
-    expect(message).toContain("terminal run on build-agent-2");
-    expect(message).not.toContain("standalone server");
+    expect(message.text).toContain("terminal run on build-agent-2");
+    expect(message.text).not.toContain("standalone server");
+    expect(message.code).toBe("OSW-WSP-001");
   });
 
   it("names every host kind it can be told about", () => {
@@ -185,8 +193,9 @@ describe("a terminal run as a lease holder", () => {
       ["vscode-extension", "VS Code extension"],
       ["standalone-server", "standalone server"],
     ] as const) {
-      expect(describeWorkspaceLeaseReclamation({ hostKind, hostname: "h", pid: 1, heartbeatAgeMs: 0 }))
-        .toContain(label);
+      const said = describeWorkspaceLeaseReclamation({ hostKind, hostname: "h", pid: 1, heartbeatAgeMs: 0 });
+      expect(said.text).toContain(label);
+      expect(said.code).toBe("OSW-WSP-101");
     }
   });
 

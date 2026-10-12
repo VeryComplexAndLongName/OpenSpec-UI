@@ -70,7 +70,10 @@ const resolveCheckScriptsMock = vi.fn();
 const runMechanicalCheckMock = vi.fn();
 class TemplateAlreadyExistsError extends Error { }
 class UnknownProjectTemplateError extends Error { }
-class TaskListChangedError extends Error { }
+class TaskListChangedError extends Error {
+  readonly code = "OSW-TSK-014";
+  constructor(message: string) { super(message); }
+}
 const TASK_CHECKBOX_LINE_RE = /^[ \t]*-\s\[([ xX])\]\s*(.*)$/;
 vi.mock("@openspec-ui/webui/src/sprint-report-page.js", () => ({
   renderSprintReportPage: (...args: unknown[]) => renderSprintReportPageMock(...args),
@@ -2558,14 +2561,17 @@ describe("registerCommands", () => {
       expect(deleteTaskLineMock).not.toHaveBeenCalled();
     });
 
-    it("reports a stale task list as a warning, not an error", async () => {
+    it("reports a stale task list as a warning, not an error, under its identifier", async () => {
       vscodeMock.window.showWarningMessage.mockResolvedValueOnce("Delete");
-      deleteTaskLineMock.mockRejectedValue(new TaskListChangedError("task list changed"));
+      deleteTaskLineMock.mockRejectedValue(new TaskListChangedError("Task list for active-change has changed since it was last loaded — refresh and try again."));
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
 
       await vscodeMock._registeredCommands.get("openspec-ui.deleteTask")?.(activeItem);
 
       expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledTimes(2);
+      expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+        "OSW-TSK-014: Task list for active-change has changed since it was last loaded — refresh and try again.",
+      );
       expect(vscodeMock.window.showErrorMessage).not.toHaveBeenCalled();
     });
 
@@ -3079,6 +3085,7 @@ describe("the relation commands (a-relation-is-set-where-it-is-read)", () => {
       reason: "cycle",
       ids: ["second", "first", "second"],
       message: "That would close a cycle: second then first then second",
+      code: "OSW-VAL-010",
     });
     const deps = makeDeps();
     registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
@@ -3086,7 +3093,7 @@ describe("the relation commands (a-relation-is-set-where-it-is-read)", () => {
     await vscodeMock._registeredCommands.get("openspec-ui.addRelation")?.(activeRow("second"));
 
     expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
-      expect.stringContaining("That would close a cycle: second then first then second"),
+      "OSW-VAL-010: That would close a cycle: second then first then second",
     );
     expect(deps.refreshTrees).not.toHaveBeenCalled();
   });
@@ -3103,7 +3110,9 @@ describe("the relation commands (a-relation-is-set-where-it-is-read)", () => {
 
     expect(vscodeMock.window.showQuickPick).not.toHaveBeenCalled();
     expect(editChangeRelationMock).not.toHaveBeenCalled();
-    expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining("archived"));
+    expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+      expect.stringContaining("OSW-VAL-005: old-change is archived, and an archived change's relations are history"),
+    );
   });
 
   it("takes back the relation the reader picked from the ones stated", async () => {
@@ -3217,16 +3226,18 @@ describe("the leftover commands (the-workspace-clears-what-it-left-behind)", () 
     expect(vscodeMock.workspace.fs.delete).not.toHaveBeenCalled();
   });
 
-  it("shows core's refusal where a working directory is not clean", async () => {
+  it("shows core's refusal, under its identifier, where a working directory is not clean", async () => {
     vscodeMock.window.showWarningMessage.mockResolvedValue("Remove");
-    removeWorkingDirectoryMock.mockResolvedValue({ ok: false, path: "/wt/change-b", reason: "the working tree is not clean" });
+    removeWorkingDirectoryMock.mockResolvedValue({
+      ok: false, path: "/wt/change-b", reason: "the working tree is not clean", code: "OSW-WSP-009",
+    });
     const deps = makeDeps();
     registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
 
     await vscodeMock._registeredCommands.get("openspec-ui.deleteWorktree")?.("/wt/change-b");
 
     expect(vscodeMock.window.showWarningMessage).toHaveBeenLastCalledWith(
-      expect.stringContaining("not clean"),
+      "OSW-WSP-009: the working tree is not clean",
     );
     expect(deps.refreshTrees).not.toHaveBeenCalled();
   });

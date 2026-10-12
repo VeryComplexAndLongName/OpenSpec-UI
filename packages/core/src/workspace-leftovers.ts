@@ -19,6 +19,7 @@
 import { readdir, rm, stat, lstat, unlink, rmdir } from "./plain-fs.js";
 import path from "node:path";
 import { createGitWrapper, type GitWrapper } from "./git.js";
+import { say, type MessageCode, type SaidMessage } from "./message-register.js";
 
 /** What makes a directory a change rather than a leftover. `specs` is a
  * directory; the rest are files. */
@@ -140,6 +141,9 @@ export interface LeftoverRemovalFailure {
   name: string;
   path: string;
   reason: string;
+  /** The register's identifier for `reason`, where it is one of the
+   * register's sentences rather than a bare operating-system error. */
+  code?: MessageCode;
 }
 
 export interface LeftoverSweep {
@@ -337,10 +341,12 @@ export async function clearWorktreeShells(
       await rm(shell.path, { recursive: true, force: true });
       sweep.removed.push(shell);
     } catch (error) {
+      const said = await withHolders(shell.path, error);
       sweep.failures.push({
         name: shell.name,
         path: shell.path,
-        reason: await withHolders(shell.path, error),
+        reason: said.text,
+        code: said.code,
       });
     }
   }
@@ -415,20 +421,20 @@ async function defaultProcessList(command: string, args: string[]): Promise<stri
 }
 
 /** The reason a removal failed, with what is holding the directory where
- * anything can be found. */
-export async function withHolders(directory: string, error: unknown): Promise<string> {
+ * anything can be found, said by its identifier (ADR 0046). */
+export async function withHolders(directory: string, error: unknown): Promise<SaidMessage> {
   const said = error instanceof Error ? error.message : String(error);
   const holders = await whoMightHold(directory);
   if (holders.length === 0) {
-    return `${said}. No process names this directory on its command line; one that holds it without naming it is not found this way.`;
+    return say("OSW-WSP-104", { said });
   }
   const named = holders.map((holder) => `${holder.name} (${holder.pid})`).join(", ");
-  return `${said}. Held by ${named}, by their command lines.`;
+  return say("OSW-WSP-105", { said, holders: named });
 }
 
 export type WorkingDirectoryRemoval =
   | { ok: true; path: string; linksRemoved: number }
-  | { ok: false; path: string; reason: string };
+  | { ok: false; path: string; reason: string; code?: MessageCode };
 
 /** Deletes a link as a link, wherever one is found.
  *
@@ -481,7 +487,8 @@ export async function removeWorkingDirectory(
   try {
     const status = await git.status();
     if (!status.isClean) {
-      return { ok: false, path: directory, reason: "the working tree is not clean" };
+      const said = say("OSW-WSP-009");
+      return { ok: false, path: directory, reason: said.text, code: said.code };
     }
   } catch (error) {
     return { ok: false, path: directory, reason: error instanceof Error ? error.message : String(error) };
@@ -494,6 +501,7 @@ export async function removeWorkingDirectory(
   } catch (error) {
     // Who, not just what: "access denied" is not something a person can
     // act on (what-is-finished-is-tidied-away).
-    return { ok: false, path: directory, reason: await withHolders(directory, error) };
+    const said = await withHolders(directory, error);
+    return { ok: false, path: directory, reason: said.text, code: said.code };
   }
 }

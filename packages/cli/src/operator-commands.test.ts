@@ -206,7 +206,7 @@ describe("operator commands", () => {
         return {
           status: "ran" as const, runId: "r1", agent: "copilot-cli",
           outcome: allowed ? "completed" as const : "failed" as const,
-          gate: { kind: "recorded" as const }, message: "permission handled",
+          gate: { kind: "recorded" as const }, code: "OSW-TSK-030" as const, message: "permission handled",
           reply: { at: "2026-10-11T00:00:02Z", body: "permission handled", outcome: allowed ? "closed" as const : "failed" as const }
         };
       });
@@ -247,7 +247,7 @@ describe("operator commands", () => {
       for await (const event of selected!.run(command)) runOptions.onEvent?.(event);
       return {
         status: "ran" as const, runId: "r2", agent: "copilot-cli", outcome: "cancelled" as const,
-        gate: { kind: "still-open" as const }, message: "interrupted",
+        gate: { kind: "still-open" as const }, code: "OSW-TSK-032" as const, message: "interrupted",
         reply: { at: "2026-10-11T00:00:02Z", body: "interrupted", outcome: "left-open" as const }
       };
     });
@@ -264,7 +264,7 @@ describe("operator commands", () => {
     const output = io();
     const run = vi.fn().mockResolvedValue({
       status: "ran", runId: "failed-run", agent: "copilot-cli",
-      outcome: "failed", gate: { kind: "still-open" }, message: "runner failed",
+      outcome: "failed", gate: { kind: "still-open" }, code: "OSW-TSK-032", message: "runner failed",
       reply: { at: "2026-10-11T00:00:02Z", body: "runner failed", outcome: "failed" }
     });
     expect(await runTaskCommand({ ...options, number: "1.2" }, {

@@ -63,7 +63,7 @@ describe("detectForge", () => {
     const forge = await forgeFor("/repo", { fetch, env: {}, remoteUrl: async () => `${GITEA}/root/demo.git` });
 
     expect(forge.name).toBe("Gitea");
-    expect(await forge.pullRequestsByBranch()).toEqual({ available: false, reason: "GITEA_TOKEN is not set" });
+    expect(await forge.pullRequestsByBranch()).toEqual({ available: false, reason: "GITEA_TOKEN is not set", code: "OSW-NET-001" });
   });
 });
 
@@ -120,7 +120,7 @@ describe("the Gitea forge", () => {
   it("says what a refused token is", async () => {
     const { forge } = forgeWith([["GET", `${REPO}/pulls?`, 401, { message: "token is required" }]]);
 
-    expect(await forge.pullRequestsByBranch()).toEqual({ available: false, reason: "the GITEA_TOKEN was refused (401)" });
+    expect(await forge.pullRequestsByBranch()).toEqual({ available: false, reason: "the GITEA_TOKEN was refused (401)", code: "OSW-NET-002" });
   });
 
   it("reads a branch from a head, whatever Gitea left in it", () => {

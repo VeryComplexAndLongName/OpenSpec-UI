@@ -12,6 +12,7 @@ import type { FetchLike } from "../direct-fetch.js";
 import { chatCompletionsUrl, describeLocalLlmModel, resolveLocalLlmModel } from "../local-llm-settings.js";
 import { completeTurn, type ChatMessage } from "./local-agent/chat-client.js";
 import { runWebResearchTool, WEB_RESEARCH_PARAMETER_TYPES, WEB_RESEARCH_TOOL_SCHEMAS } from "../web-research.js";
+import { say } from "../message-register.js";
 
 const MAX_WEB_TOOL_ITERATIONS = 10;
 const MAX_WEB_TOOL_CALLS = 20;
@@ -115,7 +116,7 @@ export class LocalLlmAdapter implements AgentAdapter {
       for (const call of turn.calls) {
         toolCalls += 1;
         if (toolCalls > MAX_WEB_TOOL_CALLS) {
-          const reason = `Stopped at the ${MAX_WEB_TOOL_CALLS}-web-tool-call limit.`;
+          const reason = say("OSW-NET-202", { calls: MAX_WEB_TOOL_CALLS }).text;
           yield { kind: "stdout", runId, timestamp: nowIso(), chunk: `\n${reason}` };
           yield { kind: "completed", runId, timestamp: nowIso(), summary: full || reason };
           return;
@@ -130,7 +131,7 @@ export class LocalLlmAdapter implements AgentAdapter {
       }
     }
 
-    const reason = `Stopped at the ${MAX_WEB_TOOL_ITERATIONS}-iteration web-tool limit.`;
+    const reason = say("OSW-NET-203", { iterations: MAX_WEB_TOOL_ITERATIONS }).text;
     yield { kind: "stdout", runId, timestamp: nowIso(), chunk: `\n${reason}` };
     yield { kind: "completed", runId, timestamp: nowIso(), summary: full || reason };
   }

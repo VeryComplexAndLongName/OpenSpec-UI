@@ -94,7 +94,11 @@ describe("validate-change", () => {
 
     const result = await runMechanicalCheck("validate-change", undefined, makeCtx("C:\\repo"));
 
-    expect(result).toEqual({ pass: true, reason: "openspec change validate --strict sample-change: 1 item(s) passed" });
+    expect(result).toEqual({
+      pass: true,
+      reason: "openspec change validate --strict sample-change: 1 item(s) passed",
+      code: "OSW-VAL-102",
+    });
   });
 
   it("fails and names the failing item when validation reports a failure", async () => {
@@ -106,6 +110,7 @@ describe("validate-change", () => {
     const result = await runMechanicalCheck("validate-change", undefined, makeCtx("C:\\repo"));
 
     expect(result.pass).toBe(false);
+    expect(result.code).toBe("OSW-VAL-101");
     expect(result.reason).toContain("spec:agentic-harness");
     expect(result.reason).toContain("1 item(s) failed");
   });
@@ -118,7 +123,7 @@ describe("typecheck / test / lint", () => {
 
       const result = await runMechanicalCheck(name, undefined, makeCtx("C:\\repo"));
 
-      expect(result).toEqual({ pass: true, reason: `npm run ${name} exited 0` });
+      expect(result).toEqual({ pass: true, reason: `npm run ${name} exited 0`, code: "OSW-VAL-105" });
     });
 
     it(`${name} fails and includes the tail of output when "npm run ${name}" exits nonzero`, async () => {
@@ -127,6 +132,7 @@ describe("typecheck / test / lint", () => {
       const result = await runMechanicalCheck(name, undefined, makeCtx("C:\\repo"));
 
       expect(result.pass).toBe(false);
+      expect(result.code).toBe("OSW-VAL-106");
       expect(result.reason).toContain(`npm run ${name} exited 1`);
       expect(result.reason).toContain("boom error");
     });
@@ -138,6 +144,7 @@ describe("path-unchanged", () => {
     const result = await runMechanicalCheck("path-unchanged", undefined, makeCtx("C:\\repo"));
 
     expect(result.pass).toBe(false);
+    expect(result.code).toBe("OSW-VAL-001");
     expect(spawnMock).not.toHaveBeenCalled();
   });
 
@@ -152,6 +159,7 @@ describe("path-unchanged", () => {
     const result = await runMechanicalCheck("path-unchanged", "../outside-the-workspace", makeCtx(root));
 
     expect(result.pass).toBe(false);
+    expect(result.code).toBe("OSW-VAL-002");
     expect(result.reason).toMatch(/outside the workspace/);
     expect(spawnMock).not.toHaveBeenCalled();
   });
@@ -166,6 +174,7 @@ describe("path-unchanged", () => {
     const result = await runMechanicalCheck("path-unchanged", "/etc/passwd", makeCtx(root));
 
     expect(result.pass).toBe(false);
+    expect(result.code).toBe("OSW-VAL-002");
     expect(result.reason).toMatch(/outside the workspace/);
     expect(spawnMock).not.toHaveBeenCalled();
   });
@@ -177,6 +186,7 @@ describe("path-unchanged", () => {
     const result = await runMechanicalCheck("path-unchanged", "packages/core/src/agents", makeCtx(root));
 
     expect(result.pass).toBe(true);
+    expect(result.code).toBe("OSW-VAL-108");
   });
 
   it("fails when `git diff --quiet` reports changes (exit 1)", async () => {
@@ -186,6 +196,7 @@ describe("path-unchanged", () => {
     const result = await runMechanicalCheck("path-unchanged", "packages/core/src/agents", makeCtx(root));
 
     expect(result.pass).toBe(false);
+    expect(result.code).toBe("OSW-VAL-109");
     expect(result.reason).toMatch(/packages[/\\]core[/\\]src[/\\]agents/);
   });
 });
@@ -196,7 +207,7 @@ describe("changeset-present", () => {
 
     const result = await runMechanicalCheck("changeset-present", undefined, makeCtx("C:\\repo"));
 
-    expect(result).toEqual({ pass: true, reason: "2 pending changeset file(s) found" });
+    expect(result).toEqual({ pass: true, reason: "2 pending changeset file(s) found", code: "OSW-VAL-113" });
   });
 
   it("fails when Changesets is not adopted", async () => {
@@ -205,6 +216,7 @@ describe("changeset-present", () => {
     const result = await runMechanicalCheck("changeset-present", undefined, makeCtx("C:\\repo"));
 
     expect(result.pass).toBe(false);
+    expect(result.code).toBe("OSW-VAL-111");
     expect(result.reason).toMatch(/not adopted/);
   });
 
@@ -214,6 +226,7 @@ describe("changeset-present", () => {
     const result = await runMechanicalCheck("changeset-present", undefined, makeCtx("C:\\repo"));
 
     expect(result.pass).toBe(false);
+    expect(result.code).toBe("OSW-VAL-112");
     expect(result.reason).toMatch(/no pending/);
   });
 });

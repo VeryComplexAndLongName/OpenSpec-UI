@@ -134,6 +134,7 @@ describe("editChangeRelation", () => {
 
     expect(result.ok).toBe(false);
     expect(!result.ok && result.reason).toBe("unknown-change");
+    expect(!result.ok && result.code).toBe("OSW-VAL-009");
     expect(!result.ok && result.ids).toEqual(["absent"]);
     expect(await metadataOf(root, "first")).toBe(BASE);
   });
@@ -144,6 +145,7 @@ describe("editChangeRelation", () => {
     const result = await editChangeRelation(root, { change: "first", key: "follows", add: "first" });
 
     expect(!result.ok && result.reason).toBe("self-relation");
+    expect(!result.ok && result.code).toBe("OSW-VAL-008");
     expect(await metadataOf(root, "first")).toBe(BASE);
   });
 
@@ -153,6 +155,7 @@ describe("editChangeRelation", () => {
     const result = await editChangeRelation(root, { change: "second", key: "blocked_by", add: "first" });
 
     expect(!result.ok && result.reason).toBe("cycle");
+    expect(!result.ok && result.code).toBe("OSW-VAL-010");
     expect(!result.ok && result.ids).toContain("first");
     expect(!result.ok && result.ids).toContain("second");
     expect(await metadataOf(root, "second")).toBe(BASE);
@@ -176,6 +179,7 @@ describe("editChangeRelation", () => {
     const result = await editChangeRelation(root, { change: "old", key: "follows", add: "live" });
 
     expect(!result.ok && result.reason).toBe("archived-change");
+    expect(!result.ok && result.code).toBe("OSW-VAL-005");
     expect(await metadataOf(root, "archive/2026-08-08-old")).toBe(BASE);
   });
 
@@ -187,6 +191,18 @@ describe("editChangeRelation", () => {
     const result = await editChangeRelation(root, { change: "first", key: "follows", add: "second" });
 
     expect(!result.ok && result.reason).toBe("unreadable-metadata");
+    expect(!result.ok && result.code).toBe("OSW-VAL-006");
+  });
+
+  it("refuses an edit that names no change to relate", async () => {
+    const root = await repoWith({ first: BASE });
+
+    const result = await editChangeRelation(root, { change: "first", key: "follows" });
+
+    expect(!result.ok && result.reason).toBe("unknown-change");
+    expect(!result.ok && result.code).toBe("OSW-VAL-007");
+    expect(!result.ok && result.ids).toEqual([]);
+    expect(await metadataOf(root, "first")).toBe(BASE);
   });
 
   it("refuses a change the workspace does not have", async () => {
@@ -195,5 +211,6 @@ describe("editChangeRelation", () => {
     const result = await editChangeRelation(root, { change: "absent", key: "follows", add: "first" });
 
     expect(!result.ok && result.reason).toBe("unknown-change");
+    expect(!result.ok && result.code).toBe("OSW-VAL-004");
   });
 });

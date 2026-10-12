@@ -397,6 +397,7 @@ describe("WorkbenchProcessScheduler cross-host workspace lease", () => {
     expect(started).not.toHaveBeenCalled();
     expect(process.state).toBe("failed");
     expect(process.error).toContain("VS Code extension");
+    expect(process.error).toContain("OSW-WSP-001");
     expect(process.startedAt).toBeUndefined();
   });
 
@@ -420,6 +421,7 @@ describe("WorkbenchProcessScheduler cross-host workspace lease", () => {
 
     expect(process.state).toBe("completed");
     expect(process.progress).toContain("Reclaimed");
+    expect(process.progress).toContain("OSW-WSP-101");
   });
 
   it("releases the lease on completion so a second host can then mutate", async () => {

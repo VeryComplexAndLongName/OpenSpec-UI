@@ -99,6 +99,7 @@ describe("releaseWorkspaceLease", () => {
     if (outcome.kind === "refused") {
       expect(outcome.holder.author).toBe("ada@example.com");
       expect(outcome.reason).toContain("still running");
+      expect(outcome.code).toBe("OSW-WSP-003");
       // The remedy is stopping it, not taking its lease.
       expect(outcome.reason).toContain("stop that process");
     }
@@ -116,6 +117,7 @@ describe("releaseWorkspaceLease", () => {
     if (outcome.kind === "refused") {
       expect(outcome.reason).toContain("some-other-box");
       expect(outcome.reason).toContain("cannot be checked from here");
+      expect(outcome.code).toBe("OSW-WSP-002");
     }
     // A pid on another machine says nothing about a process on this one,
     // so it is never even asked about.

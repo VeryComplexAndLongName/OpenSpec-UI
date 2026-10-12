@@ -1,6 +1,7 @@
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { isMechanicalCheckName, MECHANICAL_CHECK_NAMES, type MechanicalCheckName } from "./mechanical-checks.js";
 import { TASK_NUMBER_PATTERN } from "./harness-step-agent.js";
+import { say, type MessageCode } from "./message-register.js";
 import { discoverOpenSpecWorkspace, type OpenSpecWorkspace, type WorkbenchChange } from "./workbench.js";
 
 // See openspec/changes/tasks-tree-expand/design.md. Paths always come
@@ -144,13 +145,13 @@ export interface TaskDebts {
 }
 
 export function describeTaskDebts(items: readonly TaskChecklistItem[]): TaskDebts {
-  const say = (item: { text: string }): string => {
+  const debtLabel = (item: { text: string }): string => {
     const number = taskNumberOf(item.text);
     return number === undefined ? item.text : `${number} ${item.text.slice(number.length).trim()}`;
   };
   return {
-    open: items.filter((item) => !item.done).map(say),
-    unrecorded: items.filter((item) => isUnrecordedTask(item)).map(say),
+    open: items.filter((item) => !item.done).map(debtLabel),
+    unrecorded: items.filter((item) => isUnrecordedTask(item)).map(debtLabel),
   };
 }
 
@@ -235,8 +236,11 @@ export function taskNumberOf(text: string): string | undefined {
  * quietly becoming an ordinary task is exactly the failure this
  * capability exists to remove). */
 export class UnknownMechanicalCheckError extends Error {
+  /** The register's identifier for this refusal. */
+  readonly code: MessageCode;
   constructor(name: string) {
-    super(`Unknown mechanical check "${name}" (expected one of: ${MECHANICAL_CHECK_NAMES.join(", ")})`);
+    super(say("OSW-TSK-010", { name, checks: MECHANICAL_CHECK_NAMES.join(", ") }).text);
+    this.code = "OSW-TSK-010";
     this.name = "UnknownMechanicalCheckError";
   }
 }
@@ -249,8 +253,11 @@ export class UnknownMechanicalCheckError extends Error {
  * bad shape here means a `tasks.md` typo is caught at parse time, not
  * only when `verify` eventually runs the check. */
 export class InvalidMechanicalCheckParameterError extends Error {
+  /** The register's identifier for this refusal. */
+  readonly code: MessageCode;
   constructor(name: MechanicalCheckName, param: string, reason: string) {
-    super(`Invalid parameter for check "${name}" ("${param}"): ${reason}`);
+    super(say("OSW-TSK-011", { name, param, reason }).text);
+    this.code = "OSW-TSK-011";
     this.name = "InvalidMechanicalCheckParameterError";
   }
 }
@@ -289,10 +296,10 @@ export function parseTaskCheckDeclaration(text: string): TaskCheckDeclaration | 
   const param = match[2]?.trim();
   if (name === "path-unchanged") {
     if (!param) {
-      throw new InvalidMechanicalCheckParameterError(name, "", "path-unchanged requires a repository-relative path parameter");
+      throw new InvalidMechanicalCheckParameterError(name, "", say("OSW-TSK-012").text);
     }
     if (!isSyntacticallySafeRelativePath(param)) {
-      throw new InvalidMechanicalCheckParameterError(name, param, "must be a repository-relative path, not absolute and not containing \"..\"");
+      throw new InvalidMechanicalCheckParameterError(name, param, say("OSW-TSK-013").text);
     }
   }
 
@@ -300,8 +307,11 @@ export function parseTaskCheckDeclaration(text: string): TaskCheckDeclaration | 
 }
 
 export class TaskListChangedError extends Error {
+  /** The register's identifier for this refusal. */
+  readonly code: MessageCode;
   constructor(changeName: string) {
-    super(`Task list for ${changeName} has changed since it was last loaded — refresh and try again.`);
+    super(say("OSW-TSK-014", { change: changeName }).text);
+    this.code = "OSW-TSK-014";
     this.name = "TaskListChangedError";
   }
 }

@@ -28,6 +28,7 @@ import { createGitWrapper, type GitWrapper } from "./git.js";
 import { isValidChangeName } from "./change-name.js";
 import { parseTaskChecklist, taskNumberOf, TASK_CHECKBOX_LINE_RE, type TaskChecklistItem } from "./task-checklist.js";
 import { readWorkspaceLeaseHolder, withWorkspaceLease, WorkspaceLeaseManager, describeWorkspaceLeaseConflict, type WorkspaceLeaseConflict } from "./workspace-lease.js";
+import { withMessageCode } from "./message-register.js";
 
 /** Why an action on a change's own worktree was not taken. A field rather
  * than a phrase, so a surface can say more where it knows more; `reason` is
@@ -418,7 +419,9 @@ export async function runOwnDelegatedItem(options: OwnDelegatedRunOptions): Prom
   if (!options.holdMutationLease) return execute();
   const lease = new WorkspaceLeaseManager(worktree.path, { hostKind: "cli" });
   const held = await withWorkspaceLease(lease, execute);
-  return held.ok ? held.value : refuse("run-working", describeWorkspaceLeaseConflict(held.conflict));
+  if (held.ok) return held.value;
+  const said = describeWorkspaceLeaseConflict(held.conflict);
+  return refuse("run-working", withMessageCode(said.text, said.code));
 }
 
 /** The line of task `<number>` in the change's own worktree, with its text,

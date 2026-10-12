@@ -30,6 +30,7 @@ import {
   type AgentStatusSweepResult,
   type GitWrapper,
   type TaskChecklistItem,
+  withMessageCode,
 } from "@openspec-ui/core";
 
 export interface StatusOptions {
@@ -171,7 +172,7 @@ export async function statusCommand(options: StatusOptions, deps: StatusDeps): P
   reportUnopened();
 
   for (const bad of result.malformed) {
-    deps.stderr(`openspec-ui-cli: ${bad.fileName}: ${bad.reason}`);
+    deps.stderr(withMessageCode(`${bad.fileName}: ${bad.reason}`, bad.code));
   }
 
   return 0;
