@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-10-12
+# One runbook section edit: no requirement of any capability changes.
+skip_specs: true
