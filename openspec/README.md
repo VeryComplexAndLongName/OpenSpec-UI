@@ -257,12 +257,6 @@ description.
   and `.webm` stay as they are; a new picture is a PNG.
 - **The branch rules above.** One piece of work, one pull request, and the
   branch ends when it merges.
-- **A claim about the product cites where it comes from.** A version, a
-  count of templates, a capability: name the file or the spec beside it.
-  `README.md` claimed "16 templates across 9 categories" for three weeks
-  while the answer was 17 across 10, and nothing failed. An article is read
-  by people who cannot check it against the tree, so the citation is what
-  makes it checkable later.
 
 **An article under `docs/articles/site/` tells the homepage.** That
 subtree is what the campaign's own site serves, and a merge to the default
