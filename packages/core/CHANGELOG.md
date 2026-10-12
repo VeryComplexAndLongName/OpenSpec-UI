@@ -1,5 +1,11 @@
 # @openspec-ui/core
 
+## 0.149.0
+
+### Minor Changes
+
+- 0c01678: Move the eight remaining message groups - HRN, AGT, TSK, VAL, ARC, WSP, KEY and NET - into the message register, widen the said-in-place ratchet from four carriers to every carrier, and regenerate docs/messages.md.
+
 ## 0.148.0
 
 ### Minor Changes
