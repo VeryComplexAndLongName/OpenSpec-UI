@@ -12,6 +12,11 @@
 
 ## 2. Checks
 
-- [ ] 2.1 Run `npm run lint:articles` and record "Article check passed".
-- [ ] 2.2 Validate this change with
+- [x] 2.1 Run `npm run lint:articles` and record "Article check passed".
+
+  Done 2026-10-12: `npm run lint:articles` printed "Article check passed".
+- [x] 2.2 Validate this change with
   `openspec change validate --strict articles-drop-the-citation-section`.
+
+  Done 2026-10-12: "Change 'articles-drop-the-citation-section' is valid"
+  (`skip_specs` is set in `.openspec.yaml`, zero deltas accepted).
