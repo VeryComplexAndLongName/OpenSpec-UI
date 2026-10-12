@@ -147,7 +147,7 @@ describe("createPullRequestGateway", () => {
     const gateway = createPullRequestGateway({ cwd: "/workspace/repo", pollIntervalMs: 0, maxWaitMs: 50 });
     const status = await gateway.waitForChecks(7);
 
-    expect(status).toEqual({ state: "none", reason: "no check result was available" });
+    expect(status).toEqual({ state: "none", reason: "no check result was available", code: "OSW-NET-102" });
   });
 
   it("merges a pull request through gh pr merge", async () => {
@@ -192,7 +192,7 @@ describe("createGitHubForge", () => {
     expect(passing.calls[0]).toEqual(["pr", "checks", "7", "--json", "name,state"]);
 
     const none = forgeWith([{ code: 1, stderr: "no checks reported on the 'archive-landed-x' branch" }]);
-    expect(await none.forge.checksOf(7)).toEqual({ state: "none", reason: "no check result was available" });
+    expect(await none.forge.checksOf(7)).toEqual({ state: "none", reason: "no check result was available", code: "OSW-NET-102" });
   });
 
   it("says a refused merge in the forge's words", async () => {

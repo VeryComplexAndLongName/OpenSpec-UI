@@ -122,6 +122,7 @@ describe("resolveChainStart", () => {
     expect(resolution).toMatchObject({ ok: false });
     if (!resolution.ok) {
       expect(resolution.refusal.reason).toContain("\"assisted\"");
+      expect(resolution.refusal.code).toBe("OSW-HRN-114");
       expect(resolution.refusal.configKey).toBe("autonomyLevel");
     }
   });
@@ -182,6 +183,7 @@ describe("resolveChainStart", () => {
     if (!resolution.ok) {
       expect(resolution.refusal.reason).toContain("\"apply\"");
       expect(resolution.refusal.reason).toContain("codex-cli");
+      expect(resolution.refusal.code).toBe("OSW-HRN-118");
       expect(resolution.refusal.configKey).toBe("stepAgents.apply");
     }
   });

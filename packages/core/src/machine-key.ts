@@ -9,6 +9,7 @@ import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, ran
 import { link, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { say } from "./message-register.js";
 
 const PRIVATE_FILE = "ed25519.pem";
 const PUBLIC_FILE = "ed25519.pub.pem";
@@ -45,7 +46,7 @@ function errorCode(error: unknown): string | undefined {
 
 function toMachineKey(privateKey: KeyObject, file: string): MachineKey {
   if (privateKey.asymmetricKeyType !== "ed25519") {
-    throw new Error(`the key at ${file} is not an Ed25519 key`);
+    throw new Error(say("OSW-KEY-030", { file }).text);
   }
   const publicKey = createPublicKey(privateKey);
   return {
@@ -129,7 +130,7 @@ export async function loadOrCreateMachineKey(options: MachineKeyOptions = {}): P
       await rm(temporary, { force: true }).catch(() => undefined);
     }
     privateKey = await readPrivateKey(privateFile);
-    if (privateKey === undefined) throw new Error(`the key at ${privateFile} was removed as it was made`);
+    if (privateKey === undefined) throw new Error(say("OSW-KEY-031", { file: privateFile }).text);
   }
 
   const key = toMachineKey(privateKey, privateFile);

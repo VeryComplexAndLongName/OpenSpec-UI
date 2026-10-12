@@ -155,12 +155,29 @@ describe("surveyWorktrees — directories and their changes", () => {
     const { main, worktreeRoot, rootSources } = await repository();
     await makeChange(main, "change-a");
     const gone = path.join(worktreeRoot, "repo", "removed-by-hand");
-    const { git } = recordingGit([{ path: main, branch: "main" }, { path: gone, branch: "removed-by-hand" }]);
+    const notADirectory = path.join(worktreeRoot, "repo", "a-file");
+    await mkdir(path.dirname(notADirectory), { recursive: true });
+    await writeFile(notADirectory, "not a directory", "utf8");
+    const { git } = recordingGit([
+      { path: main, branch: "main" },
+      { path: gone, branch: "removed-by-hand" },
+      { path: notADirectory, branch: "a-file" },
+    ]);
 
     const survey = await surveyWorktrees({ workspaceRoot: main, git, rootSources });
 
     expect(survey.directories[0]?.readable).toBe(true);
-    expect(survey.directories[1]).toMatchObject({ readable: false, reason: "it does not exist", label: "removed-by-hand" });
+    expect(survey.directories[1]).toMatchObject({
+      readable: false,
+      reason: "it does not exist",
+      code: "OSW-WSP-103",
+      label: "removed-by-hand",
+    });
+    expect(survey.directories[2]).toMatchObject({
+      readable: false,
+      reason: "it is not a directory",
+      code: "OSW-WSP-102",
+    });
   });
 
   // 6.4

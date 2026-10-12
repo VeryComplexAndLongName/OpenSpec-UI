@@ -17,6 +17,7 @@ import { createGitHubForge, createPullRequestGateway, pullRequestGatewayOver, ty
 import { createGitWrapper } from "./git.js";
 import { parseForgeRemote } from "./forge-remote.js";
 import { createGitHubApiForge, createGitLabForge, createGiteaForge, type FetchLike } from "./http-forges.js";
+import { say } from "./message-register.js";
 
 export type ForgeKind = "github" | "gitlab" | "gitea";
 
@@ -75,7 +76,8 @@ function withTokenHint(forge: Forge): Forge {
     async pullRequestsByBranch() {
       const read = await forge.pullRequestsByBranch();
       if (!read.available && /not installed|not signed in/iu.test(read.reason)) {
-        return { available: false, reason: `${read.reason}, and GITHUB_TOKEN is not set` };
+        const said = say("OSW-NET-007", { reason: read.reason });
+        return { available: false, reason: said.text, code: said.code };
       }
       return read;
     },

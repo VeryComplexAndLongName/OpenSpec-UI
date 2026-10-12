@@ -35,14 +35,18 @@ describe("archiving a change that still owes something", () => {
   it("refuses an open item, names it, and moves nothing", async () => {
     const root = await workspace("- [x] 1.1 Done.\n- [ ] 1.2 Not done.\n");
 
-    await expect(archiveChange("the-change", { cwd: root })).rejects.toThrow(/still open: 1\.2 Not done\./);
+    const error = await archiveChange("the-change", { cwd: root }).catch((caught: unknown) => caught);
+    expect(String(error)).toContain("still open: 1.2 Not done.");
+    expect(error).toMatchObject({ code: "OSW-ARC-004" });
     expect(await stillThere(root)).toBe(true);
   });
 
   it("refuses a human-only item closed with nothing written under it", async () => {
     const root = await workspace("- [x] 1.1 **Human-only.** Whether it reads.\n");
 
-    await expect(archiveChange("the-change", { cwd: root })).rejects.toThrow(/closed with nothing written under it/);
+    const error = await archiveChange("the-change", { cwd: root }).catch((caught: unknown) => caught);
+    expect(String(error)).toContain("closed with nothing written under it");
+    expect(error).toMatchObject({ code: "OSW-ARC-004" });
     expect(await stillThere(root)).toBe(true);
   });
 

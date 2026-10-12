@@ -1,9 +1,10 @@
-import { createPublicKey, verify } from "node:crypto";
+import { createPublicKey, generateKeyPairSync, verify } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadOrCreateMachineKey, machineKeyDirectory } from "./machine-key.js";
+import { say } from "./message-register.js";
 
 // every-varying-check-has-a-budget: an Ed25519 pair and a few small files in
 // a temporary home. No git, no agent.
@@ -78,5 +79,17 @@ describe("loadOrCreateMachineKey (a-run-is-signed-by-its-person 1.3)", () => {
     await writeFile(path.join(machineKeyDirectory(homeDir), "ed25519.pem"), "not a key", "utf8");
 
     await expect(loadOrCreateMachineKey({ homeDir })).rejects.toBeInstanceOf(Error);
+  });
+
+  it("refuses a private file holding another kind of key, in the register's words", async () => {
+    const homeDir = await temporaryHome();
+    await mkdir(machineKeyDirectory(homeDir), { recursive: true });
+    const privateFile = path.join(machineKeyDirectory(homeDir), "ed25519.pem");
+    const rsa = generateKeyPairSync("rsa", { modulusLength: 2048 })
+      .privateKey.export({ type: "pkcs8", format: "pem" })
+      .toString();
+    await writeFile(privateFile, rsa, "utf8");
+
+    await expect(loadOrCreateMachineKey({ homeDir })).rejects.toThrow(say("OSW-KEY-030", { file: privateFile }).text);
   });
 });

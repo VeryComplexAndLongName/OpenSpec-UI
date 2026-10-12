@@ -55,7 +55,9 @@ describe("a person's file", () => {
     const text = JSON.stringify(personWith("ada", key));
 
     expect(parsePersonFile("ada.json", text)).toEqual({ person: personWith("ada", key) });
-    expect(parsePersonFile("bob.json", text)).toEqual({ problems: ["its file is not named after its handle (ada.json)"] });
+    expect(parsePersonFile("bob.json", text)).toEqual({
+      problems: [{ problem: "its file is not named after its handle (ada.json)", code: "OSW-KEY-011" }],
+    });
   });
 
   it("says what is wrong with a file that is not a person", () => {
@@ -65,9 +67,9 @@ describe("a person's file", () => {
     const read = parsePersonFile("x.json", JSON.stringify(wrong));
 
     expect("problems" in read && read.problems).toEqual([
-      "its handle is missing or not lower-case letters, digits and single hyphens",
-      "it has no name",
-      "key 1 is not an Ed25519 public key with its key id",
+      { problem: "its handle is missing or not lower-case letters, digits and single hyphens", code: "OSW-KEY-010" },
+      { problem: "it has no name", code: "OSW-KEY-012" },
+      { problem: "key 1 is not an Ed25519 public key with its key id", code: "OSW-KEY-015" },
     ]);
   });
 
@@ -75,7 +77,7 @@ describe("a person's file", () => {
     const shared = memoryKey();
 
     expect(crossCheckPeople([personWith("ada", shared), personWith("bob", shared)])).toEqual([
-      { file: "openspec/people/bob.json", problem: `key ${shared.keyId} is also ada's` },
+      { file: "openspec/people/bob.json", problem: `key ${shared.keyId} is also ada's`, code: "OSW-KEY-020" },
     ]);
   });
 });
@@ -169,7 +171,9 @@ describe("reading the people", () => {
 
     const read = await readPeople(root);
     expect(read.people.map((one) => one.handle)).toEqual(["ada"]);
-    expect(read.problems).toEqual([{ file: "openspec/people/bad.json", problem: "it is not valid JSON" }]);
+    expect(read.problems).toEqual([
+      { file: "openspec/people/bad.json", problem: "it is not valid JSON", code: "OSW-KEY-008" },
+    ]);
   });
 
   it("reads the people at a ref through git", async () => {

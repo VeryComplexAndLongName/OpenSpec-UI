@@ -150,7 +150,9 @@ describe("the people", () => {
     const result = await runValidateAll(root, { change: "the-change", ...seams });
 
     expect(result.ok).toBe(false);
-    expect(result.peopleProblems).toEqual([{ file: "openspec/people/ada.json", problem: "it is not valid JSON" }]);
+    expect(result.peopleProblems).toEqual([
+      { file: "openspec/people/ada.json", problem: "it is not valid JSON", code: "OSW-KEY-008" },
+    ]);
   });
 
   it("fails a key taken out of a person the base has", async () => {

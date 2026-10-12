@@ -1,7 +1,7 @@
 # messages Specification
 
 ## Purpose
-TBD - created by archiving change every-message-has-an-identifier. Update Purpose after archive.
+Every message OpenSpec Workbench says to a person is written once, under an identifier, in one register in core, and said by that identifier wherever it is said.
 
 ## Requirements
 

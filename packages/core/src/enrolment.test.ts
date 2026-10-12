@@ -65,5 +65,9 @@ describe("readEnrolmentRequests and confirmEnrolmentFor (a-run-is-signed-by-its-
     const { repository, options } = await workspace();
 
     await expect(confirmEnrolmentFor(repository, "0".repeat(32), options)).rejects.toBeInstanceOf(EnrolmentRefusedError);
+    await expect(confirmEnrolmentFor(repository, "0".repeat(32), options)).rejects.toMatchObject({
+      code: "OSW-KEY-029",
+      message: `no live run signed by ${"0".repeat(32)} is waiting to be enrolled`,
+    });
   });
 });

@@ -75,7 +75,7 @@ describe("GitHub through its API", () => {
       ["GET", `${REPO}/commits/abc/status`, 200, { statuses: [{ context: "deploy", state: "failure" }] }],
     ]);
 
-    expect(await forge.checksOf(5)).toEqual({ state: "fail", reason: "check failed: deploy (failure)" });
+    expect(await forge.checksOf(5)).toEqual({ state: "fail", reason: "check failed: deploy (failure)", code: "OSW-NET-103" });
   });
 
   it("merges now and deletes the branch, as gh pr merge --delete-branch does", async () => {
@@ -145,7 +145,7 @@ describe("checks on GitLab and Gitea", () => {
     const made = fetchFrom([["GET", "https://gitlab.com/api/v4/projects/group%2Fapp/merge_requests/4", 200, { head_pipeline: { id: 77, status: "running" } }]]);
     const forge = createGitLabForge({ base: "https://gitlab.com", path: "group/app", token: "t", tokenName: "GITLAB_TOKEN", fetch: made.fetch });
 
-    expect(await forge.checksOf(4)).toEqual({ state: "none", reason: PENDING_REASON });
+    expect(await forge.checksOf(4)).toEqual({ state: "none", reason: PENDING_REASON, code: "OSW-NET-101" });
   });
 
   it("reads a Gitea commit's statuses, and none as none", async () => {

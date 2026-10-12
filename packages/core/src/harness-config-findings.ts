@@ -14,6 +14,7 @@
 import { HARNESS_AGENT_CAPABILITIES, isHarnessStepAgentStage, normalizeStepAgent } from "./harness-step-agent.js";
 import type { HarnessConfig } from "./harness-config.js";
 import { skipsStage, STAGES, type HarnessStage } from "./harness-stage.js";
+import { say, type MessageCode, type SaidMessage } from "./message-register.js";
 
 export type HarnessFindingKind =
   /** A configured ceiling has nothing to compare on this stage's agent. */
@@ -32,8 +33,15 @@ export interface HarnessFinding {
   kind: HarnessFindingKind;
   stage: HarnessStage;
   agent: string;
+  /** The register's identifier for the sentence below. */
+  code: MessageCode;
   /** What cannot happen, and why — never what to do instead. */
   message: string;
+}
+
+/** One finding, its words from the register under their identifier. */
+function finding(kind: HarnessFindingKind, stage: HarnessStage, agent: string, said: SaidMessage): HarnessFinding {
+  return { kind, stage, agent, code: said.code, message: said.text };
 }
 
 const DEFAULT_AGENT_LABEL = "the default agent";
@@ -77,13 +85,7 @@ export function findHarnessConfigLimits(config: HarnessConfig): HarnessFinding[]
     // implementation, the ticked or unticked tasks - and an agent that only
     // answers in text leaves none (the-local-model-is-offered-where-it-is-set).
     if (stage !== "review" && HARNESS_AGENT_CAPABILITIES[agent]?.editsFiles === false) {
-      findings.push({
-        kind: "agent-cannot-write",
-        stage,
-        agent,
-        message: `"${agent}" answers in text and edits no file, so "${stage}" on it writes nothing:`
-          + " the proposal, the implementation and the ticked tasks are files. It can review.",
-      });
+      findings.push(finding("agent-cannot-write", stage, agent, say("OSW-HRN-103", { agent, stage })));
     }
 
     // A context ceiling is answered by a different question from a
@@ -95,60 +97,30 @@ export function findHarnessConfigLimits(config: HarnessConfig): HarnessFinding[]
     // has watched might send one, and warning about that would be a
     // guess dressed as a finding.
     if (contextCeiling !== undefined && HARNESS_AGENT_CAPABILITIES[agent]?.contextGauge === "none") {
-      findings.push({
-        kind: "ceiling-cannot-act",
-        stage,
-        agent,
-        message: `"${agent}" never says how full its context is, so budget.maxContextShare cannot act on "${stage}".`
-          + " That ceiling reads a figure only an ACP agent sends.",
-      });
+      findings.push(finding("ceiling-cannot-act", stage, agent, say("OSW-HRN-104", { agent, stage })));
     }
 
     if (reports === "unknown") {
-      findings.push({
-        kind: "reporting-unknown",
-        stage,
-        agent,
-        message: `"${agent}" has never been observed reporting its usage here, so whether a spending ceiling`
-          + ` can act on "${stage}" is not known. A time ceiling needs no report and applies regardless.`,
-      });
+      findings.push(finding("reporting-unknown", stage, agent, say("OSW-HRN-105", { agent, stage })));
       continue;
     }
 
     if (reports === "none") {
       if (hasCostCeiling || hasTokenCeiling) {
-        findings.push({
-          kind: "ceiling-cannot-act",
-          stage,
-          agent,
-          message: `"${agent}" reports no usage at all, so no spending ceiling can act on "${stage}"`
-            + " however large the spend.",
-        });
+        findings.push(finding("ceiling-cannot-act", stage, agent, say("OSW-HRN-106", { agent, stage })));
       }
       // A context ceiling bounds a stage this agent runs where the agent
       // does send a gauge, so the stage is not unbounded after all.
       const contextBinds = contextCeiling !== undefined
         && HARNESS_AGENT_CAPABILITIES[agent]?.contextGauge === "sends";
       if (!hasTimeCeiling && !contextBinds) {
-        findings.push({
-          kind: "stage-unbounded",
-          stage,
-          agent,
-          message: `"${stage}" can run without any bound: "${agent}" reports nothing for a spending ceiling`
-            + " to compare, and no timeout is configured. A time ceiling is the only one that applies here.",
-        });
+        findings.push(finding("stage-unbounded", stage, agent, say("OSW-HRN-107", { agent, stage })));
       }
       continue;
     }
 
     if (reports === "tokens-only" && hasCostCeiling) {
-      findings.push({
-        kind: "ceiling-cannot-act",
-        stage,
-        agent,
-        message: `"${agent}" reports tokens and no cost, so a cost ceiling cannot act on "${stage}".`
-          + " A token ceiling is the one that can.",
-      });
+      findings.push(finding("ceiling-cannot-act", stage, agent, say("OSW-HRN-108", { agent, stage })));
     }
 
     // A ceiling in a unit this stage is not billed in cannot act on it,
@@ -159,25 +131,12 @@ export function findHarnessConfigLimits(config: HarnessConfig): HarnessFinding[]
       const billedIn = HARNESS_AGENT_CAPABILITIES[agent]?.budgetField === "maxAiCredits" ? "credits" : "usd";
       for (const [unit] of perUnit) {
         if (unit.trim().toLowerCase() === billedIn) continue;
-        findings.push({
-          kind: "ceiling-cannot-act",
-          stage,
-          agent,
-          message: `budget.maxCost sets a ceiling in "${unit}", and "${agent}" is billed in ${billedIn === "usd" ? "dollars" : "credits"},`
-            + ` so that ceiling cannot act on "${stage}". The ceiling in its own unit is the one that can.`,
-        });
+        findings.push(finding("ceiling-cannot-act", stage, agent, say("OSW-HRN-109", { unit, agent, billing: billedIn === "usd" ? "dollars" : "credits", stage })));
       }
     }
 
     if (reports === "cost-and-tokens" && hasTokenCeiling) {
-      findings.push({
-        kind: "ceiling-rarely-acts",
-        stage,
-        agent,
-        message: `A token ceiling counts input plus output only, and "${agent}" moves most of its tokens`
-          + ` through cache — a measured run recorded 1,693,507 cache tokens against 8,322 counted ones, so`
-          + ` a token ceiling will rarely act on "${stage}". A cost ceiling acts on it directly.`,
-      });
+      findings.push(finding("ceiling-rarely-acts", stage, agent, say("OSW-HRN-110", { agent, stage })));
     }
   }
 
@@ -191,6 +150,8 @@ export interface HarnessFindingGroup {
   agent: string;
   /** The stages, in the order they run. */
   stages: HarnessStage[];
+  /** The register's identifier for the sentence below. */
+  code: MessageCode;
   /** The finding's own sentence, naming every stage in it. */
   message: string;
 }
@@ -209,13 +170,13 @@ export function groupHarnessFindings(findings: readonly HarnessFinding[]): Harne
     const template = finding.message.split(`"${finding.stage}"`).join(STAGE_SLOT);
     const same = groups.find((group) => group.kind === finding.kind && group.agent === finding.agent && group.template === template);
     if (same === undefined) {
-      groups.push({ kind: finding.kind, agent: finding.agent, stages: [finding.stage], message: finding.message, template });
+      groups.push({ kind: finding.kind, agent: finding.agent, stages: [finding.stage], code: finding.code, message: finding.message, template });
       continue;
     }
     same.stages.push(finding.stage);
     same.message = template.split(STAGE_SLOT).join(listOfStages(same.stages));
   }
-  return groups.map(({ kind, agent, stages, message }) => ({ kind, agent, stages, message }));
+  return groups.map(({ kind, agent, stages, code, message }) => ({ kind, agent, stages, code, message }));
 }
 
 /** Where a stage's name stood in a finding's words; no finding writes it. */

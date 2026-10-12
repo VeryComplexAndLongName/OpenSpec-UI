@@ -30,6 +30,7 @@ import {
 } from "@agentclientprotocol/sdk";
 import os from "node:os";
 import type { AgentUsage } from "../agent-usage.js";
+import { say } from "../message-register.js";
 import { commandLineHash, defaultProcessLedger, type ProcessLedger } from "../process-ledger.js";
 import { readProcessStartTime, type StartTimeReader } from "../process-start-time.js";
 import type { CommandKind, Event } from "../protocol.js";
@@ -358,7 +359,7 @@ export class AcpSessionDriver {
           if (item.stopReason === "cancelled") {
             yield { kind: "cancelled", runId, timestamp: nowIso() };
           } else if (item.stopReason === "refusal") {
-            yield { kind: "failed", runId, timestamp: nowIso(), reason: "agent refused the prompt" };
+            yield { kind: "failed", runId, timestamp: nowIso(), reason: say("OSW-AGT-218").text, code: "OSW-AGT-218" };
           } else {
             yield { kind: "completed", runId, timestamp: nowIso() };
           }
@@ -462,13 +463,15 @@ export class AcpSessionDriver {
         if (exited) {
           yield { kind: "cancelled", runId, timestamp: nowIso() };
         } else {
+          const failure = killFailure
+            ? say("OSW-AGT-219", { killFailure })
+            : say("OSW-AGT-220", { seconds: KILL_CONFIRMATION_TIMEOUT_MS / 1000 });
           yield {
             kind: "failed",
             runId,
             timestamp: nowIso(),
-            reason: killFailure
-              ? `cancellation could not be carried out: ${killFailure}. The agent process may still be running.`
-              : `the agent process did not exit within ${KILL_CONFIRMATION_TIMEOUT_MS / 1000}s of being terminated, and may still be running.`,
+            reason: failure.text,
+            code: failure.code,
           };
         }
       }

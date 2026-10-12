@@ -1,0 +1,20 @@
+{
+  "supervisor": {
+    "fallback": {
+      "apply": [
+        "copilot-cli-acp"
+      ],
+      "verify": [
+        "deepseek-cli-acp"
+      ]
+    }
+  },
+  "maxStageAttempts": 2,
+  "stepAgents": {
+    "apply": "deepseek-cli-acp"
+  },
+  "autonomyLevel": "semi-autonomous",
+  "reviewGate": {
+    "mode": "agent-sufficient"
+  }
+}

@@ -187,10 +187,12 @@ describe("collectHumanOnlyInbox reads the same precedence", () => {
     expect(inbox.unmatchedTaskAgents).toEqual([
       { changeName: "demo", taskNumber: "9.9", agent: "copilot-cli", reason: "no-such-open-task" },
     ]);
-    expect(describeHumanOnlyInbox(inbox)).toBe(
+    const said = describeHumanOnlyInbox(inbox);
+    expect(said.text).toBe(
       "Nothing is waiting — 1 active change read."
       + " 1 taskAgents entry matched no open task: demo names copilot-cli for task 9.9,"
       + " but no open task carries that number.",
     );
+    expect(said.code).toBe("OSW-TSK-020");
   });
 });

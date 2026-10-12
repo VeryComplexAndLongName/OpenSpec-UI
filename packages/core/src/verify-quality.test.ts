@@ -133,18 +133,21 @@ describe("describeVerifyQuality", () => {
   it("tells an empty log apart from a log whose runs never verified", () => {
     // Two different facts, and only one of them is fixed by running
     // something.
-    expect(describeVerifyQuality(buildVerifyQuality([], known)))
-      .toContain("no runs have been logged");
+    const empty = describeVerifyQuality(buildVerifyQuality([], known));
+    expect(empty.code).toBe("OSW-VAL-117");
+    expect(empty.text).toContain("no runs have been logged");
 
     const noChecks = describeVerifyQuality(buildVerifyQuality([entry({}), entry({})], known));
-    expect(noChecks).toContain("2 runs recorded");
-    expect(noChecks).toContain("none of which reached a verifying stage");
+    expect(noChecks.code).toBe("OSW-VAL-118");
+    expect(noChecks.text).toContain("2 runs recorded");
+    expect(noChecks.text).toContain("none of which reached a verifying stage");
   });
 
   it("says how many groups are too thin to read as a rate", () => {
-    const text = describeVerifyQuality(buildVerifyQuality([checksEntry({ checksRan: 1, checksFailed: 0 })], known));
+    const said = describeVerifyQuality(buildVerifyQuality([checksEntry({ checksRan: 1, checksFailed: 0 })], known));
 
-    expect(text).toContain(`fewer than ${ENOUGH_VERIFIES}`);
+    expect(said.code).toBe("OSW-VAL-120");
+    expect(said.text).toContain(`fewer than ${ENOUGH_VERIFIES}`);
   });
 
   it("says when stages were recorded before the checked agent was named", () => {
@@ -152,14 +155,16 @@ describe("describeVerifyQuality", () => {
       checksEntry({ checksRan: 1, checksFailed: 0 }),
       entry({ agent: VERIFY_CHECKS_AGENT_NAME, stage: "verify", checksRan: 1, checksFailed: 0 }),
     ], known));
-    expect(mixed).toContain("1 of them named no checked agent");
-    expect(mixed).toContain("charged to no agent");
+    expect(mixed.code).toBe("OSW-VAL-120");
+    expect(mixed.text).toContain("1 of them named no checked agent");
+    expect(mixed.text).toContain("charged to no agent");
 
     // All of them unattributed is its own state: there is nothing to
     // show per agent, and "nothing recorded" would be false.
     const allLegacy = describeVerifyQuality(buildVerifyQuality([
       entry({ agent: VERIFY_CHECKS_AGENT_NAME, stage: "verify", checksRan: 1, checksFailed: 0 }),
     ], known));
-    expect(allLegacy).toContain("none of which names the agent whose work was checked");
+    expect(allLegacy.code).toBe("OSW-VAL-119");
+    expect(allLegacy.text).toContain("none of which names the agent whose work was checked");
   });
 });

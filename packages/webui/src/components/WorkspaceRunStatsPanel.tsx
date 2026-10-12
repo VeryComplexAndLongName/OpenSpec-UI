@@ -1,4 +1,4 @@
-import { describeVerifyQuality, ENOUGH_VERIFIES, recommendFromRunStats } from "@openspec-ui/core/browser";
+import { describeVerifyQuality, ENOUGH_VERIFIES, recommendFromRunStats, withMessageCode } from "@openspec-ui/core/browser";
 import type { AgentRunGroup, VerifyQuality, WorkspaceRunStats } from "@openspec-ui/core/browser";
 
 // What runs have cost in this workspace, shown where a person decides
@@ -111,12 +111,13 @@ function Recommendations(
  * See quality-of-what-a-verify-found and
  * quality-is-charged-to-the-agent-whose-work-was-checked. */
 function VerifyQualityBlock({ quality }: { quality: VerifyQuality }) {
+  const basis = describeVerifyQuality(quality);
   return (
     <div data-testid="verify-quality">
       <p className="openspec-shell-note">
         <strong>What the verifying stages found, by the agent whose work was checked</strong>
       </p>
-      <p className="openspec-shell-note" data-testid="verify-quality-basis">{describeVerifyQuality(quality)}</p>
+      <p className="openspec-shell-note" data-testid="verify-quality-basis">{withMessageCode(basis.text, basis.code)}</p>
       {quality.byAgent.length > 0 ? (
         <ul className="openspec-shell-note" data-testid="verify-quality-by-agent">
           {quality.byAgent.map((group) => (

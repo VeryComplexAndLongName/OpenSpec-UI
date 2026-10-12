@@ -9,6 +9,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { AgentStatusReport } from "./agent-status.js";
+import { say, type MessageCode } from "./message-register.js";
 import type { EnrolmentRequest } from "./signature-facts.js";
 import { keyMatchesKeyId, type Roster, type RosterKey } from "./signed-envelope.js";
 
@@ -22,6 +23,9 @@ export interface AgentRosterEntry extends RosterKey {
 export interface AgentRosterMalformed {
   fileName: string;
   reason: string;
+  /** The register's identifier for `reason`, where it is one the register
+   * holds. A filesystem error's own words have none. */
+  code?: MessageCode;
 }
 
 export interface AgentRosterReading {
@@ -46,15 +50,23 @@ function errorCode(error: unknown): string | undefined {
   return error instanceof Error && "code" in error ? (error as NodeJS.ErrnoException).code : undefined;
 }
 
+/** Why an entry is not trusted: the register's words and identifier. */
+interface AgentRosterProblem {
+  reason: string;
+  code: MessageCode;
+}
+
 /** An entry as a file holds it, or why it is not trusted. */
-function readEntry(fileName: string, text: string): AgentRosterEntry | string {
+function readEntry(fileName: string, text: string): AgentRosterEntry | AgentRosterProblem {
   let value: unknown;
   try {
     value = JSON.parse(text);
   } catch {
-    return "not valid JSON";
+    return { reason: say("OSW-AGT-001").text, code: "OSW-AGT-001" };
   }
-  if (typeof value !== "object" || value === null) return "not an entry";
+  if (typeof value !== "object" || value === null) {
+    return { reason: say("OSW-AGT-006").text, code: "OSW-AGT-006" };
+  }
   const entry = value as Record<string, unknown>;
   if (
     typeof entry.keyId !== "string" ||
@@ -65,11 +77,13 @@ function readEntry(fileName: string, text: string): AgentRosterEntry | string {
     typeof entry.confirmedAt !== "string" ||
     (entry.gitAuthor !== undefined && typeof entry.gitAuthor !== "string")
   ) {
-    return "missing or invalid required fields";
+    return { reason: say("OSW-AGT-003").text, code: "OSW-AGT-003" };
   }
-  if (fileName !== `${entry.keyId}.json`) return `its file name does not match its key id "${entry.keyId}"`;
+  if (fileName !== `${entry.keyId}.json`) {
+    return { reason: say("OSW-AGT-007", { keyId: entry.keyId }).text, code: "OSW-AGT-007" };
+  }
   if (!KEY_ID_PATTERN.test(entry.keyId) || !keyMatchesKeyId(entry.publicKey, entry.keyId)) {
-    return "its key does not match its key id";
+    return { reason: say("OSW-AGT-008").text, code: "OSW-AGT-008" };
   }
   return {
     keyId: entry.keyId,
@@ -103,7 +117,7 @@ export async function readAgentRoster(directory: string): Promise<AgentRosterRea
       continue;
     }
     const entry = readEntry(fileName, text);
-    if (typeof entry === "string") reading.malformed.push({ fileName, reason: entry });
+    if ("reason" in entry) reading.malformed.push({ fileName, ...entry });
     else reading.entries.push(entry);
   }
   return reading;
@@ -144,8 +158,12 @@ export function collectEnrolmentRequests(input: {
 
 /** A confirmation that would enrol something other than the key it names. */
 export class EnrolmentRefusedError extends Error {
-  constructor(message: string) {
+  /** The register's identifier for the words, where this refusal is said
+   * from the register. */
+  readonly code?: MessageCode;
+  constructor(message: string, code?: MessageCode) {
     super(message);
+    this.code = code;
     this.name = "EnrolmentRefusedError";
   }
 }
@@ -166,7 +184,10 @@ export interface ConfirmEnrolmentOptions {
 export async function confirmEnrolment(options: ConfirmEnrolmentOptions): Promise<AgentRosterEntry> {
   const { request } = options;
   if (!KEY_ID_PATTERN.test(request.keyId) || !keyMatchesKeyId(request.publicKey, request.keyId)) {
-    throw new EnrolmentRefusedError(`the key offered for ${request.keyId} does not match that key id`);
+    throw new EnrolmentRefusedError(
+      say("OSW-AGT-009", { keyId: request.keyId }).text,
+      "OSW-AGT-009",
+    );
   }
   const directory = path.resolve(options.rosterDirectory);
   const fileName = `${request.keyId}.json`;
@@ -178,8 +199,11 @@ export async function confirmEnrolment(options: ConfirmEnrolmentOptions): Promis
   });
   if (existing !== undefined) {
     const entry = readEntry(fileName, existing);
-    if (typeof entry === "string" || entry.publicKey !== request.publicKey) {
-      throw new EnrolmentRefusedError(`${request.keyId} is already enrolled with a different key`);
+    if ("reason" in entry || entry.publicKey !== request.publicKey) {
+      throw new EnrolmentRefusedError(
+        say("OSW-AGT-010", { keyId: request.keyId }).text,
+        "OSW-AGT-010",
+      );
     }
     return entry;
   }

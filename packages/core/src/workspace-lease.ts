@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { say, type SaidMessage } from "./message-register.js";
 
 // Cross-host mutation isolation (docs/adr/0010-cross-host-workspace-lease.md).
 // Extends ADR 0004 decision 4's "one mutating run per workspace" invariant
@@ -94,27 +95,31 @@ export function hostKindLabel(hostKind: WorkspaceLeaseHostKind): string {
   return HOST_KIND_LABELS[hostKind] ?? String(hostKind);
 }
 
-export function describeWorkspaceLeaseConflict(conflict: WorkspaceLeaseConflict): string {
+/** The conflict said by its identifier (ADR 0046). The words are the
+ * register's; `author` is inserted as `, git author <who>` and not as
+ * "user": the value is self-declared, and a message that called it a user
+ * would read as an identity this system had established. */
+export function describeWorkspaceLeaseConflict(conflict: WorkspaceLeaseConflict): SaidMessage {
   const heartbeatAgeSeconds = Math.round(conflict.heartbeatAgeMs / 1000);
-  // "git author" and not "user": the value is self-declared, and a
-  // message that called it a user would read as an identity this system
-  // had established.
   const author = conflict.author ? `, git author ${conflict.author}` : "";
-  return (
-    `Another OpenSpec Workbench host (${hostKindLabel(conflict.hostKind)} on ` +
-    `${conflict.hostname}, pid ${conflict.pid}${author}, last active ${heartbeatAgeSeconds}s ago) ` +
-    `is currently running a mutating operation on this workspace. Wait for it to ` +
-    `finish, or close it, before starting one here.`
-  );
+  return say("OSW-WSP-001", {
+    hostKind: hostKindLabel(conflict.hostKind),
+    hostname: conflict.hostname,
+    pid: conflict.pid,
+    author,
+    seconds: heartbeatAgeSeconds,
+  });
 }
 
-export function describeWorkspaceLeaseReclamation(conflict: WorkspaceLeaseConflict): string {
+/** The reclamation said by its identifier (ADR 0046). */
+export function describeWorkspaceLeaseReclamation(conflict: WorkspaceLeaseConflict): SaidMessage {
   const heartbeatAgeSeconds = Math.round(conflict.heartbeatAgeMs / 1000);
-  return (
-    `Reclaimed the workspace lease from ${hostKindLabel(conflict.hostKind)} on ` +
-    `${conflict.hostname} (pid ${conflict.pid}), which stopped renewing it ` +
-    `${heartbeatAgeSeconds}s ago.`
-  );
+  return say("OSW-WSP-101", {
+    hostKind: hostKindLabel(conflict.hostKind),
+    hostname: conflict.hostname,
+    pid: conflict.pid,
+    seconds: heartbeatAgeSeconds,
+  });
 }
 
 /** Who holds a working directory right now, or `undefined` when nobody

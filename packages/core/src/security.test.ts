@@ -45,16 +45,21 @@ describe("checkCwdSandbox", () => {
     const decision = checkCwdSandbox("/workspace/repo/../other-repo", workspaceRoot);
     expect(decision.allowed).toBe(false);
     expect(decision.reason).toMatch(/is outside the workspace/);
+    expect(decision.code).toBe("OSW-KEY-007");
   });
 
   it("rejects an unrelated absolute path", () => {
-    expect(checkCwdSandbox("/etc/passwd", workspaceRoot).allowed).toBe(false);
+    const decision = checkCwdSandbox("/etc/passwd", workspaceRoot);
+    expect(decision.allowed).toBe(false);
+    expect(decision.code).toBe("OSW-KEY-007");
   });
 
   it("does not treat a prefix-matching sibling as inside the workspace", () => {
     // "/workspace/repo-evil" starts with the same string as root, but is not
     // a subdirectory of it — the boundary must be checked by path segments.
-    expect(checkCwdSandbox("/workspace/repo-evil", workspaceRoot).allowed).toBe(false);
+    const decision = checkCwdSandbox("/workspace/repo-evil", workspaceRoot);
+    expect(decision.allowed).toBe(false);
+    expect(decision.code).toBe("OSW-KEY-007");
   });
 
   it("allows any absolute cwd when explicit opt-in is enabled", () => {
@@ -84,6 +89,17 @@ describe("checkAllowlist", () => {
       allowlist,
     );
     expect(decision.allowed).toBe(false);
+    expect(decision.code).toBe("OSW-KEY-001");
+  });
+
+  it("rejects an agent with rules but no in-process rule", () => {
+    const decision = checkAllowlist(
+      "claude-cli",
+      { kind: "in-process", agent: "claude-cli" },
+      allowlist,
+    );
+    expect(decision.allowed).toBe(false);
+    expect(decision.code).toBe("OSW-KEY-002");
   });
 
   it("rejects a disallowed executable for a known agent", () => {
@@ -93,6 +109,7 @@ describe("checkAllowlist", () => {
       allowlist,
     );
     expect(decision.allowed).toBe(false);
+    expect(decision.code).toBe("OSW-KEY-005");
   });
 
   it("rejects disallowed args for an allowed executable", () => {
@@ -102,6 +119,7 @@ describe("checkAllowlist", () => {
       allowlist,
     );
     expect(decision.allowed).toBe(false);
+    expect(decision.code).toBe("OSW-KEY-006");
   });
 
   it("allows a matching http invocation", () => {
@@ -113,6 +131,16 @@ describe("checkAllowlist", () => {
     expect(decision.allowed).toBe(true);
   });
 
+  it("rejects a URL and method the http rule does not allow", () => {
+    const decision = checkAllowlist(
+      "local-llm",
+      { kind: "http", url: "http://hppii-gpu:30000/v1/chat/completions", method: "GET" },
+      allowlist,
+    );
+    expect(decision.allowed).toBe(false);
+    expect(decision.code).toBe("OSW-KEY-004");
+  });
+
   it("rejects http invocation for an agent without an __http__ rule", () => {
     const decision = checkAllowlist(
       "claude-cli",
@@ -120,6 +148,7 @@ describe("checkAllowlist", () => {
       allowlist,
     );
     expect(decision.allowed).toBe(false);
+    expect(decision.code).toBe("OSW-KEY-003");
   });
 });
 

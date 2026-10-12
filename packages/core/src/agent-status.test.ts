@@ -825,6 +825,7 @@ describe("readAgentStatuses", () => {
     expect(malformed).toHaveLength(1);
     expect(malformed[0]?.fileName).toBe("this-run-id.json");
     expect(malformed[0]?.reason).toContain("someone-elses-id");
+    expect(malformed[0]?.code).toBe("OSW-AGT-004");
   });
 
   it("reports a malformed record and the others survive", async () => {
@@ -848,7 +849,7 @@ describe("readAgentStatuses", () => {
     await writeFile(path.join(directory, "good-run.json"), JSON.stringify(good), "utf8");
 
     const { reports, malformed } = await readAgentStatuses(directory);
-    expect(malformed).toEqual([{ fileName: "broken.json", reason: "not valid JSON" }]);
+    expect(malformed).toEqual([{ fileName: "broken.json", reason: "not valid JSON", code: "OSW-AGT-001" }]);
     expect(reports).toHaveLength(1);
     expect(reports[0]?.instanceId).toBe("good-run");
   });
@@ -960,7 +961,7 @@ describe("a request to stop this run (a-run-elsewhere-can-be-asked-to-stop 2.6)"
 
     expect(onStopRequested).not.toHaveBeenCalled();
     expect(onStopRequestRefused).toHaveBeenCalledTimes(1);
-    expect(onStopRequestRefused).toHaveBeenCalledWith({ messageId, why: "unverified", reason: "live check" });
+    expect(onStopRequestRefused).toHaveBeenCalledWith({ messageId, why: "unverified", reason: "live check", code: "OSW-AGT-101" });
     expect(refused.reports[0]?.activity).toBe("a request to stop arrived, not verified; not acted on");
     expect(later.reports[0]?.activity).toBe("applying");
     await writer.stop();
@@ -1183,7 +1184,7 @@ describe("a note or a question addressed to this run", () => {
 
     expect(onMessage).not.toHaveBeenCalled();
     expect(onMessageRefused).toHaveBeenCalledTimes(1);
-    expect(onMessageRefused).toHaveBeenCalledWith(expect.objectContaining({ messageId, why: "author-not-allowed" }));
+    expect(onMessageRefused).toHaveBeenCalledWith(expect.objectContaining({ messageId, why: "author-not-allowed", code: "OSW-AGT-104" }));
     expect(refused.reports[0]?.activity).toBe("a message arrived, from a run, which this run does not take; not taken");
     expect(await readdir(messages)).toEqual([`${messageId}.json`]);
     await writer.stop();

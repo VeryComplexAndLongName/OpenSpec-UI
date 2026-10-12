@@ -10,6 +10,7 @@
 import crossSpawn from "cross-spawn";
 import path from "node:path";
 import { checkChangesetReminder } from "./changeset-reminder.js";
+import { say, type MessageCode, type SaidMessage } from "./message-register.js";
 import { validateChange } from "./openspec.js";
 import { checkCwdSandbox } from "./security.js";
 
@@ -30,8 +31,11 @@ export type MechanicalCheckName = (typeof MECHANICAL_CHECK_NAMES)[number];
 export interface MechanicalCheckResult {
   pass: boolean;
   /** Always present, on both pass and fail — task 1.4: "which command,
-   * which path, what came back", not "check failed". */
+   * which path, what came back", not "check failed". The words are the
+   * register's (ADR 0046); `code` is their identifier. */
   reason: string;
+  /** The identifier of the message in `reason`. */
+  code: MessageCode;
 }
 
 export interface MechanicalCheckContext {
@@ -49,6 +53,12 @@ export interface MechanicalCheckContext {
    * script name unchanged; only a caller that resolves against a
    * workspace's own `package.json` (the extension) sets this. */
   scripts?: Partial<Record<"typecheck" | "test" | "lint", string>>;
+}
+
+/** One check's result: the register's words, and the identifier beside
+ * them. */
+function saidResult(pass: boolean, said: SaidMessage): MechanicalCheckResult {
+  return { pass, code: said.code, reason: said.text };
 }
 
 function runCommand(
@@ -78,74 +88,94 @@ function tail(text: string, lines = 20): string {
 }
 
 async function checkValidateChange(ctx: MechanicalCheckContext): Promise<MechanicalCheckResult> {
-  const label = `openspec change validate --strict ${ctx.changeName}`;
   try {
-    const result = await validateChange(ctx.changeName, { cwd: ctx.workspaceRoot });
-    if (result.summary.totals.failed > 0) {
-      const failedIds = result.items.filter((item) => !item.valid).map((item) => item.id).join(", ");
-      return { pass: false, reason: `${label}: ${result.summary.totals.failed} item(s) failed (${failedIds})` };
+    const validation = await validateChange(ctx.changeName, { cwd: ctx.workspaceRoot });
+    if (validation.summary.totals.failed > 0) {
+      const failedIds = validation.items.filter((item) => !item.valid).map((item) => item.id).join(", ");
+      return saidResult(false, say("OSW-VAL-101", {
+        change: ctx.changeName,
+        count: validation.summary.totals.failed,
+        ids: failedIds,
+      }));
     }
-    return { pass: true, reason: `${label}: ${result.summary.totals.passed} item(s) passed` };
+    return saidResult(true, say("OSW-VAL-102", {
+      change: ctx.changeName,
+      count: validation.summary.totals.passed,
+    }));
   } catch (error) {
-    return { pass: false, reason: `${label} failed to run: ${error instanceof Error ? error.message : String(error)}` };
+    return saidResult(false, say("OSW-VAL-103", {
+      change: ctx.changeName,
+      error: error instanceof Error ? error.message : String(error),
+    }));
   }
 }
 
 async function runNpmScript(ctx: MechanicalCheckContext, script: string): Promise<MechanicalCheckResult> {
-  const label = `npm run ${script}`;
   let outcome: { code: number | null; stdout: string; stderr: string };
   try {
     outcome = await runCommand(ctx.workspaceRoot, "npm", ["run", script]);
   } catch (error) {
-    return { pass: false, reason: `${label} failed to run: ${error instanceof Error ? error.message : String(error)}` };
+    return saidResult(false, say("OSW-VAL-104", {
+      script,
+      error: error instanceof Error ? error.message : String(error),
+    }));
   }
-  if (outcome.code === 0) return { pass: true, reason: `${label} exited 0` };
+  if (outcome.code === 0) return saidResult(true, say("OSW-VAL-105", { script }));
   const output = tail(outcome.stderr || outcome.stdout);
-  return { pass: false, reason: `${label} exited ${outcome.code ?? "unknown"}:\n${output}` };
+  return saidResult(false, say("OSW-VAL-106", { script, code: outcome.code ?? "unknown", output }));
 }
 
 /** Resolves `relativePath` against `workspaceRoot` and confirms it stays
  * inside the workspace — same check `checkCwdSandbox` performs for a
  * `cwd`, applied here to a `path-unchanged` parameter (task 1.3). */
-function resolveWithinWorkspace(workspaceRoot: string, relativePath: string): { path: string } | { reason: string } {
+function resolveWithinWorkspace(
+  workspaceRoot: string,
+  relativePath: string,
+): { path: string } | { refusal: SaidMessage } {
   const resolved = path.resolve(workspaceRoot, relativePath);
   const decision = checkCwdSandbox(resolved, workspaceRoot);
   if (!decision.allowed) {
-    return { reason: `path "${relativePath}" resolves outside the workspace "${workspaceRoot}"` };
+    return { refusal: say("OSW-VAL-002", { path: relativePath, root: workspaceRoot }) };
   }
   return { path: resolved };
 }
 
 async function checkPathUnchanged(ctx: MechanicalCheckContext, param: string | undefined): Promise<MechanicalCheckResult> {
   if (!param) {
-    return { pass: false, reason: `"path-unchanged" requires a repository-relative path parameter` };
+    return saidResult(false, say("OSW-VAL-001"));
   }
   const resolved = resolveWithinWorkspace(ctx.workspaceRoot, param);
-  if ("reason" in resolved) {
-    return { pass: false, reason: resolved.reason };
+  if ("refusal" in resolved) {
+    return saidResult(false, resolved.refusal);
   }
   const relativeFromRoot = path.relative(ctx.workspaceRoot, resolved.path);
-  const label = `git diff -- ${relativeFromRoot}`;
   let outcome: { code: number | null; stdout: string; stderr: string };
   try {
     outcome = await runCommand(ctx.workspaceRoot, "git", ["diff", "--quiet", "--", relativeFromRoot]);
   } catch (error) {
-    return { pass: false, reason: `${label} failed to run: ${error instanceof Error ? error.message : String(error)}` };
+    return saidResult(false, say("OSW-VAL-107", {
+      path: relativeFromRoot,
+      error: error instanceof Error ? error.message : String(error),
+    }));
   }
-  if (outcome.code === 0) return { pass: true, reason: `${label} reported no changes` };
-  if (outcome.code === 1) return { pass: false, reason: `${label} reported uncommitted changes to "${relativeFromRoot}"` };
-  return { pass: false, reason: `${label} exited ${outcome.code ?? "unknown"}: ${tail(outcome.stderr || outcome.stdout)}` };
+  if (outcome.code === 0) return saidResult(true, say("OSW-VAL-108", { path: relativeFromRoot }));
+  if (outcome.code === 1) return saidResult(false, say("OSW-VAL-109", { path: relativeFromRoot }));
+  return saidResult(false, say("OSW-VAL-110", {
+    path: relativeFromRoot,
+    code: outcome.code ?? "unknown",
+    output: tail(outcome.stderr || outcome.stdout),
+  }));
 }
 
 async function checkChangesetPresent(ctx: MechanicalCheckContext): Promise<MechanicalCheckResult> {
   const status = await checkChangesetReminder(ctx.workspaceRoot);
   if (!status.changesetsAdopted) {
-    return { pass: false, reason: `no ".changeset/config.json" found under "${ctx.workspaceRoot}" — Changesets is not adopted` };
+    return saidResult(false, say("OSW-VAL-111", { root: ctx.workspaceRoot }));
   }
   if (status.pendingChangesetCount === 0) {
-    return { pass: false, reason: `no pending ".changeset/*.md" file found — run "npx changeset" for "${ctx.changeName}"` };
+    return saidResult(false, say("OSW-VAL-112", { change: ctx.changeName }));
   }
-  return { pass: true, reason: `${status.pendingChangesetCount} pending changeset file(s) found` };
+  return saidResult(true, say("OSW-VAL-113", { count: status.pendingChangesetCount }));
 }
 
 /** The registry itself — the single place mapping a check name to the
@@ -181,7 +211,10 @@ export async function runMechanicalCheck(
 ): Promise<MechanicalCheckResult> {
   const check = MECHANICAL_CHECKS[name];
   if (!check) {
-    throw new Error(`Unknown mechanical check "${name}" (expected one of: ${MECHANICAL_CHECK_NAMES.join(", ")})`);
+    throw new Error(say("OSW-VAL-003", {
+      name,
+      names: MECHANICAL_CHECK_NAMES.join(", "),
+    }).text);
   }
   return check(ctx, param);
 }

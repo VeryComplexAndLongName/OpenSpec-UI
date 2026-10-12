@@ -90,6 +90,7 @@ describe("doctorCommand", () => {
           ok: false as const,
           refusal: {
             reason: "this change's configuration pauses between stages for a confirmation",
+            code: "OSW-HRN-115",
             configKey: "checkpoints.requireConfirmationBetweenSteps",
           },
         }),

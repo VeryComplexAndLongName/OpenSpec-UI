@@ -1,4 +1,5 @@
 import type { AgentUsage } from "./agent-usage.js";
+import { withMessageCode } from "./message-register.js";
 import {
   WORKSPACE_LEASE_RENEW_INTERVAL_MS,
   describeWorkspaceLeaseConflict,
@@ -336,7 +337,8 @@ export class WorkbenchProcessScheduler {
         return;
       }
       if (result.reclaimedFrom) {
-        process.progress = describeWorkspaceLeaseReclamation(result.reclaimedFrom);
+        const said = describeWorkspaceLeaseReclamation(result.reclaimedFrom);
+        process.progress = withMessageCode(said.text, said.code);
       }
     }
 
@@ -363,13 +365,15 @@ export class WorkbenchProcessScheduler {
       if (!result.ok) {
         // Never transitions through "running" — another host holds the
         // workspace, so this run never actually starts.
-        process.error = describeWorkspaceLeaseConflict(result.conflict);
+        const said = describeWorkspaceLeaseConflict(result.conflict);
+        process.error = withMessageCode(said.text, said.code);
         this.finish(pending, "failed");
         this.drain();
         return;
       }
       if (result.reclaimedFrom) {
-        process.progress = describeWorkspaceLeaseReclamation(result.reclaimedFrom);
+        const said = describeWorkspaceLeaseReclamation(result.reclaimedFrom);
+        process.progress = withMessageCode(said.text, said.code);
       }
     }
 

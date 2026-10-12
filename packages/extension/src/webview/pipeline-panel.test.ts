@@ -726,6 +726,9 @@ describe("PipelinePanel — opening a change", () => {
     expect(revealChange).not.toHaveBeenCalled();
     expect(vscodeMock.workspace.openTextDocument).not.toHaveBeenCalled();
     expect(vscodeMock.window.showInformationMessage).toHaveBeenCalledOnce();
+    expect(vscodeMock.window.showInformationMessage).toHaveBeenCalledWith(
+      'OSW-CHG-001: "../../etc" is not a change name this workspace can have.',
+    );
   });
 });
 

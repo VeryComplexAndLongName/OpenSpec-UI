@@ -16,6 +16,7 @@
 
 import type { GitWrapper } from "./git.js";
 import { isMergeMethodRefusal, PENDING_REASON, type Forge, type MergeMethod, type PullRequestRef } from "./gh-pr-gateway.js";
+import { say, type MessageCode } from "./message-register.js";
 import { describeTaskDebts, owesNothing, parseTaskChecklist } from "./task-checklist.js";
 
 const CHANGES = "openspec/changes";
@@ -65,13 +66,15 @@ export interface LandedArchiveResult {
     outcome: ArchiveFollowOutcome;
   };
   /** A change that was due and was not archived, and why. */
-  notArchived: Array<{ changeName: string; reason: string }>;
+  notArchived: Array<{ changeName: string; reason: string; code: MessageCode }>;
   /** A change whose own pull request has merged while it still owes
    * something: never archived, and said, because the merge gate should
    * have made it impossible. */
-  owing: Array<{ changeName: string; pullRequest: number; owes: string[] }>;
+  owing: Array<{ changeName: string; pullRequest: number; owes: string[]; code: MessageCode }>;
   /** Why the pass could do nothing at all, where it had something to do. */
   failed?: string;
+  /** The register's identifier for the words in `failed`. */
+  failedCode?: MessageCode;
 }
 
 /** What following an open archive pull request came to.
@@ -86,7 +89,7 @@ export interface LandedArchiveResult {
 export type ArchiveFollowOutcome =
   | { state: "merged"; method: MergeMethod }
   | { state: "waiting" }
-  | { state: "blocked"; reason: string; cause: "check-failed" | "checks-unreadable" | "refused" }
+  | { state: "blocked"; reason: string; cause: "check-failed" | "checks-unreadable" | "refused"; code: MessageCode }
   | { state: "rebuilt"; behind: number };
 
 /** How often a host sweeps while an archive pull request is open: its
@@ -113,11 +116,23 @@ export async function followArchivePullRequest(forge: Forge, number: number): Pr
   try {
     checks = await forge.checksOf(number);
   } catch (error) {
-    return { state: "blocked", reason: `its checks could not be read: ${failureReason(error)}`, cause: "checks-unreadable" };
+    return {
+      state: "blocked",
+      reason: say("OSW-ARC-103", { reason: failureReason(error) }).text,
+      cause: "checks-unreadable",
+      code: "OSW-ARC-103",
+    };
   }
   if (checks.state === "none" && checks.reason === PENDING_REASON) return { state: "waiting" };
-  if (checks.state === "fail") return { state: "blocked", reason: checks.reason ?? "a check failed", cause: "check-failed" };
-  let reason = "no merge method was tried";
+  if (checks.state === "fail") {
+    return {
+      state: "blocked",
+      reason: checks.reason ?? say("OSW-ARC-104").text,
+      cause: "check-failed",
+      code: "OSW-ARC-104",
+    };
+  }
+  let reason = say("OSW-ARC-105").text;
   for (const method of ARCHIVE_MERGE_METHODS) {
     try {
       await forge.mergeNow(number, method);
@@ -127,7 +142,12 @@ export async function followArchivePullRequest(forge: Forge, number: number): Pr
       if (!isMergeMethodRefusal(reason)) break;
     }
   }
-  return { state: "blocked", reason: `${forge.name} refused the merge: ${reason}`, cause: "refused" };
+  return {
+    state: "blocked",
+    reason: say("OSW-ARC-106", { forge: forge.name, reason }).text,
+    cause: "refused",
+    code: "OSW-ARC-106",
+  };
 }
 
 function stamp(now: Date): string {
@@ -160,7 +180,7 @@ export function failureReason(error: unknown): string {
   const all = text.split(String.fromCharCode(10)).map((line) => line.trim()).filter((line) => line.length > 0);
   const telling = all.filter((line) => TELLING_GIT_LINE.test(line));
   if (telling.length > 0) return telling.slice(0, 2).join("; ");
-  return all[0] ?? "no reason given";
+  return all[0] ?? say("OSW-ARC-108").text;
 }
 
 
@@ -192,7 +212,7 @@ async function makeArchive(
         await deps.archive(name, directory.path);
         archived.push(name);
       } catch (error) {
-        notArchived.push({ changeName: name, reason: failureReason(error) });
+        notArchived.push({ changeName: name, reason: failureReason(error), code: "OSW-ARC-207" });
       }
     }
     if (archived.length === 0) return archived;
@@ -210,7 +230,7 @@ async function makeArchive(
     // staged. The branch would then be the default branch under another
     // name, and a pull request of it would archive nothing
     // (the-sweep-finishes-what-it-starts).
-    if (!committed.commit) throw new Error("archiving changed nothing, so there was nothing to commit");
+    if (!committed.commit) throw new Error(say("OSW-ARC-101").text);
     await push(git);
     return archived;
   } finally {
@@ -286,14 +306,17 @@ export async function archiveLandedChanges(deps: LandedArchiveDeps): Promise<Lan
 
   const pullRequests = await deps.forge.pullRequestsByBranch();
   if (!pullRequests.available) {
-    if (closed.length > 0) result.failed = `${deps.forge.name} could not be asked about pull requests: ${pullRequests.reason}`;
+    if (closed.length > 0) {
+      result.failed = say("OSW-ARC-102", { forge: deps.forge.name, reason: pullRequests.reason }).text;
+      result.failedCode = "OSW-ARC-102";
+    }
     return result;
   }
   const byBranch = pullRequests.byBranch;
 
   for (const [name, owes] of debts) {
     const own = byBranch.get(name);
-    if (own?.state === "MERGED") result.owing.push({ changeName: name, pullRequest: own.number, owes });
+    if (own?.state === "MERGED") result.owing.push({ changeName: name, pullRequest: own.number, owes, code: "OSW-ARC-208" });
   }
 
   for (const name of closed) {
@@ -324,7 +347,11 @@ export async function archiveLandedChanges(deps: LandedArchiveDeps): Promise<Lan
             const archived = await makeArchive(deps, branch, ref, result.due, result.notArchived, (git) => git.pushWithLease(remote, branch, leased));
             if (archived.length > 0) outcome = { state: "rebuilt", behind };
           } catch (error) {
-            outcome = { ...refused, reason: `${refused.reason}; making it again on ${ref} failed too: ${failureReason(error)}` };
+            outcome = {
+              ...refused,
+              reason: say("OSW-ARC-107", { reason: refused.reason, ref, failure: failureReason(error) }).text,
+              code: "OSW-ARC-107",
+            };
           }
         }
       }
@@ -355,33 +382,45 @@ export async function archiveLandedChanges(deps: LandedArchiveDeps): Promise<Lan
     return result;
   } catch (error) {
     result.failed = failureReason(error);
+    result.failedCode = "OSW-ARC-209";
     return result;
   }
 }
 
 /** What a pass did, in the sentences every host says. Nothing where
- * nothing happened. */
+ * nothing happened. The words come from the register, under the identifier
+ * of the carrier they are said from (ADR 0046). */
 export function describeLandedArchive(result: LandedArchiveResult): string[] {
   const said: string[] = [];
   if (result.opened) {
     const { pullRequest, changes } = result.opened;
-    said.push(`opened #${pullRequest.number} to archive ${changes.join(", ")}, which landed with nothing open`);
-    said.push(`#${pullRequest.number} is merged by the sweep once its checks pass`);
+    said.push(say("OSW-ARC-201", { number: pullRequest.number, changes: changes.join(", ") }).text);
+    said.push(say("OSW-ARC-202", { number: pullRequest.number }).text);
   }
   if (result.followed) {
     const { number, outcome } = result.followed;
-    if (outcome.state === "merged") said.push(`merged #${number} by ${outcome.method}: its checks passed, or none ran`);
-    else if (outcome.state === "waiting") said.push(`#${number} is waiting for its checks`);
+    if (outcome.state === "merged") said.push(say("OSW-ARC-203", { number, method: outcome.method }).text);
+    else if (outcome.state === "waiting") said.push(say("OSW-ARC-204", { number }).text);
     else if (outcome.state === "rebuilt") {
-      said.push(`#${number} was refused while ${outcome.behind} commit${outcome.behind === 1 ? "" : "s"} behind the default branch, so the archive was made again on it and pushed; its checks run again`);
-    } else said.push(`#${number} cannot merge yet: ${outcome.reason}`);
+      // The plural a person reads: "1 commit", "2 commits".
+      said.push(say("OSW-ARC-205", {
+        number,
+        behind: outcome.behind,
+        commits: `commit${outcome.behind === 1 ? "" : "s"}`,
+      }).text);
+    } else said.push(say("OSW-ARC-206", { number, reason: outcome.reason }).text);
   }
   for (const entry of result.notArchived) {
-    said.push(`could not archive ${entry.changeName}: ${entry.reason}`);
+    said.push(say("OSW-ARC-207", { change: entry.changeName, reason: entry.reason }).text);
   }
   for (const entry of result.owing) {
-    said.push(`${entry.changeName} landed in #${entry.pullRequest} but still owes ${entry.owes.length === 1 ? "an item" : `${entry.owes.length} items`}, so it stays live: ${entry.owes.join("; ")}`);
+    said.push(say("OSW-ARC-208", {
+      change: entry.changeName,
+      number: entry.pullRequest,
+      owed: entry.owes.length === 1 ? "an item" : `${entry.owes.length} items`,
+      owes: entry.owes.join("; "),
+    }).text);
   }
-  if (result.failed) said.push(`nothing was archived: ${result.failed}`);
+  if (result.failed) said.push(say("OSW-ARC-209", { failed: result.failed }).text);
   return said;
 }

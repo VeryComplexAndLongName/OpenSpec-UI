@@ -13,10 +13,13 @@ vi.mock("@openspec-ui/core", () => ({
   collectHumanOnlyInbox: (...args: unknown[]) => collectHumanOnlyInboxMock(...args),
   describeEnrolmentRequest: (request: { label: string; workingDirectory: string; machine: string | null }) =>
     `${request.label} — ${request.workingDirectory}, on ${request.machine}`,
+  withMessageCode: (text: string, code?: string) => (code === undefined ? text : `${code}: ${text}`),
   describeWaitingOn: (waitingOn: { kind: string; agent?: string; known?: boolean }) =>
     (waitingOn.kind === "person"
-      ? "a person"
-      : waitingOn.known ? waitingOn.agent : `"${waitingOn.agent}", which is not a registered agent`),
+      ? { code: "OSW-TSK-015", level: "info", text: "a person" }
+      : waitingOn.known
+        ? { text: waitingOn.agent }
+        : { code: "OSW-TSK-016", level: "warning", text: `"${waitingOn.agent}", which is not a registered agent` }),
 }));
 
 const {
@@ -64,7 +67,7 @@ describe("HumanOnlyInboxTreeProvider", () => {
     expect(items).toHaveLength(2);
     expect(items.every((item) => item instanceof HumanOnlyInboxItemTreeItem)).toBe(true);
     expect(items.map((item) => item.description))
-      .toEqual(["change-a — waiting on a person", "change-b — waiting on a person"]);
+      .toEqual(["change-a — waiting on OSW-TSK-015: a person", "change-b — waiting on OSW-TSK-015: a person"]);
     expect(items.map((item) => item.label)).toEqual([
       "1.2 **Human-only**: confirm by hand",
       "2.1 **Human-only**: another one",
@@ -157,7 +160,7 @@ describe("HumanOnlyInboxTreeProvider — who each row waits on", () => {
     const items = await new HumanOnlyInboxTreeProvider("/repo").getChildren();
 
     expect(items.map((item) => item.description))
-      .toEqual(["change-a — waiting on a person", "change-b — waiting on copilot-cli"]);
+      .toEqual(["change-a — waiting on OSW-TSK-015: a person", "change-b — waiting on copilot-cli"]);
   });
 
   it("says so when the named agent is not one the registry carries", async () => {
@@ -170,7 +173,7 @@ describe("HumanOnlyInboxTreeProvider — who each row waits on", () => {
 
     const items = await new HumanOnlyInboxTreeProvider("/repo").getChildren();
 
-    expect(items[0]?.description).toBe('change-a — waiting on "copilto-cli", which is not a registered agent');
+    expect(items[0]?.description).toBe('change-a — waiting on OSW-TSK-016: "copilto-cli", which is not a registered agent');
   });
 });
 

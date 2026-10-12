@@ -30,6 +30,7 @@ import { createGitWrapper, type GitWrapper } from "./git.js";
 import { readGlobalHarnessConfig } from "./harness-config.js";
 import { TASK_NUMBER_PATTERN } from "./harness-step-agent.js";
 import { loadOrCreateMachineKey, type MachineKey } from "./machine-key.js";
+import { say, type MessageCode } from "./message-register.js";
 import type { Command, Event } from "./protocol.js";
 import type { EnrolledPerson, RecordSignature } from "./signature-facts.js";
 import { isSignedEnvelope, openEnvelope, sealEnvelope, type EnvelopeSigner, type Roster } from "./signed-envelope.js";
@@ -54,19 +55,19 @@ export const AGENT_STATUS_STREAM_WRITE_INTERVAL_MS = 1_000;
 
 const LINE_BREAK = String.fromCharCode(10);
 
-/** How a run's activity says why a request to stop it was not acted on. */
-const REFUSAL_WORDS: Readonly<Record<StopRequestRefusal, string>> = {
-  unverified: "not verified",
-  stale: "stale",
-  seen: "already read",
-};
+/** The register's identifier for why a request to stop it was not acted on. */
+const REFUSAL_CODES = {
+  unverified: "OSW-AGT-101",
+  stale: "OSW-AGT-102",
+  seen: "OSW-AGT-103",
+} as const satisfies Record<StopRequestRefusal, MessageCode>;
 
-/** The same words, and the one a conversation adds: a run refusing another
+/** The same, and the one a conversation adds: a run refusing another
  * run (the-operator-can-say-something-to-a-run). */
-const MESSAGE_REFUSAL_WORDS: Readonly<Record<ConversationRefusal, string>> = {
-  ...REFUSAL_WORDS,
-  "author-not-allowed": "from a run, which this run does not take",
-};
+const MESSAGE_REFUSAL_CODES = {
+  ...REFUSAL_CODES,
+  "author-not-allowed": "OSW-AGT-104",
+} as const satisfies Record<ConversationRefusal, MessageCode>;
 
 /** A note or a question as the run hands it to its host: what was said, the
  * enrolled person who said it, and the message's own id. */
@@ -86,6 +87,8 @@ export interface AgentStatusMessageRefusal {
   messageId: string;
   why: ConversationRefusal;
   words: string;
+  /** The register's identifier for `why`'s words. */
+  code: MessageCode;
 }
 
 /** A request to stop a run, as the run hands it to its host: the reason,
@@ -105,6 +108,8 @@ export interface AgentStatusStopRequestRefusal {
   messageId: string;
   why: StopRequestRefusal;
   reason: string;
+  /** The register's identifier for `why`'s words. */
+  code: MessageCode;
 }
 
 /** The most of an unfinished line a stream is allowed to hold. A stream
@@ -471,8 +476,8 @@ export class AgentStatusWriter {
             ...(afterTask !== undefined ? { afterTask } : {}),
           });
         } else if (firstReading) {
-          this.setActivity(`a request to stop arrived, ${REFUSAL_WORDS[reading.why]}; not acted on`);
-          this.onStopRequestRefused?.({ messageId, why: reading.why, reason });
+          this.setActivity(`a request to stop arrived, ${say(REFUSAL_CODES[reading.why]).text}; not acted on`);
+          this.onStopRequestRefused?.({ messageId, why: reading.why, reason, code: REFUSAL_CODES[reading.why] });
           said = true;
         }
       }
@@ -514,8 +519,8 @@ export class AgentStatusWriter {
           this.onMessage({ messageId, kind, words, from: reading.person.label, fromKeyId: reading.person.keyId, author, sentAt });
           await forgetMessage(this.messageDirectory, messageId).catch(() => undefined);
         } else if (firstReading && reading.why !== "seen") {
-          this.setActivity(`a message arrived, ${MESSAGE_REFUSAL_WORDS[reading.why]}; not taken`);
-          this.onMessageRefused?.({ messageId, why: reading.why, words });
+          this.setActivity(`a message arrived, ${say(MESSAGE_REFUSAL_CODES[reading.why]).text}; not taken`);
+          this.onMessageRefused?.({ messageId, why: reading.why, words, code: MESSAGE_REFUSAL_CODES[reading.why] });
           said = true;
         }
       }
@@ -679,6 +684,9 @@ export interface AgentStatusReport {
 export interface AgentStatusMalformed {
   fileName: string;
   reason: string;
+  /** The register's identifier for `reason`, where it is one the register
+   * holds. A filesystem error's own words have none. */
+  code?: MessageCode;
 }
 
 export interface AgentStatusReadResult {
@@ -738,7 +746,7 @@ function readStopRequested(value: unknown): AgentStatusStopRequest | null {
  * being read. */
 type AgentStatusRecordReading =
   | { kind: "report"; report: AgentStatusReport }
-  | { kind: "malformed"; reason: string }
+  | { kind: "malformed"; reason: string; code?: MessageCode }
   | { kind: "missing" };
 
 /** A record whose signature does not check out: its file name, why, and
@@ -792,7 +800,7 @@ async function readAgentStatusRecord(
     try {
       parsed = JSON.parse(raw);
     } catch {
-      return { kind: "malformed", reason: "not valid JSON" };
+      return { kind: "malformed", reason: say("OSW-AGT-001").text, code: "OSW-AGT-001" };
     }
     let signature: RecordSignature = "unverified";
     let person: EnrolledPerson | undefined;
@@ -810,11 +818,11 @@ async function readAgentStatusRecord(
       try {
         parsed = JSON.parse(Buffer.from(opened.bytes).toString("utf8"));
       } catch {
-        return { kind: "malformed", reason: "its signed payload is not valid JSON" };
+        return { kind: "malformed", reason: say("OSW-AGT-002").text, code: "OSW-AGT-002" };
       }
     }
     if (typeof parsed !== "object" || parsed === null) {
-      return { kind: "malformed", reason: "missing or invalid required fields" };
+      return { kind: "malformed", reason: say("OSW-AGT-003").text, code: "OSW-AGT-003" };
     }
     const document = parsed as Partial<Record<keyof AgentStatusDocument, unknown>>;
     if (
@@ -824,18 +832,19 @@ async function readAgentStatusRecord(
       typeof document.activityAt !== "string" ||
       typeof document.heartbeatAt !== "string"
     ) {
-      return { kind: "malformed", reason: "missing or invalid required fields" };
+      return { kind: "malformed", reason: say("OSW-AGT-003").text, code: "OSW-AGT-003" };
     }
     if (document.instanceId !== expectedId) {
       return {
         kind: "malformed",
-        reason: `record identity "${document.instanceId}" does not match file name "${expectedId}"`,
+        reason: say("OSW-AGT-004", { instanceId: document.instanceId, expectedId }).text,
+        code: "OSW-AGT-004",
       };
     }
     const activitySinceMs = now().getTime() - Date.parse(document.activityAt);
     const heartbeatAgeMs = now().getTime() - Date.parse(document.heartbeatAt);
     if (!Number.isFinite(activitySinceMs) || !Number.isFinite(heartbeatAgeMs)) {
-      return { kind: "malformed", reason: "activityAt or heartbeatAt is not a valid timestamp" };
+      return { kind: "malformed", reason: say("OSW-AGT-005").text, code: "OSW-AGT-005" };
     }
     return {
       kind: "report",
@@ -906,7 +915,9 @@ export async function readAgentStatuses(
     if (!fileName.endsWith(".json")) continue;
     const reading = await readAgentStatusRecord(directory, fileName, now, staleAfterMs, roster);
     if (reading.kind === "report") reports.push(reading.report);
-    else if (reading.kind === "malformed") malformed.push({ fileName, reason: reading.reason });
+    else if (reading.kind === "malformed") {
+      malformed.push({ fileName, reason: reading.reason, ...(reading.code !== undefined ? { code: reading.code } : {}) });
+    }
   }
 
   return { reports, malformed };

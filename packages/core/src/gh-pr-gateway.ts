@@ -1,5 +1,6 @@
 import { setTimeout as delay } from "node:timers/promises";
 import crossSpawn from "cross-spawn";
+import { say, type MessageCode, type SaidMessage } from "./message-register.js";
 
 /** A pull request's state as `gh` reports it. */
 export type BranchPullRequestState = "OPEN" | "CLOSED" | "MERGED";
@@ -23,10 +24,19 @@ export function pullRequestTimes(createdAt: unknown, mergedAt: unknown): Pick<Br
   };
 }
 
+/** A pull-request reading that could not be made, in the register's words
+ * where they have an identifier. */
+export interface PullRequestsUnreadable {
+  available: false;
+  reason: string;
+  /** The register's identifier for `reason`, where it has one. */
+  code?: MessageCode;
+}
+
 /** Every pull request by its head branch, or why none could be read. */
 export type PullRequestsByBranch =
   | { available: true; byBranch: Map<string, BranchPullRequest> }
-  | { available: false; reason: string };
+  | PullRequestsUnreadable;
 
 export interface ListPullRequestsOptions {
   cwd: string;
@@ -46,16 +56,23 @@ export function buildGhPrListInvocation(): { executable: string; args: string[] 
 
 const PR_STATES: ReadonlySet<string> = new Set(["OPEN", "CLOSED", "MERGED"]);
 
-function whyGhFailed(error: unknown): string {
-  const code = error instanceof Error && "code" in error ? (error as NodeJS.ErrnoException).code : undefined;
-  if (code === "ENOENT") return "gh is not installed";
+/** `gh` saying it is not there says what else would do, in the register's
+ * words under their identifier. */
+function whyGhFailed(error: unknown): SaidMessage {
+  const errno = error instanceof Error && "code" in error ? (error as NodeJS.ErrnoException).code : undefined;
+  if (errno === "ENOENT") return say("OSW-NET-004");
   const text = error instanceof Error ? error.message : String(error);
   // Before the signed-out wording: gh's refusal for a remote on no host it
   // knows also ends by suggesting `gh auth login` (a-gh-refusal-names-its-cause).
-  if (/known GitHub host|none of the git remotes/iu.test(text)) return "no remote is on a GitHub host gh knows";
-  if (/auth login|not logged in/iu.test(text)) return "gh is not signed in";
+  if (/known GitHub host|none of the git remotes/iu.test(text)) return say("OSW-NET-005");
+  if (/auth login|not logged in/iu.test(text)) return say("OSW-NET-006");
   const first = text.split(/\r?\n/).find((line) => line.trim().length > 0) ?? "no reason given";
-  return `gh failed: ${first.trim()}`;
+  return say("OSW-NET-008", { reason: first.trim() });
+}
+
+/** A reading that could not be made, in the register's words. */
+function unavailable(said: SaidMessage): PullRequestsByBranch {
+  return { available: false, reason: said.text, code: said.code };
 }
 
 /** Every pull request of the repository by its head branch.
@@ -69,16 +86,16 @@ export async function listPullRequestsByBranch(options: ListPullRequestsOptions)
   try {
     ({ stdout } = await (options.exec ?? execFileAsync)(options.ghBinary ?? invocation.executable, invocation.args, { cwd: options.cwd }));
   } catch (error) {
-    return { available: false, reason: whyGhFailed(error) };
+    return unavailable(whyGhFailed(error));
   }
 
   let items: unknown;
   try {
     items = JSON.parse(stdout);
   } catch {
-    return { available: false, reason: "gh printed something that is not JSON" };
+    return unavailable(say("OSW-NET-009"));
   }
-  if (!Array.isArray(items)) return { available: false, reason: "gh printed something that is not a list" };
+  if (!Array.isArray(items)) return unavailable(say("OSW-NET-010"));
 
   const byBranch = new Map<string, BranchPullRequest>();
   for (const item of items as Array<Record<string, unknown>>) {
@@ -101,6 +118,8 @@ export interface PullRequestRef {
 export interface PullRequestCheckStatus {
   state: "pass" | "fail" | "none";
   reason?: string;
+  /** The register's identifier for `reason`, where it has one. */
+  code?: MessageCode;
 }
 
 export interface PullRequestGateway {
@@ -148,10 +167,16 @@ function normalizeCheckState(item: CheckItem): string {
 
 /** The one non-final answer: it is what `waitForChecks` polls on, so it
  * is a named constant rather than a string compared in two places. */
-export const PENDING_REASON = "checks are still pending";
+const PENDING = say("OSW-NET-101");
+export const PENDING_REASON = PENDING.text;
+
+/** A check reading that decided nothing, in the register's words. */
+function noChecks(said: SaidMessage): PullRequestCheckStatus {
+  return { state: "none", reason: said.text, code: said.code };
+}
 
 export function parseCheckStatus(items: CheckItem[]): PullRequestCheckStatus {
-  if (items.length === 0) return { state: "none", reason: "no check result was available" };
+  if (items.length === 0) return noChecks(say("OSW-NET-102"));
 
   const failed = items.find((item) => {
     const state = normalizeCheckState(item);
@@ -162,12 +187,13 @@ export function parseCheckStatus(items: CheckItem[]): PullRequestCheckStatus {
   });
   if (failed) {
     const failingName = failed.name ?? "unknown check";
-    return { state: "fail", reason: `check failed: ${failingName} (${normalizeCheckState(failed)})` };
+    const said = say("OSW-NET-103", { check: failingName, state: normalizeCheckState(failed) });
+    return { state: "fail", reason: said.text, code: said.code };
   }
 
   const hasPending = items.some((item) => PENDING_STATES.has(normalizeCheckState(item)));
   if (hasPending) {
-    return { state: "none", reason: PENDING_REASON };
+    return noChecks(PENDING);
   }
 
   // Everything that ran was skipped or neutral, so nothing actually
@@ -176,7 +202,7 @@ export function parseCheckStatus(items: CheckItem[]): PullRequestCheckStatus {
   // shape: checks exist, none of them decided anything.
   const anyPassed = items.some((item) => PASS_STATES.has(normalizeCheckState(item)));
   if (!anyPassed) {
-    return { state: "none", reason: "every check was skipped — no check actually ran" };
+    return noChecks(say("OSW-NET-104"));
   }
 
   return { state: "pass" };
@@ -282,7 +308,7 @@ export function createPullRequestGateway(options: PullRequestGatewayOptions): Pu
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           if (extractNoChecks(message)) {
-            return { state: "none", reason: "no check result was available" };
+            return noChecks(say("OSW-NET-102"));
           }
           throw error;
         }
@@ -290,7 +316,7 @@ export function createPullRequestGateway(options: PullRequestGatewayOptions): Pu
         await delay(pollIntervalMs);
       }
 
-      return { state: "none", reason: "checks did not reach a terminal state before timeout" };
+      return noChecks(say("OSW-NET-201"));
     },
 
     async mergePullRequest(prNumber: number): Promise<void> {
@@ -349,7 +375,7 @@ export function pullRequestGatewayOver(forge: Forge, options: { pollIntervalMs?:
         if (status.reason !== PENDING_REASON) return status;
         await delay(pollIntervalMs);
       }
-      return { state: "none", reason: "checks did not reach a terminal state before timeout" };
+      return noChecks(say("OSW-NET-201"));
     },
     async mergePullRequest(prNumber) {
       await forge.mergeNow(prNumber, "merge");
@@ -388,7 +414,7 @@ export function createGitHubForge(options: GitHubForgeOptions): Forge {
         return parseCheckStatus(JSON.parse(stdout) as CheckItem[]);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        if (extractNoChecks(message)) return { state: "none", reason: "no check result was available" };
+        if (extractNoChecks(message)) return noChecks(say("OSW-NET-102"));
         throw error;
       }
     },

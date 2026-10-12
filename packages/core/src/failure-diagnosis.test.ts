@@ -12,6 +12,8 @@ describe("diagnoseFailure", () => {
       commands: ["copilot"],
     });
     expect(diagnosis.remedy).toContain("`copilot`");
+    expect(diagnosis.code).toBe("OSW-AGT-202");
+    expect(diagnosis.remedyCode).toBe("OSW-AGT-213");
   });
 
   it("finds the cause in the output where the reason is only an exit code", () => {
@@ -64,7 +66,7 @@ describe("diagnoseFailure", () => {
 
   it("says nothing it has not seen", () => {
     expect(diagnoseFailure({ agentId: "copilot-cli-acp", reason: "ACP connection closed" }))
-      .toEqual({ cause: "unknown", repeatHelps: "unknown" });
+      .toEqual({ cause: "unknown", repeatHelps: "unknown", code: "OSW-AGT-207" });
   });
 
   it("takes the earlier cause where two are present", () => {

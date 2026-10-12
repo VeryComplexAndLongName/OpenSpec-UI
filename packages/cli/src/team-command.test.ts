@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { JoinRefusedError, type JoinResult, type PeopleReading } from "@openspec-ui/core";
+import { JoinRefusedError, say, type JoinResult, type PeopleReading } from "@openspec-ui/core";
 import { joinCommand, peopleCommand } from "./team-command.js";
 
 // a-team-works-through-git: the CLI's words for joining and for the people.
@@ -33,9 +33,9 @@ describe("join", () => {
     const refused = capture();
     expect(await joinCommand({ workspaceRoot: "/repo", handle: "ada", name: "Ada", format: "text" }, {
       ...refused.deps,
-      join: async () => { throw new JoinRefusedError("this machine's key is already bob's"); },
+      join: async () => { throw new JoinRefusedError(say("OSW-KEY-027", { handle: "bob" })); },
     })).toBe(1);
-    expect(refused.err).toEqual(["openspec-ui-cli: this machine's key is already bob's"]);
+    expect(refused.err).toEqual(["OSW-KEY-027: this machine's key is already bob's"]);
 
     const broken = capture();
     expect(await joinCommand({ workspaceRoot: "/repo", handle: "ada", name: "Ada", format: "text" }, {

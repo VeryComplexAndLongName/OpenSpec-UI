@@ -18,6 +18,7 @@ import {
   type WorkspaceLeaseConflict,
   formatMessage,
   say,
+  withMessageCode,
 } from "@openspec-ui/core";
 
 export interface LeaseOptions {
@@ -102,7 +103,7 @@ async function releaseLease(options: LeaseOptions, deps: LeaseDeps): Promise<num
 
   deps.stderr("openspec-ui-cli: will not release this lease.");
   for (const line of holderLines(outcome.holder)) deps.stderr(`  ${line}`);
-  deps.stderr(`  ${outcome.reason}`);
+  deps.stderr(`  ${withMessageCode(outcome.reason, outcome.code)}`);
   return 1;
 }
 

@@ -51,7 +51,7 @@ describe("listPullRequestsByBranch (a-change-says-where-it-stands 2.2)", () => {
       },
     });
 
-    expect(read).toEqual({ available: false, reason: "gh is not installed" });
+    expect(read).toEqual({ available: false, reason: "gh is not installed", code: "OSW-NET-004" });
   });
 
   it("says gh is not signed in", async () => {
@@ -62,7 +62,7 @@ describe("listPullRequestsByBranch (a-change-says-where-it-stands 2.2)", () => {
       },
     });
 
-    expect(read).toEqual({ available: false, reason: "gh is not signed in" });
+    expect(read).toEqual({ available: false, reason: "gh is not signed in", code: "OSW-NET-006" });
   });
 
   // a-gh-refusal-names-its-cause 1.2: gh's refusal as
@@ -76,12 +76,12 @@ describe("listPullRequestsByBranch (a-change-says-where-it-stands 2.2)", () => {
       },
     });
 
-    expect(read).toEqual({ available: false, reason: "no remote is on a GitHub host gh knows" });
+    expect(read).toEqual({ available: false, reason: "no remote is on a GitHub host gh knows", code: "OSW-NET-005" });
   });
 
   it("says so when gh prints something that is not a list of pull requests", async () => {
     const read = await listPullRequestsByBranch({ cwd: "/repo", exec: async () => ({ stdout: "oops", stderr: "" }) });
 
-    expect(read).toEqual({ available: false, reason: "gh printed something that is not JSON" });
+    expect(read).toEqual({ available: false, reason: "gh printed something that is not JSON", code: "OSW-NET-009" });
   });
 });

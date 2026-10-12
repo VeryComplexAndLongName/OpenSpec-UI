@@ -13,6 +13,7 @@ import type { ChangeStanding, StandingCopy, StandingRun } from "./change-standin
 import { describeSignature, type EnrolledPerson, type RecordSignature } from "./signature-facts.js";
 import type { TaskInHand } from "./task-marker.js";
 import type { WorkspaceLeaseConflict } from "./workspace-lease.js";
+import type { MessageCode } from "./message-register.js";
 
 /** One item of a change's task list, as an open card lists it
  * (a-card-opens-to-its-tasks). */
@@ -178,7 +179,14 @@ export type SurveyedDirectory =
      * directory, becomes visible. */
     authorDiffers: boolean;
   })
-  | (SurveyedDirectoryBase & { readable: false; reason: string });
+  | (SurveyedDirectoryBase & {
+    readable: false;
+    reason: string;
+    /** The register's identifier for `reason`, where it is one of the
+     * register's sentences rather than a bare operating-system error
+     * (ADR 0046). */
+    code?: MessageCode;
+  });
 
 export interface WorktreeSurvey {
   directories: SurveyedDirectory[];

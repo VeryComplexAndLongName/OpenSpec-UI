@@ -25,6 +25,7 @@
 // Pure over entries, like its neighbours: the caller supplies both the
 // entries and which changes still exist.
 
+import { say, type SaidMessage } from "./message-register.js";
 import type { AuditEntry } from "./security.js";
 import type { KnownChanges } from "./workspace-run-stats.js";
 import { belongsToKnownChange } from "./workspace-run-stats.js";
@@ -142,29 +143,37 @@ export function buildVerifyQuality(
   };
 }
 
-/** The sentence a surface shows above the figures.
+/** The sentence a surface shows above the figures, by its identifier
+ * (ADR 0046). The caller renders `code` beside `text`.
  *
  * Says which of the empty states this is: a log with nothing in it, a
  * log whose runs never reached a verifying stage, and a log whose
  * verifying stages all predate the field naming whose work they checked
  * are three different facts, and only the first two say anything about
  * running something. */
-export function describeVerifyQuality(quality: VerifyQuality): string {
-  if (quality.entriesRead === 0) return "Nothing recorded yet — no runs have been logged in this workspace.";
+export function describeVerifyQuality(quality: VerifyQuality): SaidMessage {
+  if (quality.entriesRead === 0) return say("OSW-VAL-117");
   if (quality.entriesWithChecks === 0) {
-    return `Nothing to report yet — ${quality.entriesRead} runs recorded, none of which reached a verifying stage`
-      + " that reported what its checks found.";
+    return say("OSW-VAL-118", { runs: quality.entriesRead });
   }
   if (quality.byAgent.length === 0) {
-    return `${quality.entriesWithChecks} verifying stage(s) recorded, none of which names the agent whose work was`
-      + " checked. They were recorded before that was written down, so none is charged to an agent.";
+    return say("OSW-VAL-119", { stages: quality.entriesWithChecks });
   }
   const thin = quality.byAgent.filter((group) => !group.enough).length;
   const unnamed = quality.entriesBeforeAgentNamed;
-  return `${quality.entriesWithChecks} verifying stage(s) across ${quality.byAgent.length} checked agent(s)`
-    + (thin === 0 ? "." : `; ${thin} rest${thin === 1 ? "s" : ""} on fewer than ${ENOUGH_VERIFIES} and is reported as thin.`)
-    + (unnamed === 0
-      ? ""
-      : ` ${unnamed} of them named no checked agent, having been recorded before that was written down, and`
-        + ` ${unnamed === 1 ? "is" : "are"} charged to no agent.`);
+  // Two clauses the sentence may leave out, each said only when it has
+  // something to say: the register holds the frame, these the words.
+  const thinClause = thin === 0
+    ? "."
+    : `; ${thin} rest${thin === 1 ? "" : "s"} on fewer than ${ENOUGH_VERIFIES} and is reported as thin.`;
+  const unnamedClause = unnamed === 0
+    ? ""
+    : ` ${unnamed} of them named no checked agent, having been recorded before that was written down, and`
+      + ` ${unnamed === 1 ? "is" : "are"} charged to no agent.`;
+  return say("OSW-VAL-120", {
+    stages: quality.entriesWithChecks,
+    agents: quality.byAgent.length,
+    thinClause,
+    unnamedClause,
+  });
 }

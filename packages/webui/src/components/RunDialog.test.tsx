@@ -98,7 +98,7 @@ describe("RunDialog", () => {
     render(
       <RunDialog
         {...baseProps()}
-        plan={plan({ findings: [{ kind: "reporting-unknown", stage: "apply", agent: "claude-cli", message: "reports no spend" }] })}
+        plan={plan({ findings: [{ kind: "reporting-unknown", stage: "apply", agent: "claude-cli", code: "OSW-HRN-105", message: "reports no spend" }] })}
       />,
     );
 

@@ -15,6 +15,7 @@
 import { access, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { say, type MessageCode } from "./message-register.js";
 import {
   WORKSPACE_LEASE_STALE_AFTER_MS,
   readWorkspaceLeaseHolder,
@@ -25,7 +26,7 @@ export type LeaseReleaseOutcome =
   /** The lease file is gone, or there was none to begin with. */
   | { kind: "cleared"; holder?: WorkspaceLeaseConflict; because: "stale" | "process-gone" | "already-free" }
   /** The holder could not be shown to be gone, so nothing was touched. */
-  | { kind: "refused"; holder: WorkspaceLeaseConflict; reason: string };
+  | { kind: "refused"; holder: WorkspaceLeaseConflict; reason: string; code: MessageCode };
 
 /** Whether a process exists, without signalling it.
  *
@@ -70,22 +71,14 @@ export async function releaseWorkspaceLease(options: LeaseReleaseOptions): Promi
 
   const hostname = options.hostname ?? os.hostname();
   if (holder.hostname !== hostname) {
-    return {
-      kind: "refused",
-      holder,
-      reason: `the holder is on ${holder.hostname} and this is ${hostname}, so whether its process is still`
-        + " running cannot be checked from here. Clear it there, or wait for its lease to go stale.",
-    };
+    const said = say("OSW-WSP-002", { holderhostname: holder.hostname, thishostname: hostname });
+    return { kind: "refused", holder, reason: said.text, code: said.code };
   }
 
   const isRunning = options.isRunning ?? isProcessRunning;
   if (isRunning(holder.pid)) {
-    return {
-      kind: "refused",
-      holder,
-      reason: `process ${holder.pid} is still running. Taking its lease would let a second mutating run start`
-        + " against files it still has open, which is what the lease prevents — stop that process instead.",
-    };
+    const said = say("OSW-WSP-003", { pid: holder.pid });
+    return { kind: "refused", holder, reason: said.text, code: said.code };
   }
 
   await removeIfPresent(filePath);

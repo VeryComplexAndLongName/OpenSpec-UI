@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
-import { readFile } from "node:fs/promises";
-import { EOL } from "node:os";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { EOL, tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
@@ -267,7 +267,25 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
     // Asserted on content: this class of defect shipped with a
     // well-formed error string throughout, so asserting one exists would
     // have passed the whole time.
-    await expect(archiveChange("demo", { cwd: "/repo" })).rejects.toThrow(/The same reader returns the next day/);
+    const error = await archiveChange("demo", { cwd: "/repo" }).catch((caught: unknown) => caught);
+    expect(String(error)).toContain("The same reader returns the next day");
+    expect(error).toMatchObject({ code: "OSW-ARC-007" });
+  });
+
+  it("archiveChange refuses a change whose task list still owes something, with the register's identifier", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "openspec-archive-gate-"));
+    try {
+      const changeDir = path.join(root, "openspec", "changes", "demo");
+      await mkdir(changeDir, { recursive: true });
+      await writeFile(path.join(changeDir, "tasks.md"), ["## 1. Work", "", "- [ ] 1.1 Not yet", ""].join("\n"), "utf8");
+
+      const error = await archiveChange("demo", { cwd: root }).catch((caught: unknown) => caught);
+
+      expect(error).toMatchObject({ code: "OSW-ARC-004" });
+      expect(String(error)).toContain('could not archive "demo": it still owes still open: 1.1 Not yet');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it("archiveChange reports every reason, not the first", async () => {
@@ -297,6 +315,7 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
     expect(String(error)).toContain("second problem");
     // A warning is not a refusal and must not be reported as one.
     expect(String(error)).not.toContain("not an error");
+    expect(error).toMatchObject({ code: "OSW-ARC-007" });
   });
 
   it("archiveChange says no reason was given when nothing usable came back", async () => {
@@ -312,7 +331,10 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
       return child;
     });
 
-    await expect(archiveChange("demo", { cwd: "/repo" })).rejects.toThrow(/no diagnosis reported/);
+    const error = await archiveChange("demo", { cwd: "/repo" }).catch((caught: unknown) => caught);
+
+    expect(String(error)).toContain("no diagnosis reported");
+    expect(error).toMatchObject({ code: "OSW-ARC-003" });
   });
 
   it("archiveChange calls deterministic non-interactive archive", async () => {
@@ -343,9 +365,10 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
   });
 
   it("initOpenSpec rejects when no tools are provided", async () => {
-    await expect(initOpenSpec({ cwd: "/repo" }, { tools: [] })).rejects.toThrow(
-      "initOpenSpec requires at least one tool",
-    );
+    const error = await initOpenSpec({ cwd: "/repo" }, { tools: [] }).catch((caught: unknown) => caught);
+
+    expect(String(error)).toContain("initOpenSpec requires at least one tool");
+    expect(error).toMatchObject({ code: "OSW-ARC-001" });
   });
 
   it("uses a custom binary path when provided", async () => {

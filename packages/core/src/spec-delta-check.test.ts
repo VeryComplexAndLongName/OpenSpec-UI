@@ -101,7 +101,8 @@ describe("checkSpecDeltaAgainstSpec", () => {
       + "#### Scenario: Configuring an agent for a mechanical stage\n";
     const reasons = checkSpecDeltaAgainstSpec(delta, current);
     expect(reasons).toHaveLength(1);
-    expect(reasons[0]).toContain("offers no agent setting");
+    expect(reasons[0]?.code).toBe("OSW-VAL-114");
+    expect(reasons[0]?.text).toContain("offers no agent setting");
   });
 
   it("fails when the specification carries a scenario the block omits — agentic-harness-git-stage", () => {
@@ -115,9 +116,11 @@ describe("checkSpecDeltaAgainstSpec", () => {
       + "#### Scenario: git stage runs after archive\n";
     const reasons = checkSpecDeltaAgainstSpec(delta, current);
     expect(reasons).toHaveLength(3);
-    expect(reasons.join("\n")).toContain("A check fails");
-    expect(reasons.join("\n")).toContain("No check result is available");
-    expect(reasons.join("\n")).toContain("The pull request is left open for a human");
+    expect(reasons.every((reason) => reason.code === "OSW-VAL-115")).toBe(true);
+    const texts = reasons.map((reason) => reason.text).join("\n");
+    expect(texts).toContain("A check fails");
+    expect(texts).toContain("No check result is available");
+    expect(texts).toContain("The pull request is left open for a human");
   });
 
   it("does not fail when the delta adds a scenario the specification doesn't have yet", () => {
@@ -140,6 +143,7 @@ describe("checkSpecDeltaDrift", () => {
     expect(violations).toHaveLength(1);
     expect(violations[0]?.changeId).toBe("the-change");
     expect(violations[0]?.specId).toBe("some-capability");
+    expect(violations[0]?.code).toBe("OSW-VAL-115");
     expect(violations[0]?.reason).toContain("Added later");
   });
 

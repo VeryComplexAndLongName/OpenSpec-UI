@@ -16,6 +16,7 @@ import {
   type WorktreeRootSources,
   formatMessage,
   say,
+  withMessageCode,
 } from "@openspec-ui/core";
 import { publicNameOf } from "./subcommands.js";
 
@@ -81,7 +82,7 @@ async function addWorktree(
   });
 
   if (!plan.ok) {
-    deps.stderr(`openspec-ui-cli: will not create a working directory for "${context.changeName}": ${plan.refusal.reason}`);
+    deps.stderr(withMessageCode(`will not create a working directory for "${context.changeName}": ${plan.refusal.reason}`, plan.refusal.code));
     deps.stderr(`openspec-ui-cli: ${plan.refusal.remedy}`);
     return 1;
   }

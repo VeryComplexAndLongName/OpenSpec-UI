@@ -15,6 +15,7 @@ import os from "node:os";
 import path from "node:path";
 import type { GitWrapper } from "./git.js";
 import { loadOrCreateMachineKey, type MachineKey } from "./machine-key.js";
+import { say, type MessageCode, type SaidMessage } from "./message-register.js";
 import { keyMatchesKeyId, type Roster, type RosterKey } from "./signed-envelope.js";
 
 /** Where the people of a repository are, relative to its root. */
@@ -47,10 +48,20 @@ export interface Person {
   emails?: string[];
 }
 
+/** One problem with a person's own file: the words, and the register's
+ * identifier for them. */
+export interface PersonProblem {
+  problem: string;
+  code: MessageCode;
+}
+
 export interface PeopleProblem {
   /** The file the problem is in, relative to the repository root. */
   file: string;
   problem: string;
+  /** The register's identifier for `problem`, where it is said from the
+   * register. */
+  code?: MessageCode;
 }
 
 export interface PeopleReading {
@@ -64,51 +75,56 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** A problem's words, and the register's identifier for them. */
+function problemOf(said: SaidMessage): PersonProblem {
+  return { problem: said.text, code: said.code };
+}
+
 /** One person's file, read and checked. The file name has to be the handle:
  * two files cannot then claim one handle. */
-export function parsePersonFile(fileName: string, text: string): { person: Person } | { problems: string[] } {
+export function parsePersonFile(fileName: string, text: string): { person: Person } | { problems: PersonProblem[] } {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
   } catch {
-    return { problems: ["it is not valid JSON"] };
+    return { problems: [problemOf(say("OSW-KEY-008"))] };
   }
-  if (!isRecord(parsed)) return { problems: ["it is not a JSON object"] };
+  if (!isRecord(parsed)) return { problems: [problemOf(say("OSW-KEY-009"))] };
 
-  const problems: string[] = [];
+  const problems: PersonProblem[] = [];
   const handle = parsed.handle;
   if (typeof handle !== "string" || !HANDLE_PATTERN.test(handle)) {
-    problems.push("its handle is missing or not lower-case letters, digits and single hyphens");
+    problems.push(problemOf(say("OSW-KEY-010")));
   } else if (fileName !== `${handle}.json`) {
-    problems.push(`its file is not named after its handle (${handle}.json)`);
+    problems.push(problemOf(say("OSW-KEY-011", { handle })));
   }
   const name = parsed.name;
-  if (typeof name !== "string" || name.trim().length === 0) problems.push("it has no name");
+  if (typeof name !== "string" || name.trim().length === 0) problems.push(problemOf(say("OSW-KEY-012")));
 
   const keys: PersonKey[] = [];
   if (!Array.isArray(parsed.keys) || parsed.keys.length === 0) {
-    problems.push("it lists no key");
+    problems.push(problemOf(say("OSW-KEY-013")));
   } else {
     parsed.keys.forEach((entry, index) => {
       const at = `key ${index + 1}`;
       if (!isRecord(entry)) {
-        problems.push(`${at} is not a JSON object`);
+        problems.push(problemOf(say("OSW-KEY-014", { key: at })));
         return;
       }
       if (!keyMatchesKeyId(entry.publicKey, entry.keyId)) {
-        problems.push(`${at} is not an Ed25519 public key with its key id`);
+        problems.push(problemOf(say("OSW-KEY-015", { key: at })));
         return;
       }
       if (typeof entry.addedAt !== "string" || !ISO_DATE.test(entry.addedAt)) {
-        problems.push(`${at} has no date it was added`);
+        problems.push(problemOf(say("OSW-KEY-016", { key: at })));
         return;
       }
       if (entry.retiredAt !== undefined && (typeof entry.retiredAt !== "string" || !ISO_DATE.test(entry.retiredAt))) {
-        problems.push(`${at} has a retirement date that is not a date`);
+        problems.push(problemOf(say("OSW-KEY-017", { key: at })));
         return;
       }
       if (entry.machine !== undefined && typeof entry.machine !== "string") {
-        problems.push(`${at} names its machine with something other than text`);
+        problems.push(problemOf(say("OSW-KEY-018", { key: at })));
         return;
       }
       keys.push({
@@ -124,7 +140,7 @@ export function parsePersonFile(fileName: string, text: string): { person: Perso
   let emails: string[] | undefined;
   if (parsed.emails !== undefined) {
     if (!Array.isArray(parsed.emails) || parsed.emails.some((email) => typeof email !== "string" || !email.includes("@"))) {
-      problems.push("its e-mail addresses are not a list of addresses");
+      problems.push(problemOf(say("OSW-KEY-019")));
     } else {
       emails = parsed.emails as string[];
     }
@@ -143,7 +159,8 @@ export function crossCheckPeople(people: readonly Person[]): PeopleProblem[] {
     for (const key of person.keys) {
       const first = owner.get(key.keyId);
       if (first !== undefined && first !== person.handle) {
-        problems.push({ file: `${PEOPLE_DIRECTORY}/${person.handle}.json`, problem: `key ${key.keyId} is also ${first}'s` });
+        const said = say("OSW-KEY-020", { keyId: key.keyId, handle: first });
+        problems.push({ file: `${PEOPLE_DIRECTORY}/${person.handle}.json`, problem: said.text, code: said.code });
       } else {
         owner.set(key.keyId, person.handle);
       }
@@ -159,7 +176,7 @@ function readingOf(files: Array<{ name: string; text: string }>): PeopleReading 
     const read = parsePersonFile(file.name, file.text);
     const relative = `${PEOPLE_DIRECTORY}/${file.name}`;
     if ("problems" in read) {
-      for (const problem of read.problems) problems.push({ file: relative, problem });
+      for (const problem of read.problems) problems.push({ file: relative, ...problem });
     } else {
       people.push(read.person);
     }
@@ -217,18 +234,22 @@ export function comparePeople(base: readonly Person[], head: readonly Person[]):
     const file = `${PEOPLE_DIRECTORY}/${before.handle}.json`;
     const after = byHandle.get(before.handle);
     if (after === undefined) {
-      problems.push({ file, problem: "a person is never removed: their signatures would stop verifying" });
+      const said = say("OSW-KEY-021");
+      problems.push({ file, problem: said.text, code: said.code });
       continue;
     }
     const keys = new Map(after.keys.map((key) => [key.keyId, key]));
     for (const key of before.keys) {
       const now = keys.get(key.keyId);
       if (now === undefined) {
-        problems.push({ file, problem: `key ${key.keyId} was removed; retire it with retiredAt instead` });
+        const said = say("OSW-KEY-022", { keyId: key.keyId });
+        problems.push({ file, problem: said.text, code: said.code });
       } else if (now.publicKey !== key.publicKey) {
-        problems.push({ file, problem: `key ${key.keyId} was replaced` });
+        const said = say("OSW-KEY-023", { keyId: key.keyId });
+        problems.push({ file, problem: said.text, code: said.code });
       } else if (key.retiredAt !== undefined && now.retiredAt !== key.retiredAt) {
-        problems.push({ file, problem: `key ${key.keyId}'s retirement was changed` });
+        const said = say("OSW-KEY-024", { keyId: key.keyId });
+        problems.push({ file, problem: said.text, code: said.code });
       }
     }
   }
@@ -242,7 +263,14 @@ export async function personOfThisMachine(root: string, options: { key?: Pick<Ma
   return (await readPeople(root)).people.find((person) => person.keys.some((one) => one.keyId === key.keyId));
 }
 
-export class JoinRefusedError extends Error {}
+export class JoinRefusedError extends Error {
+  /** The register's identifier for the refusal. */
+  readonly code: MessageCode;
+  constructor(said: SaidMessage) {
+    super(said.text);
+    this.code = said.code;
+  }
+}
 
 export interface JoinOptions {
   handle: string;
@@ -268,14 +296,14 @@ export interface JoinResult {
  * request that carries the file, reviewed like any other. */
 export async function joinTheTeam(root: string, options: JoinOptions): Promise<JoinResult> {
   if (!HANDLE_PATTERN.test(options.handle)) {
-    throw new JoinRefusedError(`"${options.handle}" is not a handle: use lower-case letters, digits and single hyphens`);
+    throw new JoinRefusedError(say("OSW-KEY-025", { handle: options.handle }));
   }
-  if (options.name.trim().length === 0) throw new JoinRefusedError("a name is needed");
+  if (options.name.trim().length === 0) throw new JoinRefusedError(say("OSW-KEY-026"));
   const key = options.key ?? await loadOrCreateMachineKey();
   const reading = await readPeople(root);
   const holder = reading.people.find((person) => person.keys.some((one) => one.keyId === key.keyId));
   if (holder !== undefined && holder.handle !== options.handle) {
-    throw new JoinRefusedError(`this machine's key is already ${holder.handle}'s`);
+    throw new JoinRefusedError(say("OSW-KEY-027", { handle: holder.handle }));
   }
 
   const relative = `${PEOPLE_DIRECTORY}/${options.handle}.json`;
@@ -285,7 +313,7 @@ export async function joinTheTeam(root: string, options: JoinOptions): Promise<J
   let outcome: JoinResult["outcome"];
   if (existingText !== undefined) {
     const read = parsePersonFile(`${options.handle}.json`, existingText);
-    if ("problems" in read) throw new JoinRefusedError(`${relative} cannot be read: ${read.problems.join("; ")}`);
+    if ("problems" in read) throw new JoinRefusedError(say("OSW-KEY-028", { file: relative, problems: read.problems.map((one) => one.problem).join("; ") }));
     person = read.person;
     if (person.keys.some((one) => one.keyId === key.keyId)) {
       return { file: relative, person, outcome: "already" };

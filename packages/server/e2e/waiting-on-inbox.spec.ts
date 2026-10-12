@@ -96,9 +96,9 @@ test("says how much is waiting, and on whom, per row", async ({ page }) => {
 
   // And each row says it too, so a reader scanning the list does not
   // have to hold the sentence in their head.
-  await expect(inbox).toContainText("judge whether it reads well (waiting on a person)");
+  await expect(inbox).toContainText("judge whether it reads well (waiting on OSW-TSK-015: a person)");
   await expect(inbox).toContainText("quote the audit line (waiting on copilot-cli)");
-  await expect(inbox).toContainText("(waiting on \"copilto-cli\", which is not a registered agent)");
+  await expect(inbox).toContainText('(waiting on OSW-TSK-016: "copilto-cli", which is not a registered agent)');
 
   // The ordinary open task of the first change is not here: this is what
   // nobody's implementing agent will close, not what is unfinished.

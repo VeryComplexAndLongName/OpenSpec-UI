@@ -141,6 +141,7 @@ describe("runDelegatedItem — what reaches the agent and the log", () => {
     });
 
     expect(result.status).toBe("refused");
+    expect(result.code).toBe("OSW-TSK-006");
     expect(result.message).toContain('"copilto-cli" is not an agent this build recognises');
     // Not even a runner was asked for: the refusal happens first.
     expect(spawned).toBe(false);
@@ -159,6 +160,7 @@ describe("runDelegatedItem — what reaches the agent and the log", () => {
     });
 
     expect(result.status).toBe("refused");
+    expect(result.code).toBe("OSW-TSK-004");
     expect(result.message).toContain("marked for a person");
   });
 
@@ -173,6 +175,7 @@ describe("runDelegatedItem — what reaches the agent and the log", () => {
     });
 
     expect(result.status).toBe("refused");
+    expect(result.code).toBe("OSW-TSK-005");
     expect(result.message).toContain("names no agent");
   });
 });
@@ -225,6 +228,8 @@ describe("runDelegatedItem — what a run says about itself (a-delegated-run-say
     expect(result.message).toContain(
       "The run failed: copilot exited with code 1. It last said: API Error: 400 this version is too old.",
     );
+    // The gate found the item still open, and that is the message's code.
+    expect(result.code).toBe("OSW-TSK-032");
     expect(kinds).toEqual(expect.arrayContaining(["stderr", "failed"]));
   });
 
@@ -339,7 +344,7 @@ describe("runDelegatedItem — the rubber-stamp gate", () => {
       ),
     });
 
-    expect(result).toMatchObject({ status: "ran", gate: { kind: "reverted" } });
+    expect(result).toMatchObject({ status: "ran", gate: { kind: "reverted", code: "OSW-TSK-035" }, code: "OSW-TSK-029" });
     expect(result.message).toContain("came back ticked with nothing written");
     // Asserted over the file, not over a value in memory: the tick is
     // only reverted if tasks.md itself came back unticked.
@@ -367,7 +372,7 @@ describe("runDelegatedItem — the rubber-stamp gate", () => {
       ),
     });
 
-    expect(result).toMatchObject({ status: "ran", gate: { kind: "recorded" } });
+    expect(result).toMatchObject({ status: "ran", gate: { kind: "recorded" }, code: "OSW-TSK-030" });
     // And the surface says only that something was recorded.
     expect(result.message).toContain("Something was recorded; whether it is true was not checked.");
     const lines = (await readFile(tasksPath, "utf8")).split("\n");
@@ -396,7 +401,7 @@ describe("runDelegatedItem — the rubber-stamp gate", () => {
       ),
     });
 
-    expect(result).toMatchObject({ status: "ran", gate: { kind: "still-open" } });
+    expect(result).toMatchObject({ status: "ran", gate: { kind: "still-open" }, code: "OSW-TSK-032" });
     expect((await readFile(tasksPath, "utf8")).split("\n")[3])
       .toBe("  Could not run: the binary is not installed here.");
   });
@@ -418,7 +423,7 @@ describe("runDelegatedItem — the rubber-stamp gate", () => {
     });
 
     // Located by its number, so the silent tick is still caught.
-    expect(result).toMatchObject({ status: "ran", gate: { kind: "reverted" } });
+    expect(result).toMatchObject({ status: "ran", gate: { kind: "reverted", code: "OSW-TSK-035" }, code: "OSW-TSK-029" });
     expect((await readFile(tasksPath, "utf8")).split("\n")[4])
       .toBe("- [ ] 2.1 **Delegated to copilot-cli**: quote the audit line");
   });
@@ -438,7 +443,7 @@ describe("runDelegatedItem — the rubber-stamp gate", () => {
       }),
     });
 
-    expect(result).toMatchObject({ status: "ran", gate: { kind: "item-not-found" } });
+    expect(result).toMatchObject({ status: "ran", gate: { kind: "item-not-found", code: "OSW-TSK-033" }, code: "OSW-TSK-031" });
     expect(result.message).toContain("could not be found again");
   });
 });

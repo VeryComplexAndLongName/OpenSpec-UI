@@ -30,6 +30,7 @@ import {
   resolveRunWithHarnessTarget,
 } from "./harness-config.js";
 import { CHAIN_STAGES } from "./harness-chain-runner.js";
+import { say, type MessageCode, type SaidMessage } from "./message-register.js";
 
 /** Why a chain will not be started, and where the decision lives.
  *
@@ -41,7 +42,16 @@ import { CHAIN_STAGES } from "./harness-chain-runner.js";
  * does not ship). */
 export interface ChainStartRefusal {
   reason: string;
+  /** The register's identifier for `reason`. */
+  code: MessageCode;
   configKey?: string;
+}
+
+/** A refusal with its words from the register under their identifier. */
+function refusalOf(said: SaidMessage, configKey?: string): ChainStartRefusal {
+  return configKey === undefined
+    ? { reason: said.text, code: said.code }
+    : { reason: said.text, code: said.code, configKey };
 }
 
 export type ChainStartResolution =
@@ -96,7 +106,7 @@ export async function resolveChainStart(request: ChainStartRequest): Promise<Cha
   if (!isValidChangeName(changeName)) {
     return {
       ok: false,
-      refusal: { reason: `"${changeName}" is not a valid change name` },
+      refusal: refusalOf(say("OSW-HRN-111", { change: changeName })),
     };
   }
 
@@ -104,10 +114,7 @@ export async function resolveChainStart(request: ChainStartRequest): Promise<Cha
   if (!(await exists(changeDir))) {
     return {
       ok: false,
-      refusal: {
-        reason: `no active change named "${changeName}" in ${path.join("openspec", "changes")}`
-          + " — an archived change is finished and is not re-run",
-      },
+      refusal: refusalOf(say("OSW-HRN-112", { change: changeName, directory: path.join("openspec", "changes") })),
     };
   }
 
@@ -117,22 +124,14 @@ export async function resolveChainStart(request: ChainStartRequest): Promise<Cha
   } catch (error) {
     return {
       ok: false,
-      refusal: {
-        reason: `this change's harness configuration could not be read: ${error instanceof Error ? error.message : String(error)}`,
-      },
+      refusal: refusalOf(say("OSW-HRN-113", { reason: error instanceof Error ? error.message : String(error) })),
     };
   }
 
   if (resolveRunWithHarnessTarget(config) !== "chain") {
     return {
       ok: false,
-      refusal: {
-        reason: `this change's autonomyLevel is "${config.autonomyLevel}", which starts one stage at a time`
-          + " through a picker rather than running a chain. There is nothing to open here;"
-          + " start the stage from the standalone shell or the VS Code command, or set a"
-          + " chain-running autonomy level for this change.",
-        configKey: "autonomyLevel",
-      },
+      refusal: refusalOf(say("OSW-HRN-114", { level: config.autonomyLevel }), "autonomyLevel"),
     };
   }
 
@@ -143,13 +142,7 @@ export async function resolveChainStart(request: ChainStartRequest): Promise<Cha
   if (wantsCheckpoints && !canAnswerCheckpoints) {
     return {
       ok: false,
-      refusal: {
-        reason: "this change's configuration pauses between stages for a confirmation, and there is"
-          + " no terminal here to put that choice to. Run it where somebody can answer, or set"
-          + ` checkpoints.requireConfirmationBetweenSteps to false in openspec/changes/${changeName}/harness.json`
-          + " to say that this change may run unattended.",
-        configKey: "checkpoints.requireConfirmationBetweenSteps",
-      },
+      refusal: refusalOf(say("OSW-HRN-115", { change: changeName }), "checkpoints.requireConfirmationBetweenSteps"),
     };
   }
 
@@ -179,16 +172,13 @@ export async function resolveChainStart(request: ChainStartRequest): Promise<Cha
   if (unmet.length > 0) {
     return {
       ok: false,
-      refusal: {
+      refusal: refusalOf(say("OSW-HRN-116", {
         // Every blocker, not the first: a reader who lands one and is
         // refused again for the next was told half the truth.
-        reason: `this change declares that it is blocked by ${unmet.join(", ")},`
-          + ` which ${unmet.length === 1 ? "is" : "are"} still active.`
-          + " Land it and archive it, or remove the line from"
-          + ` openspec/changes/${changeName}/.openspec.yaml — there is no option that starts it anyway,`
-          + " because the declaration is a sentence its author wrote in a file under version control.",
-        // Deliberately no configKey: the remedy is not a setting.
-      },
+        blockers: unmet.join(", "),
+        verb: unmet.length === 1 ? "is" : "are",
+        change: changeName,
+      })),
     };
   }
 
@@ -205,11 +195,7 @@ export async function resolveChainStart(request: ChainStartRequest): Promise<Cha
     if (declaration.step === "await-change" && declaration.param === changeName) {
       return {
         ok: false,
-        refusal: {
-          reason: `steps[${index}] waits for "${changeName}", which is this change itself`
-            + " — a change cannot wait for itself, and this reads as the name of another one",
-          configKey: `steps[${index}].param`,
-        },
+        refusal: refusalOf(say("OSW-HRN-117", { index, change: changeName }), `steps[${index}].param`),
       };
     }
   }
@@ -220,12 +206,12 @@ export async function resolveChainStart(request: ChainStartRequest): Promise<Cha
     if (resolveRunner(agentId) !== undefined) continue;
     return {
       ok: false,
-      refusal: {
-        reason: agentId
-          ? `the "${stage}" stage names agent "${agentId}", which this build has no runner for`
-          : `the "${stage}" stage has no agent configured and this build has no default runner`,
-        configKey: `stepAgents.${stage}`,
-      },
+      refusal: refusalOf(
+        agentId
+          ? say("OSW-HRN-118", { stage, agent: agentId })
+          : say("OSW-HRN-119", { stage }),
+        `stepAgents.${stage}`,
+      ),
     };
   }
 

@@ -28,6 +28,7 @@ import {
   type HarnessStepBudget,
   type HarnessTaskAgents,
 } from "./harness-step-agent.js";
+import { say, type MessageCode, type SaidMessage } from "./message-register.js";
 
 export { STAGES, type HarnessStage };
 export {
@@ -156,18 +157,17 @@ export function resolveSupervisor(value: HarnessSupervisor | undefined): Resolve
  * not where it is read: a file written by hand that says both has to open
  * in its Harness Settings to be put right there
  * (applying-a-configuration-turns-act-off). */
-export function actWithoutAutonomousProblem(own: Partial<HarnessConfig> | undefined): string | undefined {
+export function actWithoutAutonomousProblem(own: Partial<HarnessConfig> | undefined): SaidMessage | undefined {
   if (own?.supervisor?.mode !== "act" || own.autonomyLevel === "autonomous") return undefined;
-  return 'supervisor.mode "act" needs autonomyLevel "autonomous" in the same file: under a level that asks a person, the person decides.'
-    + " Open the change's Harness Settings and save to turn Act off, or set autonomyLevel \"autonomous\"";
+  return say("OSW-HRN-007");
 }
 
-export function supervisorActProblem(config: Pick<HarnessConfig, "supervisor" | "maxStageAttempts">): string | undefined {
+export function supervisorActProblem(config: Pick<HarnessConfig, "supervisor" | "maxStageAttempts">): SaidMessage | undefined {
   if (config.supervisor?.mode !== "act") return undefined;
   const attempts = config.maxStageAttempts ?? 1;
   return attempts > 1
     ? undefined
-    : `supervisor.mode "act" repeats or moves a failed stage as another attempt of it, and maxStageAttempts is ${attempts}: set it above 1 in this change's harness.json, or choose "advise"`;
+    : say("OSW-HRN-008", { attempts });
 }
 
 /** A cost/token ceiling `HarnessChainRunner` checks before starting each
@@ -404,14 +404,14 @@ const STEP_AGENT_STAGES: readonly HarnessStepAgentStage[] = STAGES.filter(isHarn
 function assertValidMaxCost(maxCost: unknown): void {
   if (maxCost === undefined) return;
   if (typeof maxCost !== "object" || maxCost === null || Array.isArray(maxCost)) {
-    throw new InvalidHarnessConfigError("budget.maxCost must be an object of unit to ceiling");
+    throw new InvalidHarnessConfigError(say("OSW-HRN-012"));
   }
   for (const [unit, ceiling] of Object.entries(maxCost as Record<string, unknown>)) {
     if (unit.trim().length === 0) {
-      throw new InvalidHarnessConfigError("budget.maxCost has a ceiling under an empty unit");
+      throw new InvalidHarnessConfigError(say("OSW-HRN-013"));
     }
     if (!(typeof ceiling === "number" && Number.isFinite(ceiling) && ceiling > 0)) {
-      throw new InvalidHarnessConfigError(`budget.maxCost.${unit} must be a positive number`);
+      throw new InvalidHarnessConfigError(say("OSW-HRN-014", { unit: unit }));
     }
   }
 }
@@ -501,7 +501,7 @@ function migrateLegacyDispatchInConfig(raw: unknown): { value: unknown; reports:
     if (dispatch === "vscode-chat") {
       const { dispatch: _unused, ...rest } = entryRecord;
       migratedStepAgents[stage] = { ...rest, agent: VSCODE_CHAT_STEP_AGENT_ID };
-      reports.push(`stepAgents.${stage}.dispatch "vscode-chat" was migrated to stepAgents.${stage}.agent "${VSCODE_CHAT_STEP_AGENT_ID}"`);
+      reports.push(say("OSW-HRN-010", { stage, agent: VSCODE_CHAT_STEP_AGENT_ID }).text);
       anyMigrated = true;
     }
   }
@@ -541,19 +541,22 @@ function dropNoAgentStepAgents(raw: unknown): { value: unknown; reports: string[
   return {
     value: { ...rootRecord, stepAgents: rest },
     reports: droppedStages.map(
-      (stage) => `stepAgents.${stage} was dropped — "${stage}" is a mechanical stage and never invokes an agent`,
+      (stage) => say("OSW-HRN-011", { stage }).text,
     ),
   };
 }
 
 function reportDispatchMigration(filePath: string, reports: readonly string[]): void {
   if (reports.length === 0) return;
-  console.warn(`Migrated legacy harness dispatch settings in ${filePath}: ${reports.join("; ")}`);
+  console.warn(say("OSW-HRN-009", { file: filePath, reports: reports.join("; ") }).text);
 }
 
 export class InvalidHarnessConfigError extends Error {
-  constructor(reason: string) {
-    super(`Invalid harness config: ${reason}`);
+  /** The register's identifier for what went wrong beside the words. */
+  readonly code: MessageCode;
+  constructor(said: SaidMessage) {
+    super(said.text);
+    this.code = said.code;
     this.name = "InvalidHarnessConfigError";
   }
 }
@@ -563,7 +566,7 @@ export class InvalidHarnessConfigError extends Error {
  * never a valid global setting". */
 export class GlobalAgentSufficientReviewGateError extends InvalidHarnessConfigError {
   constructor() {
-    super('reviewGate.mode "agent-sufficient" is only valid in a per-change harness.json, never in the global openspec/agent-harness.json');
+    super(say("OSW-HRN-001"));
     this.name = "GlobalAgentSufficientReviewGateError";
   }
 }
@@ -573,7 +576,7 @@ export class GlobalAgentSufficientReviewGateError extends InvalidHarnessConfigEr
  * `GlobalAgentSufficientReviewGateError`'s exact pattern. */
 export class GlobalAutonomousAutonomyLevelError extends InvalidHarnessConfigError {
   constructor() {
-    super('autonomyLevel "autonomous" is only valid in a per-change harness.json, never in the global openspec/agent-harness.json');
+    super(say("OSW-HRN-002"));
     this.name = "GlobalAutonomousAutonomyLevelError";
   }
 }
@@ -583,7 +586,7 @@ export class GlobalAutonomousAutonomyLevelError extends InvalidHarnessConfigErro
  * `GlobalAutonomousAutonomyLevelError`. */
 export class GlobalCheckpointsDisabledError extends InvalidHarnessConfigError {
   constructor() {
-    super('checkpoints.requireConfirmationBetweenSteps: false is only valid in a per-change harness.json, never in the global openspec/agent-harness.json');
+    super(say("OSW-HRN-003"));
     this.name = "GlobalCheckpointsDisabledError";
   }
 }
@@ -592,7 +595,7 @@ export class GlobalCheckpointsDisabledError extends InvalidHarnessConfigError {
  * the same per-change-only guard pattern as other high-impact settings. */
 export class GlobalGitAllowlistError extends InvalidHarnessConfigError {
   constructor() {
-    super("gitStageAllowlist is only valid in a per-change harness.json, never in the global openspec/agent-harness.json");
+    super(say("OSW-HRN-004"));
     this.name = "GlobalGitAllowlistError";
   }
 }
@@ -607,10 +610,7 @@ export class GlobalGitAllowlistError extends InvalidHarnessConfigError {
  * which is a different piece of work in each. */
 export class GlobalTaskAgentsError extends InvalidHarnessConfigError {
   constructor() {
-    super(
-      "taskAgents is only valid in a per-change harness.json, never in the global openspec/agent-harness.json"
-      + " — a task number names a task of one change",
-    );
+    super(say("OSW-HRN-005"));
     this.name = "GlobalTaskAgentsError";
   }
 }
@@ -622,10 +622,7 @@ export class GlobalTaskAgentsError extends InvalidHarnessConfigError {
  * for itself forever. See ADR 0021 decision 6. */
 export class GlobalChainStepsError extends InvalidHarnessConfigError {
   constructor() {
-    super(
-      "steps is only valid in a per-change harness.json, never in the global openspec/agent-harness.json"
-      + " — a declared step belongs to the chain of one change",
-    );
+    super(say("OSW-HRN-006"));
     this.name = "GlobalChainStepsError";
   }
 }
@@ -657,9 +654,7 @@ function assertValidAgentEntry(label: string, entry: unknown, autonomyLevel: Har
         (key) => !(STEP_AGENT_KEYS as readonly string[]).includes(key),
       );
       if (unknownEntryKey !== undefined) {
-        throw new InvalidHarnessConfigError(
-          `${label} has unknown key "${unknownEntryKey}" (accepted keys: ${formatAcceptedKeys(STEP_AGENT_KEYS)})`,
-        );
+        throw new InvalidHarnessConfigError(say("OSW-HRN-015", { label: label, key: unknownEntryKey, keys: formatAcceptedKeys(STEP_AGENT_KEYS) }));
       }
       agentId = (entry as { agent?: unknown }).agent;
       model = (entry as { model?: unknown }).model;
@@ -670,29 +665,25 @@ function assertValidAgentEntry(label: string, entry: unknown, autonomyLevel: Har
     }
 
     if (typeof agentId !== "string" || agentId.length === 0) {
-      throw new InvalidHarnessConfigError(`${label} must be a non-empty string`);
+      throw new InvalidHarnessConfigError(say("OSW-HRN-016", { label: label }));
     }
     if (!KNOWN_AGENT_IDS.has(agentId)) {
-      throw new InvalidHarnessConfigError(`${label} references unknown agent id "${agentId}"`);
+      throw new InvalidHarnessConfigError(say("OSW-HRN-017", { label: label, agent: agentId }));
     }
 
     if (agentId === VSCODE_CHAT_STEP_AGENT_ID && autonomyLevel !== "assisted") {
-      throw new InvalidHarnessConfigError(
-        `${label} selects agent "${VSCODE_CHAT_STEP_AGENT_ID}", which is only valid under autonomyLevel "assisted" — a chain cannot use it`,
-      );
+      throw new InvalidHarnessConfigError(say("OSW-HRN-018", { label: label, agent: VSCODE_CHAT_STEP_AGENT_ID }));
     }
 
     if (model !== undefined) {
       if (agentId === VSCODE_CHAT_STEP_AGENT_ID) {
-        throw new InvalidHarnessConfigError(
-          `${label}.model cannot reach anything when agent "${VSCODE_CHAT_STEP_AGENT_ID}" dispatches to VS Code chat`,
-        );
+        throw new InvalidHarnessConfigError(say("OSW-HRN-019", { label: label, agent: VSCODE_CHAT_STEP_AGENT_ID }));
       }
       if (typeof model !== "string" || !MODEL_ID_PATTERN.test(model)) {
-        throw new InvalidHarnessConfigError(`${label}.model "${String(model)}" is not a valid model id`);
+        throw new InvalidHarnessConfigError(say("OSW-HRN-020", { label: label, model: String(model) }));
       }
       if (!acceptsModel(AGENT_DESCRIPTORS_BY_ID.get(agentId))) {
-        throw new InvalidHarnessConfigError(`${label} sets a model, but agent "${agentId}" does not accept one`);
+        throw new InvalidHarnessConfigError(say("OSW-HRN-021", { label: label, agent: agentId }));
       }
     }
 
@@ -702,12 +693,10 @@ function assertValidAgentEntry(label: string, entry: unknown, autonomyLevel: Har
     const customAgent = (entry as { customAgent?: unknown }).customAgent;
     if (customAgent !== undefined) {
       if (agentId === VSCODE_CHAT_STEP_AGENT_ID) {
-        throw new InvalidHarnessConfigError(
-          `${label}.customAgent cannot reach anything when agent "${VSCODE_CHAT_STEP_AGENT_ID}" dispatches to VS Code chat`,
-        );
+        throw new InvalidHarnessConfigError(say("OSW-HRN-022", { label: label, agent: VSCODE_CHAT_STEP_AGENT_ID }));
       }
       if (typeof customAgent !== "string" || customAgent.trim().length === 0) {
-        throw new InvalidHarnessConfigError(`${label}.customAgent must be a non-empty string`);
+        throw new InvalidHarnessConfigError(say("OSW-HRN-023", { label: label }));
       }
       // The same character rule a model id obeys, for the same reason:
       // both reach the CLI as the value of a flag, a change's
@@ -716,15 +705,10 @@ function assertValidAgentEntry(label: string, entry: unknown, autonomyLevel: Har
       // than two, so there is one thing to keep true — see design.md,
       // "One shape rule for every value that reaches argv".
       if (!MODEL_ID_PATTERN.test(customAgent)) {
-        throw new InvalidHarnessConfigError(
-          `${label}.customAgent "${customAgent}" must not begin with "-" and may contain only ` +
-            `letters, digits, ".", "_", ":" and "-"`,
-        );
+        throw new InvalidHarnessConfigError(say("OSW-HRN-024", { label: label, customagent: customAgent }));
       }
       if (!AGENT_DESCRIPTORS_BY_ID.get(agentId)?.customAgentFlag) {
-        throw new InvalidHarnessConfigError(
-          `${label} sets a custom agent, but agent "${agentId}" does not accept one`,
-        );
+        throw new InvalidHarnessConfigError(say("OSW-HRN-025", { label: label, agent: agentId }));
       }
     }
 
@@ -732,71 +716,55 @@ function assertValidAgentEntry(label: string, entry: unknown, autonomyLevel: Har
 
     if (effort !== undefined) {
       if (agentId === VSCODE_CHAT_STEP_AGENT_ID) {
-        throw new InvalidHarnessConfigError(
-          `${label}.effort cannot reach anything when agent "${VSCODE_CHAT_STEP_AGENT_ID}" dispatches to VS Code chat`,
-        );
+        throw new InvalidHarnessConfigError(say("OSW-HRN-026", { label: label, agent: VSCODE_CHAT_STEP_AGENT_ID }));
       }
       if (typeof effort !== "string" || !HARNESS_EFFORT_VALUES.includes(effort as HarnessEffort)) {
-        throw new InvalidHarnessConfigError(`${label}.effort must be one of: ${HARNESS_EFFORT_VALUES.join(", ")}`);
+        throw new InvalidHarnessConfigError(say("OSW-HRN-027", { label: label, values: HARNESS_EFFORT_VALUES.join(", ") }));
       }
       const accepted = capabilities?.effort;
       if (!accepted || accepted.length === 0) {
-        throw new InvalidHarnessConfigError(
-          `${label} sets effort, but agent "${agentId}" has no command-line reasoning-effort control`,
-        );
+        throw new InvalidHarnessConfigError(say("OSW-HRN-028", { label: label, agent: agentId }));
       }
       if (!accepted.includes(effort as HarnessEffort)) {
-        throw new InvalidHarnessConfigError(
-          `${label}.effort "${effort}" is not accepted by agent "${agentId}" (accepted: ${accepted.join(", ")})`,
-        );
+        throw new InvalidHarnessConfigError(say("OSW-HRN-029", { label: label, effort: effort, agent: agentId, values: accepted.join(", ") }));
       }
     }
 
     if (budget !== undefined) {
       if (agentId === VSCODE_CHAT_STEP_AGENT_ID) {
-        throw new InvalidHarnessConfigError(
-          `${label}.budget cannot reach anything when agent "${VSCODE_CHAT_STEP_AGENT_ID}" dispatches to VS Code chat`,
-        );
+        throw new InvalidHarnessConfigError(say("OSW-HRN-030", { label: label, agent: VSCODE_CHAT_STEP_AGENT_ID }));
       }
       if (typeof budget !== "object" || budget === null || Array.isArray(budget)) {
-        throw new InvalidHarnessConfigError(`${label}.budget must be an object`);
+        throw new InvalidHarnessConfigError(say("OSW-HRN-031", { label: label }));
       }
       const budgetRecord = budget as Record<string, unknown>;
       const unknownBudgetKey = Object.keys(budgetRecord).find(
         (key) => !(STEP_BUDGET_KEYS as readonly string[]).includes(key),
       );
       if (unknownBudgetKey !== undefined) {
-        throw new InvalidHarnessConfigError(
-          `${label}.budget has unknown key "${unknownBudgetKey}" (accepted keys: ${formatAcceptedKeys(STEP_BUDGET_KEYS)})`,
-        );
+        throw new InvalidHarnessConfigError(say("OSW-HRN-032", { label: label, key: unknownBudgetKey, keys: formatAcceptedKeys(STEP_BUDGET_KEYS) }));
       }
       const { maxCostUsd, maxAiCredits } = budget as { maxCostUsd?: unknown; maxAiCredits?: unknown };
       if (maxCostUsd === undefined && maxAiCredits === undefined) {
-        throw new InvalidHarnessConfigError(`${label}.budget must set maxCostUsd or maxAiCredits`);
+        throw new InvalidHarnessConfigError(say("OSW-HRN-033", { label: label }));
       }
       if (maxCostUsd !== undefined) {
         if (!(typeof maxCostUsd === "number" && Number.isFinite(maxCostUsd) && maxCostUsd > 0)) {
-          throw new InvalidHarnessConfigError(`${label}.budget.maxCostUsd must be a positive number`);
+          throw new InvalidHarnessConfigError(say("OSW-HRN-034", { label: label }));
         }
         if (capabilities?.budgetField !== "maxCostUsd") {
-          throw new InvalidHarnessConfigError(
-            `${label} sets budget.maxCostUsd, but agent "${agentId}" does not accept a cost cap in USD`,
-          );
+          throw new InvalidHarnessConfigError(say("OSW-HRN-035", { label: label, agent: agentId }));
         }
       }
       if (maxAiCredits !== undefined) {
         if (!(typeof maxAiCredits === "number" && Number.isInteger(maxAiCredits) && maxAiCredits > 0)) {
-          throw new InvalidHarnessConfigError(`${label}.budget.maxAiCredits must be a positive integer`);
+          throw new InvalidHarnessConfigError(say("OSW-HRN-036", { label: label }));
         }
         if (capabilities?.budgetField !== "maxAiCredits") {
-          throw new InvalidHarnessConfigError(
-            `${label} sets budget.maxAiCredits, but agent "${agentId}" does not accept a credit cap`,
-          );
+          throw new InvalidHarnessConfigError(say("OSW-HRN-037", { label: label, agent: agentId }));
         }
         if (maxAiCredits < COPILOT_MIN_AI_CREDITS) {
-          throw new InvalidHarnessConfigError(
-            `${label}.budget.maxAiCredits must be at least ${COPILOT_MIN_AI_CREDITS} (copilot-cli's own minimum)`,
-          );
+          throw new InvalidHarnessConfigError(say("OSW-HRN-038", { label: label, minimum: COPILOT_MIN_AI_CREDITS }));
         }
       }
     }
@@ -806,16 +774,14 @@ function assertValidAgentEntry(label: string, entry: unknown, autonomyLevel: Har
 function assertValidStepAgents(value: unknown, autonomyLevel: HarnessAutonomyLevel): asserts value is HarnessStepAgents {
   if (value === undefined) return;
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new InvalidHarnessConfigError("stepAgents must be an object");
+    throw new InvalidHarnessConfigError(say("OSW-HRN-039"));
   }
   for (const [stage, entry] of Object.entries(value)) {
     if ((NO_AGENT_STAGES as readonly string[]).includes(stage)) {
-      throw new InvalidHarnessConfigError(
-        `stepAgents.${stage} is not accepted — "${stage}" is a mechanical stage and never invokes an agent`,
-      );
+      throw new InvalidHarnessConfigError(say("OSW-HRN-040", { stage: stage }));
     }
     if (!STEP_AGENT_STAGES.includes(stage as HarnessStepAgentStage)) {
-      throw new InvalidHarnessConfigError(`unknown stepAgents key "${stage}" (expected one of: ${STEP_AGENT_STAGES.join(", ")})`);
+      throw new InvalidHarnessConfigError(say("OSW-HRN-041", { stage: stage, stages: STEP_AGENT_STAGES.join(", ") }));
     }
     assertValidAgentEntry(`stepAgents.${stage}`, entry, autonomyLevel);
   }
@@ -849,20 +815,16 @@ function assertValidTaskAgents(
     throw new GlobalTaskAgentsError();
   }
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new InvalidHarnessConfigError("taskAgents must be an object");
+    throw new InvalidHarnessConfigError(say("OSW-HRN-042"));
   }
   for (const [taskNumber, entry] of Object.entries(value)) {
     if (!TASK_NUMBER_PATTERN.test(taskNumber)) {
-      throw new InvalidHarnessConfigError(
-        `taskAgents key "${taskNumber}" is not a task number (expected the leading number of a tasks.md line, such as "5.4")`,
-      );
+      throw new InvalidHarnessConfigError(say("OSW-HRN-043", { task: taskNumber }));
     }
     const label = `taskAgents."${taskNumber}"`;
     assertValidAgentEntry(label, entry, autonomyLevel);
     if (normalizeStepAgent(entry as HarnessStepAgent).agent === VSCODE_CHAT_STEP_AGENT_ID) {
-      throw new InvalidHarnessConfigError(
-        `${label} selects agent "${VSCODE_CHAT_STEP_AGENT_ID}", which cannot run one task — a delegated item's run spawns a CLI agent`,
-      );
+      throw new InvalidHarnessConfigError(say("OSW-HRN-044", { label: label, agent: VSCODE_CHAT_STEP_AGENT_ID }));
     }
   }
 }
@@ -873,7 +835,7 @@ function assertValidAutonomyLevel(
 ): asserts value is HarnessAutonomyLevel | undefined {
   if (value === undefined) return;
   if (typeof value !== "string" || !AUTONOMY_LEVELS.includes(value as HarnessAutonomyLevel)) {
-    throw new InvalidHarnessConfigError(`autonomyLevel must be one of: ${AUTONOMY_LEVELS.join(", ")}`);
+    throw new InvalidHarnessConfigError(say("OSW-HRN-045", { levels: AUTONOMY_LEVELS.join(", ") }));
   }
   if (!isPerChangeFile && value === "autonomous") {
     throw new GlobalAutonomousAutonomyLevelError();
@@ -886,11 +848,11 @@ function assertValidReviewGate(
 ): asserts value is HarnessReviewGate | undefined {
   if (value === undefined) return;
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new InvalidHarnessConfigError("reviewGate must be an object");
+    throw new InvalidHarnessConfigError(say("OSW-HRN-046"));
   }
   const mode = (value as { mode?: unknown }).mode;
   if (typeof mode !== "string" || !REVIEW_GATE_MODES.includes(mode as HarnessReviewGateMode)) {
-    throw new InvalidHarnessConfigError(`reviewGate.mode must be one of: ${REVIEW_GATE_MODES.join(", ")}`);
+    throw new InvalidHarnessConfigError(say("OSW-HRN-047", { modes: REVIEW_GATE_MODES.join(", ") }));
   }
   if (!isPerChangeFile && mode === "agent-sufficient") {
     throw new GlobalAgentSufficientReviewGateError();
@@ -903,10 +865,10 @@ function assertValidReviewGate(
 function assertValidHints(value: unknown): asserts value is HarnessHints | undefined {
   if (value === undefined) return;
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new InvalidHarnessConfigError("hints must be an object");
+    throw new InvalidHarnessConfigError(say("OSW-HRN-048"));
   }
   if (typeof (value as { enabled?: unknown }).enabled !== "boolean") {
-    throw new InvalidHarnessConfigError("hints.enabled must be a boolean");
+    throw new InvalidHarnessConfigError(say("OSW-HRN-049"));
   }
 }
 
@@ -924,33 +886,33 @@ function assertValidSupervisor(
 ): asserts value is HarnessSupervisor | undefined {
   if (value === undefined) return;
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new InvalidHarnessConfigError("supervisor must be an object");
+    throw new InvalidHarnessConfigError(say("OSW-HRN-050"));
   }
   const record = value as Record<string, unknown>;
   for (const key of Object.keys(record)) {
     if (!(SUPERVISOR_KEYS as readonly string[]).includes(key)) {
-      throw new InvalidHarnessConfigError(`supervisor has no key "${key}" (accepted keys: ${formatAcceptedKeys(SUPERVISOR_KEYS)})`);
+      throw new InvalidHarnessConfigError(say("OSW-HRN-051", { key: key, keys: formatAcceptedKeys(SUPERVISOR_KEYS) }));
     }
   }
   if (record.mode !== undefined && !SUPERVISOR_MODES.includes(record.mode as HarnessSupervisorMode)) {
-    throw new InvalidHarnessConfigError(`supervisor.mode must be one of: ${SUPERVISOR_MODES.join(", ")}`);
+    throw new InvalidHarnessConfigError(say("OSW-HRN-052", { modes: SUPERVISOR_MODES.join(", ") }));
   }
   if (record.mode === "act") {
     if (!isPerChangeFile) {
-      throw new InvalidHarnessConfigError('supervisor.mode "act" is set in a change\'s own harness.json, never for the whole workspace: it may start another agent unattended');
+      throw new InvalidHarnessConfigError(say("OSW-HRN-053"));
     }
   }
   for (const key of ["silentAfterSeconds", "waitingAfterSeconds"] as const) {
     const seconds = record[key];
     if (seconds !== undefined && (typeof seconds !== "number" || !Number.isInteger(seconds) || seconds <= 0)) {
-      throw new InvalidHarnessConfigError(`supervisor.${key} must be a positive whole number of seconds`);
+      throw new InvalidHarnessConfigError(say("OSW-HRN-054", { key: key }));
     }
   }
   for (const key of ["allowCostIncrease", "allowProviderChange"] as const) {
     if (record[key] === undefined) continue;
-    if (typeof record[key] !== "boolean") throw new InvalidHarnessConfigError(`supervisor.${key} must be a boolean`);
+    if (typeof record[key] !== "boolean") throw new InvalidHarnessConfigError(say("OSW-HRN-055", { key: key }));
     if (!isPerChangeFile) {
-      throw new InvalidHarnessConfigError(`supervisor.${key} is set in a change's own harness.json, never for the whole workspace`);
+      throw new InvalidHarnessConfigError(say("OSW-HRN-056", { key: key }));
     }
   }
   if (record.fallback !== undefined) assertValidFallback(record.fallback);
@@ -960,24 +922,24 @@ function assertValidSupervisor(
  * for a stage that runs an agent. */
 function assertValidFallback(value: unknown): void {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new InvalidHarnessConfigError("supervisor.fallback must be an object of stages");
+    throw new InvalidHarnessConfigError(say("OSW-HRN-057"));
   }
   for (const [stage, agents] of Object.entries(value as Record<string, unknown>)) {
     if (!(STAGES as readonly string[]).includes(stage) || !isHarnessStepAgentStage(stage as HarnessStage)) {
-      throw new InvalidHarnessConfigError(`supervisor.fallback.${stage} names no stage that runs an agent`);
+      throw new InvalidHarnessConfigError(say("OSW-HRN-058", { stage: stage }));
     }
     if (!Array.isArray(agents) || agents.length === 0 || agents.some((agent) => typeof agent !== "string")) {
-      throw new InvalidHarnessConfigError(`supervisor.fallback.${stage} must be a non-empty list of agent ids`);
+      throw new InvalidHarnessConfigError(say("OSW-HRN-059", { stage: stage }));
     }
     const seen = new Set<string>();
     for (const agent of agents as string[]) {
       if (agent === VSCODE_CHAT_STEP_AGENT_ID) {
-        throw new InvalidHarnessConfigError(`supervisor.fallback.${stage} may not name ${agent}: a chain cannot hand a stage it attempts again to the editor's chat`);
+        throw new InvalidHarnessConfigError(say("OSW-HRN-060", { stage: stage, agent: agent }));
       }
       if (!AGENT_REGISTRY.some((descriptor) => descriptor.id === agent)) {
-        throw new InvalidHarnessConfigError(`supervisor.fallback.${stage} names "${agent}", which is not a registered agent`);
+        throw new InvalidHarnessConfigError(say("OSW-HRN-061", { stage: stage, agent: agent }));
       }
-      if (seen.has(agent)) throw new InvalidHarnessConfigError(`supervisor.fallback.${stage} names "${agent}" twice`);
+      if (seen.has(agent)) throw new InvalidHarnessConfigError(say("OSW-HRN-062", { stage: stage, agent: agent }));
       seen.add(agent);
     }
   }
@@ -989,12 +951,12 @@ function assertValidCheckpoints(
 ): asserts value is HarnessCheckpoints | undefined {
   if (value === undefined) return;
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new InvalidHarnessConfigError("checkpoints must be an object");
+    throw new InvalidHarnessConfigError(say("OSW-HRN-063"));
   }
   const requireConfirmationBetweenSteps = (value as { requireConfirmationBetweenSteps?: unknown })
     .requireConfirmationBetweenSteps;
   if (typeof requireConfirmationBetweenSteps !== "boolean") {
-    throw new InvalidHarnessConfigError("checkpoints.requireConfirmationBetweenSteps must be a boolean");
+    throw new InvalidHarnessConfigError(say("OSW-HRN-064"));
   }
   if (!isPerChangeFile && requireConfirmationBetweenSteps === false) {
     throw new GlobalCheckpointsDisabledError();
@@ -1022,23 +984,23 @@ function assertValidCheckpoints(
 function assertValidBudget(value: unknown): asserts value is HarnessBudget | undefined {
   if (value === undefined) return;
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new InvalidHarnessConfigError("budget must be an object");
+    throw new InvalidHarnessConfigError(say("OSW-HRN-065"));
   }
   const { maxCostUsd, maxTokens } = value as { maxCostUsd?: unknown; maxTokens?: unknown };
   if (maxCostUsd !== undefined && !(typeof maxCostUsd === "number" && Number.isFinite(maxCostUsd) && maxCostUsd > 0)) {
-    throw new InvalidHarnessConfigError("budget.maxCostUsd must be a positive number");
+    throw new InvalidHarnessConfigError(say("OSW-HRN-066"));
   }
   if (maxTokens !== undefined && !(typeof maxTokens === "number" && Number.isInteger(maxTokens) && maxTokens > 0)) {
-    throw new InvalidHarnessConfigError("budget.maxTokens must be a positive integer");
+    throw new InvalidHarnessConfigError(say("OSW-HRN-067"));
   }
   const { maxStageCostUsd, maxStageTokens } = value as { maxStageCostUsd?: unknown; maxStageTokens?: unknown };
   if (maxStageCostUsd !== undefined
     && !(typeof maxStageCostUsd === "number" && Number.isFinite(maxStageCostUsd) && maxStageCostUsd > 0)) {
-    throw new InvalidHarnessConfigError("budget.maxStageCostUsd must be a positive number");
+    throw new InvalidHarnessConfigError(say("OSW-HRN-068"));
   }
   if (maxStageTokens !== undefined
     && !(typeof maxStageTokens === "number" && Number.isInteger(maxStageTokens) && maxStageTokens > 0)) {
-    throw new InvalidHarnessConfigError("budget.maxStageTokens must be a positive integer");
+    throw new InvalidHarnessConfigError(say("OSW-HRN-069"));
   }
   // A share, not a count: refused outside (0, 1] so a person who meant
   // eighty percent and wrote 80 is told, rather than given a ceiling that
@@ -1047,38 +1009,30 @@ function assertValidBudget(value: unknown): asserts value is HarnessBudget | und
   if (maxContextShare !== undefined
     && !(typeof maxContextShare === "number" && Number.isFinite(maxContextShare)
       && maxContextShare > 0 && maxContextShare <= 1)) {
-    throw new InvalidHarnessConfigError(
-      "budget.maxContextShare must be a share above 0 and at most 1, such as 0.8 for eighty percent",
-    );
+    throw new InvalidHarnessConfigError(say("OSW-HRN-070"));
   }
   // A stage ceiling above the whole-chain ceiling can never fire: the
   // chain ceiling stops the run first. Refused here for the same reason
   // `timeout` refuses the same shape — a setting that cannot fire is a
   // setting that lies about what bounds the run.
   if (typeof maxCostUsd === "number" && typeof maxStageCostUsd === "number" && maxStageCostUsd > maxCostUsd) {
-    throw new InvalidHarnessConfigError(
-      `budget.maxStageCostUsd (${maxStageCostUsd}) must not exceed budget.maxCostUsd (${maxCostUsd}),`
-      + " because the chain ceiling would stop the run first and the stage ceiling could never fire",
-    );
+    throw new InvalidHarnessConfigError(say("OSW-HRN-071", { stage: maxStageCostUsd, chain: maxCostUsd }));
   }
   if (typeof maxTokens === "number" && typeof maxStageTokens === "number" && maxStageTokens > maxTokens) {
-    throw new InvalidHarnessConfigError(
-      `budget.maxStageTokens (${maxStageTokens}) must not exceed budget.maxTokens (${maxTokens}),`
-      + " because the chain ceiling would stop the run first and the stage ceiling could never fire",
-    );
+    throw new InvalidHarnessConfigError(say("OSW-HRN-072", { stage: maxStageTokens, chain: maxTokens }));
   }
 }
 
 function assertValidTimeout(value: unknown): asserts value is HarnessTimeout | undefined {
   if (value === undefined) return;
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new InvalidHarnessConfigError("timeout must be an object");
+    throw new InvalidHarnessConfigError(say("OSW-HRN-073"));
   }
   const { maxRunSeconds, maxStageSeconds } = value as { maxRunSeconds?: unknown; maxStageSeconds?: unknown };
   for (const [key, seconds] of [["maxRunSeconds", maxRunSeconds], ["maxStageSeconds", maxStageSeconds]] as const) {
     if (seconds === undefined) continue;
     if (!(typeof seconds === "number" && Number.isInteger(seconds) && seconds > 0)) {
-      throw new InvalidHarnessConfigError(`timeout.${key} must be a positive integer number of seconds`);
+      throw new InvalidHarnessConfigError(say("OSW-HRN-074", { key: key }));
     }
   }
   // A stage ceiling above the run ceiling can never fire — the run
@@ -1089,27 +1043,22 @@ function assertValidTimeout(value: unknown): asserts value is HarnessTimeout | u
     && typeof maxStageSeconds === "number"
     && maxStageSeconds > maxRunSeconds
   ) {
-    throw new InvalidHarnessConfigError(
-      `timeout.maxStageSeconds (${maxStageSeconds}) must not exceed timeout.maxRunSeconds (${maxRunSeconds}),`
-      + " because the run ceiling would stop the chain first and the stage ceiling could never fire",
-    );
+    throw new InvalidHarnessConfigError(say("OSW-HRN-075", { stage: maxStageSeconds, run: maxRunSeconds }));
   }
 }
 
 function assertValidSkipStages(value: unknown): asserts value is HarnessSkippableStage[] | undefined {
   if (value === undefined) return;
   if (!Array.isArray(value)) {
-    throw new InvalidHarnessConfigError("skipStages must be a list of stage names");
+    throw new InvalidHarnessConfigError(say("OSW-HRN-076"));
   }
   const seen = new Set<string>();
   for (const element of value) {
     if (!(SKIPPABLE_STAGES as readonly string[]).includes(element as string)) {
-      throw new InvalidHarnessConfigError(
-        `skipStages may leave out only "review"; "${String(element)}" is not a stage it can skip`,
-      );
+      throw new InvalidHarnessConfigError(say("OSW-HRN-077", { stage: String(element) }));
     }
     if (seen.has(element as string)) {
-      throw new InvalidHarnessConfigError(`skipStages names "${element}" twice`);
+      throw new InvalidHarnessConfigError(say("OSW-HRN-078", { stage: element }));
     }
     seen.add(element as string);
   }
@@ -1118,7 +1067,7 @@ function assertValidSkipStages(value: unknown): asserts value is HarnessSkippabl
 function assertValidMaxStageAttempts(value: unknown): asserts value is number | undefined {
   if (value === undefined) return;
   if (!(typeof value === "number" && Number.isInteger(value) && value > 0)) {
-    throw new InvalidHarnessConfigError("maxStageAttempts must be a positive integer");
+    throw new InvalidHarnessConfigError(say("OSW-HRN-079"));
   }
 }
 
@@ -1131,24 +1080,22 @@ function assertValidGitStageAllowlist(
     throw new GlobalGitAllowlistError();
   }
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new InvalidHarnessConfigError("gitStageAllowlist must be an object");
+    throw new InvalidHarnessConfigError(say("OSW-HRN-080"));
   }
 
   const record = value as Record<string, unknown>;
   const unknownKey = Object.keys(record).find((key) => !(GIT_STAGE_ALLOWLIST_KEYS as readonly string[]).includes(key));
   if (unknownKey !== undefined) {
-    throw new InvalidHarnessConfigError(
-      `gitStageAllowlist has unknown key "${unknownKey}" (accepted keys: ${formatAcceptedKeys(GIT_STAGE_ALLOWLIST_KEYS)})`,
-    );
+    throw new InvalidHarnessConfigError(say("OSW-HRN-081", { key: unknownKey, keys: formatAcceptedKeys(GIT_STAGE_ALLOWLIST_KEYS) }));
   }
 
   const remotes = record.remotes;
   const branches = record.branches;
   if (!Array.isArray(remotes) || remotes.length === 0 || remotes.some((item) => typeof item !== "string" || item.length === 0)) {
-    throw new InvalidHarnessConfigError("gitStageAllowlist.remotes must be a non-empty string array");
+    throw new InvalidHarnessConfigError(say("OSW-HRN-082"));
   }
   if (!Array.isArray(branches) || branches.length === 0 || branches.some((item) => typeof item !== "string" || item.length === 0)) {
-    throw new InvalidHarnessConfigError("gitStageAllowlist.branches must be a non-empty string array");
+    throw new InvalidHarnessConfigError(say("OSW-HRN-083"));
   }
 }
 
@@ -1166,9 +1113,7 @@ function assertNoUnknownTopLevelKeys(value: Record<string, unknown>): void {
   // and no guessing". The hint names a possibility, phrased as a
   // question, never an assertion (task 1.6).
   const hint = STAGES.includes(unknownKey as HarnessStage) ? ` Did you mean "stepAgents.${unknownKey}"?` : "";
-  throw new InvalidHarnessConfigError(
-    `unrecognized top-level key "${unknownKey}" (accepted keys: ${formatAcceptedKeys(TOP_LEVEL_CONFIG_KEYS)}).${hint}`,
-  );
+  throw new InvalidHarnessConfigError(say("OSW-HRN-084", { key: unknownKey, keys: formatAcceptedKeys(TOP_LEVEL_CONFIG_KEYS), hint: hint }));
 }
 
 /** Validates a raw parsed JSON value as a partial `HarnessConfig`.
@@ -1181,7 +1126,7 @@ function assertValidHarnessConfigInput(
   isPerChangeFile: boolean,
 ): asserts value is Partial<HarnessConfig> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new InvalidHarnessConfigError("root value must be an object");
+    throw new InvalidHarnessConfigError(say("OSW-HRN-085"));
   }
   assertNoUnknownTopLevelKeys(value as Record<string, unknown>);
   const input = value as Partial<HarnessConfig>;
@@ -1194,36 +1139,36 @@ function assertValidHarnessConfigInput(
   assertValidMaxCost((input as { budget?: { maxCost?: unknown } }).budget?.maxCost);
   const allowAgentMessages = (input as { allowAgentMessages?: unknown }).allowAgentMessages;
   if (allowAgentMessages !== undefined && typeof allowAgentMessages !== "boolean") {
-    throw new InvalidHarnessConfigError("allowAgentMessages must be a boolean");
+    throw new InvalidHarnessConfigError(say("OSW-HRN-086"));
   }
   const branches = (input as { branches?: unknown }).branches;
   if (branches !== undefined) {
     if (branches === null || typeof branches !== "object" || Array.isArray(branches)) {
-      throw new InvalidHarnessConfigError("branches must be an object");
+      throw new InvalidHarnessConfigError(say("OSW-HRN-087"));
     }
     for (const key of Object.keys(branches)) {
       if (key !== "rebaseWhenBehind" && key !== "followMain") {
-        throw new InvalidHarnessConfigError(`branches has no key "${key}"; the ones it takes are rebaseWhenBehind and followMain`);
+        throw new InvalidHarnessConfigError(say("OSW-HRN-088", { key: key }));
       }
     }
     for (const key of ["rebaseWhenBehind", "followMain"] as const) {
       const value = (branches as Record<string, unknown>)[key];
       if (value !== undefined && typeof value !== "boolean") {
-        throw new InvalidHarnessConfigError(`branches.${key} must be a boolean`);
+        throw new InvalidHarnessConfigError(say("OSW-HRN-089", { key: key }));
       }
     }
   }
   const archive = (input as { archive?: unknown }).archive;
   if (archive !== undefined) {
     if (archive === null || typeof archive !== "object" || Array.isArray(archive)) {
-      throw new InvalidHarnessConfigError("archive must be an object");
+      throw new InvalidHarnessConfigError(say("OSW-HRN-090"));
     }
     for (const key of Object.keys(archive)) {
-      if (key !== "whenLanded") throw new InvalidHarnessConfigError(`archive has no key "${key}"; the one it takes is whenLanded`);
+      if (key !== "whenLanded") throw new InvalidHarnessConfigError(say("OSW-HRN-091", { key: key }));
     }
     const whenLanded = (archive as { whenLanded?: unknown }).whenLanded;
     if (whenLanded !== undefined && typeof whenLanded !== "boolean") {
-      throw new InvalidHarnessConfigError("archive.whenLanded must be a boolean");
+      throw new InvalidHarnessConfigError(say("OSW-HRN-092"));
     }
   }
   assertValidBudget(input.budget);
@@ -1248,29 +1193,25 @@ function assertValidChainSteps(
   if (value === undefined) return;
   if (!isPerChangeFile) throw new GlobalChainStepsError();
   if (!Array.isArray(value)) {
-    throw new InvalidHarnessConfigError("steps must be an array");
+    throw new InvalidHarnessConfigError(say("OSW-HRN-093"));
   }
 
   value.forEach((entry, index) => {
     const label = `steps[${index}]`;
     if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
-      throw new InvalidHarnessConfigError(`${label} must be an object`);
+      throw new InvalidHarnessConfigError(say("OSW-HRN-094", { label: label }));
     }
     const record = entry as Record<string, unknown>;
 
     for (const key of Object.keys(record)) {
       if (!(CHAIN_STEP_KEYS as readonly string[]).includes(key)) {
-        throw new InvalidHarnessConfigError(
-          `unrecognized key "${key}" in ${label} (accepted keys: ${formatAcceptedKeys(CHAIN_STEP_KEYS)})`,
-        );
+        throw new InvalidHarnessConfigError(say("OSW-HRN-095", { key: key, label: label, keys: formatAcceptedKeys(CHAIN_STEP_KEYS) }));
       }
     }
 
     const step = record.step;
     if (typeof step !== "string" || !isChainStepName(step)) {
-      throw new InvalidHarnessConfigError(
-        `${label}.step is not a declared step (expected one of: ${CHAIN_STEP_NAMES.join(", ")})`,
-      );
+      throw new InvalidHarnessConfigError(say("OSW-HRN-096", { label: label, steps: CHAIN_STEP_NAMES.join(", ") }));
     }
 
     // Exactly one position, naming exactly one fixed stage. Both or
@@ -1280,30 +1221,24 @@ function assertValidChainSteps(
     const hasBefore = record.before !== undefined;
     const hasAfter = record.after !== undefined;
     if (hasBefore === hasAfter) {
-      throw new InvalidHarnessConfigError(
-        `${label} must state exactly one of "before" or "after"`
-        + (hasBefore ? ", not both" : ", and states neither"),
-      );
+      throw new InvalidHarnessConfigError(say("OSW-HRN-097", { label: label, suffix: (hasBefore ? ", not both" : ", and states neither") }));
     }
     const position = (hasBefore ? record.before : record.after) as unknown;
     if (typeof position !== "string" || !(STAGES as readonly string[]).includes(position)) {
-      throw new InvalidHarnessConfigError(
-        `${label}.${hasBefore ? "before" : "after"} must name a stage (expected one of: ${STAGES.join(", ")})`
-        + " — a step is placed against the fixed sequence, never against another declared step",
-      );
+      throw new InvalidHarnessConfigError(say("OSW-HRN-098", { label: label, position: hasBefore ? "before" : "after", stages: STAGES.join(", ") }));
     }
 
     if (record.param !== undefined && typeof record.param !== "string") {
-      throw new InvalidHarnessConfigError(`${label}.param must be a string`);
+      throw new InvalidHarnessConfigError(say("OSW-HRN-099", { label: label }));
     }
     if ((CHAIN_STEPS_REQUIRING_PARAM as readonly string[]).includes(step) && !record.param) {
-      throw new InvalidHarnessConfigError(`${label}.param is required for step "${step}"`);
+      throw new InvalidHarnessConfigError(say("OSW-HRN-100", { label: label, step: step }));
     }
 
     if (record.maxWaitSeconds !== undefined) {
       const seconds = record.maxWaitSeconds;
       if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds <= 0) {
-        throw new InvalidHarnessConfigError(`${label}.maxWaitSeconds must be a positive number of seconds`);
+        throw new InvalidHarnessConfigError(say("OSW-HRN-101", { label: label }));
       }
     }
   });
@@ -1492,9 +1427,7 @@ export async function resolveHarnessConfig(workspaceRoot: string, changeName?: s
     const stage = step.before ?? step.after;
     if (stage !== undefined && skipsStage(merged, stage)) {
       const position = step.before !== undefined ? "before" : "after";
-      throw new InvalidHarnessConfigError(
-        `steps[${index}] (${step.step}) is placed ${position} "${stage}", which skipStages leaves out; place it against another stage`,
-      );
+      throw new InvalidHarnessConfigError(say("OSW-HRN-102", { index: index, step: step.step, position: position, stage: stage }));
     }
   });
 

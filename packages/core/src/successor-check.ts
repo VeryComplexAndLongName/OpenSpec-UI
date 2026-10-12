@@ -13,6 +13,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { readChangeGraph, type ChangeGraph } from "./change-graph.js";
+import { say, type MessageCode } from "./message-register.js";
 import { discoverOpenSpecWorkspace } from "./workbench.js";
 
 /** The exact wording this check looks for — see
@@ -56,7 +57,10 @@ export function findNamedSuccessors(changeId: string, tasksContent: string): Nam
 }
 
 export interface OrphanedSuccessor extends NamedSuccessor {
+  /** The register's words (ADR 0046). */
   reason: string;
+  /** The identifier of the message in `reason`. */
+  code: MessageCode;
 }
 
 /** A successor is real when a change of the named id exists — active or
@@ -97,10 +101,11 @@ export async function checkNamedSuccessors(root: string): Promise<OrphanedSucces
 
     for (const successor of findNamedSuccessors(change.name, content)) {
       if (isRealSuccessor(graph, successor)) continue;
+      const said = say("OSW-VAL-116", { change: change.name, successor: successor.successorId });
       violations.push({
         ...successor,
-        reason: `${change.name}'s tasks.md names "Successor created: \`${successor.successorId}\`"`
-          + ` but no change \`${successor.successorId}\` states \`follows: ${successor.changeId}\``,
+        reason: said.text,
+        code: said.code,
       });
     }
   }

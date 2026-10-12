@@ -6,6 +6,7 @@
 // `GITEA_TOKEN` - which is read when asked and never written anywhere.
 
 import { parseCheckStatus, pullRequestTimes, type BranchPullRequest, type MergeMethod, type BranchPullRequestState, type Forge, type PullRequestCheckStatus, type PullRequestRef, type PullRequestsByBranch } from "./gh-pr-gateway.js";
+import { say, type MessageCode, type SaidMessage } from "./message-register.js";
 
 export type FetchLike = (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => Promise<{
   ok: boolean;
@@ -26,9 +27,14 @@ export interface HttpForgeOptions {
   sleep?: (ms: number) => Promise<void>;
 }
 
+/** The forge refused, in the register's words under their identifier. The
+ * status is absent where nothing was asked of the forge at all - no token
+ * to ask it with. */
 class ForgeRefusal extends Error {
-  constructor(message: string, readonly status: number) {
-    super(message);
+  readonly code: MessageCode;
+  constructor(said: SaidMessage, readonly status?: number) {
+    super(said.text);
+    this.code = said.code;
   }
 }
 
@@ -49,14 +55,29 @@ async function call(options: HttpForgeOptions, headers: Record<string, string>, 
     } catch {
       // Not JSON: said as it came, cut short.
     }
-    if (response.status === 401) throw new ForgeRefusal(`the ${options.tokenName} was refused (401)`, 401);
-    throw new ForgeRefusal(`${method} ${new URL(url).pathname} answered ${response.status}: ${said.slice(0, 200) || "no reason given"}`, response.status);
+    if (response.status === 401) throw new ForgeRefusal(say("OSW-NET-002", { token: options.tokenName }), 401);
+    throw new ForgeRefusal(say("OSW-NET-003", {
+      method,
+      path: new URL(url).pathname,
+      status: response.status,
+      reason: said.slice(0, 200) || "no reason given",
+    }), response.status);
   }
   return text.length === 0 ? undefined : JSON.parse(text);
 }
 
-function why(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+/** A refusal's words and identifier where it has them; a bare error's
+ * message otherwise. */
+function why(error: unknown): { reason: string; code?: MessageCode } {
+  return error instanceof ForgeRefusal
+    ? { reason: error.message, code: error.code }
+    : { reason: error instanceof Error ? error.message : String(error) };
+}
+
+/** A token the environment never carried, in the register's words. */
+function tokenNotSet(tokenName: string): PullRequestsByBranch {
+  const said = say("OSW-NET-001", { token: tokenName });
+  return { available: false, reason: said.text, code: said.code };
 }
 
 /** Keeps, per branch, an open or merged one over a closed one, and the
@@ -85,7 +106,7 @@ export function createGiteaForge(options: HttpForgeOptions): Forge {
   return {
     name: "Gitea",
     async pullRequestsByBranch(): Promise<PullRequestsByBranch> {
-      if (!options.token) return { available: false, reason: `${options.tokenName} is not set` };
+      if (!options.token) return tokenNotSet(options.tokenName);
       const byBranch = new Map<string, BranchPullRequest>();
       try {
         for (let page = 1; page <= PAGES; page += 1) {
@@ -112,12 +133,12 @@ export function createGiteaForge(options: HttpForgeOptions): Forge {
           if (items.length < 50) break;
         }
       } catch (error) {
-        return { available: false, reason: why(error) };
+        return { available: false, ...why(error) };
       }
       return { available: true, byBranch };
     },
     async openPullRequest(request): Promise<PullRequestRef> {
-      if (!options.token) throw new Error(`${options.tokenName} is not set`);
+      if (!options.token) throw new ForgeRefusal(say("OSW-NET-001", { token: options.tokenName }));
       const made = await call(options, headers(), "POST", `${api}/pulls`, { head: request.head, base: request.base, title: request.title, body: request.body }) as { number?: unknown; html_url?: unknown };
       if (typeof made?.number !== "number") throw new Error("Gitea opened a pull request and did not say its number");
       return { number: made.number, url: typeof made.html_url === "string" ? made.html_url : `${options.base}/${options.path}/pulls/${made.number}` };
@@ -125,7 +146,10 @@ export function createGiteaForge(options: HttpForgeOptions): Forge {
     async checksOf(prNumber): Promise<PullRequestCheckStatus> {
       const pull = await call(options, headers(), "GET", `${api}/pulls/${prNumber}`) as { head?: { sha?: unknown } };
       const sha = pull?.head?.sha;
-      if (typeof sha !== "string") return { state: "none", reason: "Gitea did not say which commit the pull request is at" };
+      if (typeof sha !== "string") {
+        const said = say("OSW-NET-105");
+        return { state: "none", reason: said.text, code: said.code };
+      }
       const combined = await call(options, headers(), "GET", `${api}/commits/${sha}/status`) as { statuses?: Array<{ context?: unknown; status?: unknown; state?: unknown }> };
       return parseCheckStatus((combined?.statuses ?? []).map((one) => ({
         name: typeof one.context === "string" ? one.context : "status",
@@ -133,7 +157,7 @@ export function createGiteaForge(options: HttpForgeOptions): Forge {
       })));
     },
     async mergeNow(prNumber, method: MergeMethod = "merge") {
-      if (!options.token) throw new Error(`${options.tokenName} is not set`);
+      if (!options.token) throw new ForgeRefusal(say("OSW-NET-001", { token: options.tokenName }));
       await call(options, headers(), "POST", `${api}/pulls/${prNumber}/merge`, { Do: method, delete_branch_after_merge: true });
     },
   };
@@ -151,7 +175,7 @@ export function createGitLabForge(options: HttpForgeOptions): Forge {
   return {
     name: "GitLab",
     async pullRequestsByBranch(): Promise<PullRequestsByBranch> {
-      if (!options.token) return { available: false, reason: `${options.tokenName} is not set` };
+      if (!options.token) return tokenNotSet(options.tokenName);
       const byBranch = new Map<string, BranchPullRequest>();
       try {
         for (let page = 1; page <= PAGES; page += 1) {
@@ -167,12 +191,12 @@ export function createGitLabForge(options: HttpForgeOptions): Forge {
           if (items.length < 50) break;
         }
       } catch (error) {
-        return { available: false, reason: why(error) };
+        return { available: false, ...why(error) };
       }
       return { available: true, byBranch };
     },
     async openPullRequest(request): Promise<PullRequestRef> {
-      if (!options.token) throw new Error(`${options.tokenName} is not set`);
+      if (!options.token) throw new ForgeRefusal(say("OSW-NET-001", { token: options.tokenName }));
       const made = await call(options, headers(), "POST", `${api}/merge_requests`, {
         source_branch: request.head,
         target_branch: request.base,
@@ -191,7 +215,7 @@ export function createGitLabForge(options: HttpForgeOptions): Forge {
       return parseCheckStatus([{ name: `pipeline ${String(pipeline.id ?? "")}`.trim(), state: gitlabPipelineWord(String(pipeline.status ?? "")) }]);
     },
     async mergeNow(prNumber, method: MergeMethod = "merge") {
-      if (!options.token) throw new Error(`${options.tokenName} is not set`);
+      if (!options.token) throw new ForgeRefusal(say("OSW-NET-001", { token: options.tokenName }));
       const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
       // GitLab works out whether a new merge request can merge after it
       // answers, and refuses a merge meanwhile with 422 "Branch cannot be
@@ -256,7 +280,7 @@ export function createGitHubApiForge(options: HttpForgeOptions & { apiBase?: str
   return {
     name: "GitHub",
     async pullRequestsByBranch(): Promise<PullRequestsByBranch> {
-      if (!options.token) return { available: false, reason: `${options.tokenName} is not set` };
+      if (!options.token) return tokenNotSet(options.tokenName);
       const byBranch = new Map<string, BranchPullRequest>();
       try {
         for (let page = 1; page <= PAGES; page += 1) {
@@ -272,12 +296,12 @@ export function createGitHubApiForge(options: HttpForgeOptions & { apiBase?: str
           if (items.length < 50) break;
         }
       } catch (error) {
-        return { available: false, reason: why(error) };
+        return { available: false, ...why(error) };
       }
       return { available: true, byBranch };
     },
     async openPullRequest(request): Promise<PullRequestRef> {
-      if (!options.token) throw new Error(`${options.tokenName} is not set`);
+      if (!options.token) throw new ForgeRefusal(say("OSW-NET-001", { token: options.tokenName }));
       const made = await call(options, headers(), "POST", `${api}/pulls`, { head: request.head, base: request.base, title: request.title, body: request.body }) as { number?: unknown; html_url?: unknown };
       if (typeof made?.number !== "number") throw new Error("GitHub opened a pull request and did not say its number");
       return { number: made.number, url: typeof made.html_url === "string" ? made.html_url : `https://github.com/${options.path}/pull/${made.number}` };
@@ -285,7 +309,10 @@ export function createGitHubApiForge(options: HttpForgeOptions & { apiBase?: str
     async checksOf(prNumber): Promise<PullRequestCheckStatus> {
       const pull = await call(options, headers(), "GET", `${api}/pulls/${prNumber}`) as { head?: { sha?: unknown } };
       const sha = pull?.head?.sha;
-      if (typeof sha !== "string") return { state: "none", reason: "GitHub did not say which commit the pull request is at" };
+      if (typeof sha !== "string") {
+        const said = say("OSW-NET-106");
+        return { state: "none", reason: said.text, code: said.code };
+      }
       const runs = await call(options, headers(), "GET", `${api}/commits/${sha}/check-runs?per_page=100`) as { check_runs?: Array<{ name?: unknown; status?: unknown; conclusion?: unknown }> };
       const statuses = await call(options, headers(), "GET", `${api}/commits/${sha}/status`) as { statuses?: Array<{ context?: unknown; state?: unknown }> };
       return parseCheckStatus([
@@ -300,7 +327,7 @@ export function createGitHubApiForge(options: HttpForgeOptions & { apiBase?: str
       ]);
     },
     async mergeNow(prNumber, method: MergeMethod = "merge") {
-      if (!options.token) throw new Error(`${options.tokenName} is not set`);
+      if (!options.token) throw new ForgeRefusal(say("OSW-NET-001", { token: options.tokenName }));
       const pull = await call(options, headers(), "GET", `${api}/pulls/${prNumber}`) as { head?: { ref?: unknown } };
       await call(options, headers(), "PUT", `${api}/pulls/${prNumber}/merge`, { merge_method: method });
       // As `gh pr merge --delete-branch` does.
