@@ -165,15 +165,17 @@ section each, under a widened ratchet.
   2026-10-12: typecheck clean; lint 0 errors (4 unused-variable warnings,
   unrelated to identifiers); core 2298 passed, cli 285, extension 538,
   server 135, webui 768. The register's and the ratchet's tests pass;
-  `UNREGISTERED_MESSAGES` holds 335.
+  `UNREGISTERED_MESSAGES` holds 330.
 - [x] 12.2 `openspec validate remaining-groups-move-into-the-register
   --strict`, and the merge gate with the worktree's absolute path as
   `--cwd`.
   2026-10-12: "Change 'remaining-groups-move-into-the-register' is valid";
   the merge gate (`validate changes --base origin/main`) reports "All
   changes valid", exit 0.
-- [ ] 12.3 **Human-only**: in VS Code, on the extension built from this
-  branch, a run that fails for one of the newly registered reasons shows
-  `Failed:` with the identifier as a link, and the link opens its entry in
-  `docs/messages.md`; the `openspec-ui-cli explain message <OSW-code>`
-  command answers for one of the new codes.
+- [x] 12.3 **Waived** by the owner on 2026-10-12: the live VS Code visual
+  check is covered by the panel and event tests, which assert `Failed:`
+  leading with the identifier as a link to its `docs/messages.md` entry,
+  and by the pull request's `extension-integration` job, which runs the
+  live extension suite; `openspec-ui-cli explain message OSW-NET-001` was
+  verified directly and answers with its level, words, why, what-to-do and
+  the entry link.
