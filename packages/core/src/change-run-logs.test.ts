@@ -1,13 +1,17 @@
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GitWorktree } from "./git.js";
 import { changeLogsRoot, listChangeRunLogs, readChangeRunLog } from "./change-run-logs.js";
 import { createFileRunLogs } from "./run-log.js";
 
 // a-change-shows-the-logs-of-its-own-worktree. Real log files in a temporary
 // repository and worktree; only the worktree list is supplied.
+
+// every-varying-check-has-a-budget: temporary files only, no process.
+// Measured 2026-10-13 at under 1 s for the file on this machine.
+vi.setConfig({ testTimeout: 15_000 });
 
 let base: string;
 let host: string;
