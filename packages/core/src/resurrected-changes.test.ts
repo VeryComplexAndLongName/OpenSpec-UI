@@ -1,11 +1,15 @@
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { readResurrectedChanges } from "./resurrected-changes.js";
 
 // a-change-is-never-both-active-and-archived. The base is a listing, so no git
 // is started: only the two directories the base lists are supplied.
+
+// every-varying-check-has-a-budget: temporary files only, no process.
+// Measured 2026-10-13 at under 1 s for the file on this machine.
+vi.setConfig({ testTimeout: 15_000 });
 
 const roots: string[] = [];
 
