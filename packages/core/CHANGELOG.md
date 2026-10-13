@@ -1,5 +1,12 @@
 # @openspec-ui/core
 
+## 0.149.1
+
+### Patch Changes
+
+- 9a6159f: The merge gate refuses a change the pull request puts back among the active ones after its base archived it, so the board cannot show a shipped change as unfinished.
+- ac0e1e7: Show Logs on a change's card reads the logs of the change's own worktree, where its runs write them, and the card of a change worked in its own worktree offers it. Before, the button read only the host's root and said there were no logs.
+
 ## 0.149.0
 
 ### Minor Changes

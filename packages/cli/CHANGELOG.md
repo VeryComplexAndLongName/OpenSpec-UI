@@ -1,5 +1,11 @@
 # @openspec-ui/cli
 
+## 0.32.1
+
+### Patch Changes
+
+- 9a6159f: The merge gate refuses a change the pull request puts back among the active ones after its base archived it, so the board cannot show a shipped change as unfinished.
+
 ## 0.32.0
 
 ### Minor Changes
