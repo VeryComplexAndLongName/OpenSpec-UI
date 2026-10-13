@@ -113,6 +113,8 @@ import {
   resolveAgentStatusDirectory,
   isRunLogId,
   listRunLogs,
+  listChangeRunLogs,
+  readChangeRunLog,
   readRunLog,
 } from "@openspec-ui/core";
 import { isCommandLike } from "./wire.js";
@@ -122,7 +124,7 @@ export interface RestRequestPolicy {
   isCwdAllowed(cwd: string): boolean;
 }
 
-class PayloadTooLargeError extends Error {}
+class PayloadTooLargeError extends Error { }
 
 export async function readJsonBody(req: IncomingMessage, maxPayloadBytes: number): Promise<unknown> {
   const chunks: Buffer[] = [];
@@ -614,9 +616,9 @@ export async function handleSprintReportRequest(req: IncomingMessage, res: Serve
 
   try {
     // The summary, as data. The page that draws it is the browser's
-     // half, drawn with the product's own stylesheets, which live in
-     // `webui` (the-sprint-report-is-a-page-of-the-product): this layer
-     // stays thin, and sends JSON like everything else it sends.
+    // half, drawn with the product's own stylesheets, which live in
+    // `webui` (the-sprint-report-is-a-page-of-the-product): this layer
+    // stays thin, and sends JSON like everything else it sends.
     sendJson(res, 200, await buildSprintReport(parsed.cwd, parsed.entries, parsed.rangeStart, parsed.rangeEnd));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -1449,7 +1451,9 @@ export async function handleRunLogsListRequest(req: IncomingMessage, res: Server
   }
   if (!authorizeCwd(res, policy, parsed.cwd)) return;
   try {
-    sendJson(res, 200, await listRunLogs(parsed.cwd, changeName === undefined ? {} : { changeName }));
+    sendJson(res, 200, changeName === undefined
+      ? await listRunLogs(parsed.cwd)
+      : await listChangeRunLogs({ repositoryRoot: parsed.cwd, changeName }));
   } catch (error) {
     sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
   }
@@ -1470,8 +1474,15 @@ export async function handleRunLogReadRequest(req: IncomingMessage, res: ServerR
     return;
   }
   if (!authorizeCwd(res, policy, parsed.cwd)) return;
+  const changeName = (parsed as { changeName?: unknown }).changeName;
+  if (changeName !== undefined && (typeof changeName !== "string" || changeName.length === 0)) {
+    sendJson(res, 400, { error: "changeName, when given, must be a non-empty string" });
+    return;
+  }
   try {
-    const records = await readRunLog(parsed.cwd, runId);
+    const records = changeName === undefined
+      ? await readRunLog(parsed.cwd, runId)
+      : await readChangeRunLog({ repositoryRoot: parsed.cwd, changeName, runId });
     if (records === undefined) {
       sendJson(res, 404, { error: `no log is kept for run ${runId}` });
       return;

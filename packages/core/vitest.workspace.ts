@@ -68,6 +68,9 @@ const SHELL_STARTING_TESTS = [
   // Real git with a push to a local bare remote, for the task list a card
   // commits (a-card-works-its-own-tasks).
   "src/own-worktree-tasks.commit.test.ts",
+  // Real git, for `worktree add` against a temporary repository
+  // (a-change-shows-the-logs-of-its-own-worktree).
+  "src/change-run-logs.git.test.ts",
 ];
 
 export default defineWorkspace([

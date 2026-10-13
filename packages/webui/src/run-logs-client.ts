@@ -21,6 +21,6 @@ export function listChangeRunLogs(request: RunLogsRequest, cwd: string, changeNa
   return post(request, "/api/run-logs/list", { cwd, changeName });
 }
 
-export function readChangeRunLog(request: RunLogsRequest, cwd: string, runId: string): Promise<RunLogRecord[]> {
-  return post(request, "/api/run-logs/read", { cwd, runId });
+export function readChangeRunLog(request: RunLogsRequest, cwd: string, runId: string, changeName?: string): Promise<RunLogRecord[]> {
+  return post(request, "/api/run-logs/read", { cwd, runId, ...(changeName !== undefined ? { changeName } : {}) });
 }

@@ -672,7 +672,7 @@ export function PipelineView({
   // branch, or deleted from it after being there
   // (what-is-finished-is-tidied-away).
   // What the default branch already carries archived, for a foreign card
-   // to say so (main-catches-up-with-what-landed).
+  // to say so (main-catches-up-with-what-landed).
   const archivedOnDefault = new Set((stands.value?.standings ?? [])
     .filter((standing) => standing.main?.kind === "archived")
     .map((standing) => standing.changeName));
@@ -828,329 +828,329 @@ export function PipelineView({
     // The zoom is one factor on everything the picture draws, cards, text
     // and lines alike; no layout unit changes with it.
     <TaskCardContext.Provider value={taskCards}>
-    <div ref={root} data-testid="pipeline" className="openspec-pipeline" style={{ "--pipeline-zoom": zoom } as Record<string, number>}>
-      <div className="openspec-pipeline-toolbar" data-testid="pipeline-view-controls">
-        <div className="openspec-pipeline-toolbar-text">
-          {here ? (
-            <p className="openspec-pipeline-toolbar-reading" data-testid="pipeline-reading-branch">
-              Read from <strong>{branchPhrase(here)}</strong> in {here.label}
-            </p>
-          ) : null}
-          <p className="openspec-pipeline-toolbar-note" data-testid="pipeline-read-at">
-            {/* A reading, not a subscription: between two of them a run can
+      <div ref={root} data-testid="pipeline" className="openspec-pipeline" style={{ "--pipeline-zoom": zoom } as Record<string, number>}>
+        <div className="openspec-pipeline-toolbar" data-testid="pipeline-view-controls">
+          <div className="openspec-pipeline-toolbar-text">
+            {here ? (
+              <p className="openspec-pipeline-toolbar-reading" data-testid="pipeline-reading-branch">
+                Read from <strong>{branchPhrase(here)}</strong> in {here.label}
+              </p>
+            ) : null}
+            <p className="openspec-pipeline-toolbar-note" data-testid="pipeline-read-at">
+              {/* A reading, not a subscription: between two of them a run can
                 start and finish, so this never presents itself as live. */}
-            Last read {local.readAt ? local.readAt.toLocaleTimeString() : "not yet"}
-            {survey ? `; other working directories ${others.readAt ? others.readAt.toLocaleTimeString() : "not yet"}` : ""}.
-          </p>
-          {here ? (
-            <ul className="openspec-pipeline-toolbar-runs" data-testid="pipeline-reading-runs">
-              {describeDirectoryRuns(here, now, onCards).map((line, index) => <li key={index}>{line}</li>)}
-            </ul>
-          ) : null}
-        </div>
-        <div className="openspec-pipeline-toolbar-actions">
-          <button className="openspec-pipeline-button" type="button" data-testid="pipeline-open-all" onClick={() => setOpen(new Set(openableKeys()))}>
-            <ChevronIcon up={false} />Show Tasks
-          </button>
-          <button className="openspec-pipeline-button" type="button" data-testid="pipeline-close-all" disabled={open.size === 0} onClick={() => setOpen(new Set())}>
-            <ChevronIcon up />Hide Tasks
-          </button>
-          <div className="openspec-pipeline-zoom" role="group" aria-label="Zoom">
-            <button type="button" aria-label="Zoom out" data-testid="pipeline-zoom-out" disabled={zoomIndex <= 0} onClick={() => setZoom(PIPELINE_ZOOM_STEPS[zoomIndex - 1] ?? zoom)}>
-              <MinusIcon />
-            </button>
-            {/* The level is the control that resets it. */}
-            <button type="button" aria-label="Reset zoom" data-testid="pipeline-zoom-reset" disabled={zoom === DEFAULT_ZOOM} onClick={() => setZoom(DEFAULT_ZOOM)}>
-              <span data-testid="pipeline-zoom-level"><span className="openspec-visually-hidden">Zoom </span>{`${Math.round(zoom * 100)}%`}</span>
-            </button>
-            <button type="button" aria-label="Zoom in" data-testid="pipeline-zoom-in" disabled={zoomIndex >= PIPELINE_ZOOM_STEPS.length - 1} onClick={() => setZoom(PIPELINE_ZOOM_STEPS[zoomIndex + 1] ?? zoom)}>
-              <PlusIcon />
-            </button>
+              Last read {local.readAt ? local.readAt.toLocaleTimeString() : "not yet"}
+              {survey ? `; other working directories ${others.readAt ? others.readAt.toLocaleTimeString() : "not yet"}` : ""}.
+            </p>
+            {here ? (
+              <ul className="openspec-pipeline-toolbar-runs" data-testid="pipeline-reading-runs">
+                {describeDirectoryRuns(here, now, onCards).map((line, index) => <li key={index}>{line}</li>)}
+              </ul>
+            ) : null}
           </div>
-          {/* Two arrangements of the same cards: by what each change waits
+          <div className="openspec-pipeline-toolbar-actions">
+            <button className="openspec-pipeline-button" type="button" data-testid="pipeline-open-all" onClick={() => setOpen(new Set(openableKeys()))}>
+              <ChevronIcon up={false} />Show Tasks
+            </button>
+            <button className="openspec-pipeline-button" type="button" data-testid="pipeline-close-all" disabled={open.size === 0} onClick={() => setOpen(new Set())}>
+              <ChevronIcon up />Hide Tasks
+            </button>
+            <div className="openspec-pipeline-zoom" role="group" aria-label="Zoom">
+              <button type="button" aria-label="Zoom out" data-testid="pipeline-zoom-out" disabled={zoomIndex <= 0} onClick={() => setZoom(PIPELINE_ZOOM_STEPS[zoomIndex - 1] ?? zoom)}>
+                <MinusIcon />
+              </button>
+              {/* The level is the control that resets it. */}
+              <button type="button" aria-label="Reset zoom" data-testid="pipeline-zoom-reset" disabled={zoom === DEFAULT_ZOOM} onClick={() => setZoom(DEFAULT_ZOOM)}>
+                <span data-testid="pipeline-zoom-level"><span className="openspec-visually-hidden">Zoom </span>{`${Math.round(zoom * 100)}%`}</span>
+              </button>
+              <button type="button" aria-label="Zoom in" data-testid="pipeline-zoom-in" disabled={zoomIndex >= PIPELINE_ZOOM_STEPS.length - 1} onClick={() => setZoom(PIPELINE_ZOOM_STEPS[zoomIndex + 1] ?? zoom)}>
+                <PlusIcon />
+              </button>
+            </div>
+            {/* Two arrangements of the same cards: by what each change waits
               for, or as a board of the stages it goes through
               (the-board-shows-the-stages). Offered only where a host reads
               the stages. */}
-          {stages ? (
-            <div className="openspec-pipeline-arrangement" role="group" aria-label="Arrangement" data-testid="pipeline-arrangement">
-              <button
-                type="button"
-                data-testid="pipeline-arrangement-steps"
-                aria-pressed={arrangement === "steps"}
-                onClick={() => setArrangement("steps")}
-              >
-                By step
-              </button>
-              <button
-                type="button"
-                data-testid="pipeline-arrangement-stages"
-                aria-pressed={arrangement === "stages"}
-                onClick={() => setArrangement("stages")}
-              >
-                By stage
-              </button>
-            </div>
-          ) : null}
-          {/* The order within each column (the-board-sorts-its-cards). Names
+            {stages ? (
+              <div className="openspec-pipeline-arrangement" role="group" aria-label="Arrangement" data-testid="pipeline-arrangement">
+                <button
+                  type="button"
+                  data-testid="pipeline-arrangement-steps"
+                  aria-pressed={arrangement === "steps"}
+                  onClick={() => setArrangement("steps")}
+                >
+                  By step
+                </button>
+                <button
+                  type="button"
+                  data-testid="pipeline-arrangement-stages"
+                  aria-pressed={arrangement === "stages"}
+                  onClick={() => setArrangement("stages")}
+                >
+                  By stage
+                </button>
+              </div>
+            ) : null}
+            {/* The order within each column (the-board-sorts-its-cards). Names
               are read as a person reads numbers, so a numbered change stands
               in its place. */}
-          <label className="openspec-pipeline-order">
-            <span>Sort</span>
-            <select value={order} data-testid="pipeline-order" onChange={(event) => setOrder(event.target.value as ChangeOrder)}>
-              {CHANGE_ORDERS.map((one) => <option key={one} value={one}>{describeChangeOrder(one)}</option>)}
-            </select>
-          </label>
-          {refresh ? (
-            <button className="openspec-pipeline-button" type="button" data-testid="pipeline-refresh" disabled={refreshing} onClick={() => void refreshNow()}>
-              <RefreshIcon />{refreshing ? "Refreshing…" : "Refresh Pipeline"}
-            </button>
-          ) : null}
-          {/* The same narrowing the editor's views take, over a change's
+            <label className="openspec-pipeline-order">
+              <span>Sort</span>
+              <select value={order} data-testid="pipeline-order" onChange={(event) => setOrder(event.target.value as ChangeOrder)}>
+                {CHANGE_ORDERS.map((one) => <option key={one} value={one}>{describeChangeOrder(one)}</option>)}
+              </select>
+            </label>
+            {refresh ? (
+              <button className="openspec-pipeline-button" type="button" data-testid="pipeline-refresh" disabled={refreshing} onClick={() => void refreshNow()}>
+                <RefreshIcon />{refreshing ? "Refreshing…" : "Refresh Pipeline"}
+              </button>
+            ) : null}
+            {/* The same narrowing the editor's views take, over a change's
               name and the word beside it (what-is-finished-is-tidied-away). */}
-          <label className="openspec-pipeline-filter">
-            <span className="openspec-visually-hidden">Filter changes</span>
-            <input
-              type="search"
-              value={filter}
-              placeholder="Filter changes"
-              data-testid="pipeline-filter"
-              onChange={(event) => setFilter(event.target.value)}
-            />
-          </label>
+            <label className="openspec-pipeline-filter">
+              <span className="openspec-visually-hidden">Filter changes</span>
+              <input
+                type="search"
+                value={filter}
+                placeholder="Filter changes"
+                data-testid="pipeline-filter"
+                onChange={(event) => setFilter(event.target.value)}
+              />
+            </label>
+          </div>
         </div>
-      </div>
-      <WaitingBanner
-        cards={[...cards.values()]}
-        heldRuns={heldRuns}
-        {...(onAnswerQuestion !== undefined ? { onAnswer: setAnswerFor } : {})}
-        {...(sendRunControl !== undefined ? { onRunControl: sendRunControl } : {})}
-      />
-      {refs ? <p className="openspec-shell-note" data-testid="pipeline-refs">{refs}</p> : null}
-      {refreshError !== undefined
-        ? <p className="openspec-shell-error" role="alert" data-testid="pipeline-refresh-error">{`Refresh failed: ${refreshError}`}</p>
-        : null}
+        <WaitingBanner
+          cards={[...cards.values()]}
+          heldRuns={heldRuns}
+          {...(onAnswerQuestion !== undefined ? { onAnswer: setAnswerFor } : {})}
+          {...(sendRunControl !== undefined ? { onRunControl: sendRunControl } : {})}
+        />
+        {refs ? <p className="openspec-shell-note" data-testid="pipeline-refs">{refs}</p> : null}
+        {refreshError !== undefined
+          ? <p className="openspec-shell-error" role="alert" data-testid="pipeline-refresh-error">{`Refresh failed: ${refreshError}`}</p>
+          : null}
 
-      {/* The board is of the work, so it is named for the work; the
+        {/* The board is of the work, so it is named for the work; the
           arrangement by declared order draws this checkout's own changes
           and says so (a-change-is-one-card-wherever-it-is). */}
-      <section className="openspec-panel openspec-pipeline-panel" aria-label={onBoard ? "Changes" : "Changes in this checkout"}>
-        <div className="openspec-panel-head">
-          <h2>{onBoard ? "Changes" : "Changes in this checkout"}</h2>
-          <span className="openspec-panel-head-note">
-            {onBoard ? "a column is where a change is now, wherever it is worked" : "a column starts after the ones before it"}
-          </span>
-        </div>
-        <div className="openspec-pipeline-panel-body">
-          {filter.trim().length > 0 && report !== undefined ? (
-            <p className="openspec-shell-note" data-testid="pipeline-filtered">
-              {shownChanges.length === 0
-                ? `Nothing matches "${filter.trim()}"`
-                : `Filtered by "${filter.trim()}" - showing ${shownChanges.length} of ${report.changes.length}`}
-            </p>
-          ) : null}
-          {/* How far this checkout is behind what has landed. Said only
+        <section className="openspec-panel openspec-pipeline-panel" aria-label={onBoard ? "Changes" : "Changes in this checkout"}>
+          <div className="openspec-panel-head">
+            <h2>{onBoard ? "Changes" : "Changes in this checkout"}</h2>
+            <span className="openspec-panel-head-note">
+              {onBoard ? "a column is where a change is now, wherever it is worked" : "a column starts after the ones before it"}
+            </span>
+          </div>
+          <div className="openspec-pipeline-panel-body">
+            {filter.trim().length > 0 && report !== undefined ? (
+              <p className="openspec-shell-note" data-testid="pipeline-filtered">
+                {shownChanges.length === 0
+                  ? `Nothing matches "${filter.trim()}"`
+                  : `Filtered by "${filter.trim()}" - showing ${shownChanges.length} of ${report.changes.length}`}
+              </p>
+            ) : null}
+            {/* How far this checkout is behind what has landed. Said only
               where it is behind: a line that is always there is a line
               nobody reads (main-catches-up-with-what-landed). */}
-          {behind.value !== undefined && behind.value.behind > 0 ? (
-            <p className="openspec-pipeline-landed" data-testid="pipeline-drift">
-              <span>{driftWords(behind.value)}</span>
-              {onCatchUp ? (
-                <button
-                  type="button"
-                  className="openspec-pipeline-button"
-                  data-testid="pipeline-catch-up"
-                  onClick={() => void (async () => {
-                    const result = await onCatchUp();
-                    setCaughtUp(result.ok
-                      ? `Moved ${behind.value?.defaultBranch ?? "main"} on by ${result.moved} ${result.moved === 1 ? "commit" : "commits"}.`
-                      : `Not caught up: ${result.why}.`);
-                    await behind.read();
-                  })()}
-                >
-                  Update Main
+            {behind.value !== undefined && behind.value.behind > 0 ? (
+              <p className="openspec-pipeline-landed" data-testid="pipeline-drift">
+                <span>{driftWords(behind.value)}</span>
+                {onCatchUp ? (
+                  <button
+                    type="button"
+                    className="openspec-pipeline-button"
+                    data-testid="pipeline-catch-up"
+                    onClick={() => void (async () => {
+                      const result = await onCatchUp();
+                      setCaughtUp(result.ok
+                        ? `Moved ${behind.value?.defaultBranch ?? "main"} on by ${result.moved} ${result.moved === 1 ? "commit" : "commits"}.`
+                        : `Not caught up: ${result.why}.`);
+                      await behind.read();
+                    })()}
+                  >
+                    Update Main
+                  </button>
+                ) : null}
+                {caughtUp !== null ? <span data-testid="pipeline-catch-up-said">{caughtUp}</span> : null}
+              </p>
+            ) : null}
+            {foldedCount > 0 ? (
+              <p className="openspec-pipeline-landed" data-testid="pipeline-landed">
+                <span>{`${foldedCount} ${foldedCount === 1 ? "change has" : "changes have"} landed`}</span>
+                <button type="button" className="openspec-pipeline-button" data-testid="pipeline-show-landed" onClick={() => setShowLanded(true)}>
+                  Show Landed Changes
                 </button>
-              ) : null}
-              {caughtUp !== null ? <span data-testid="pipeline-catch-up-said">{caughtUp}</span> : null}
-            </p>
-          ) : null}
-          {foldedCount > 0 ? (
-            <p className="openspec-pipeline-landed" data-testid="pipeline-landed">
-              <span>{`${foldedCount} ${foldedCount === 1 ? "change has" : "changes have"} landed`}</span>
-              <button type="button" className="openspec-pipeline-button" data-testid="pipeline-show-landed" onClick={() => setShowLanded(true)}>
-                Show Landed Changes
-              </button>
-              {onArchive ? (
-                <button
-                  type="button"
-                  className="openspec-pipeline-button"
-                  data-testid="pipeline-archive-landed"
-                  onClick={() => setArchiveLanded(landedHere.map((change) => change.changeName))}
-                >
-                  Archive Landed Changes...
+                {onArchive ? (
+                  <button
+                    type="button"
+                    className="openspec-pipeline-button"
+                    data-testid="pipeline-archive-landed"
+                    onClick={() => setArchiveLanded(landedHere.map((change) => change.changeName))}
+                  >
+                    Archive Landed Changes...
+                  </button>
+                ) : null}
+              </p>
+            ) : null}
+            {showLanded && landedHere.length > 0 ? (
+              <p className="openspec-shell-note" data-testid="pipeline-landed-shown">
+                <span>{`${landedHere.length} of these have landed.`}</span>
+                <button type="button" className="openspec-pipeline-button" data-testid="pipeline-hide-landed" onClick={() => setShowLanded(false)}>
+                  Hide Landed Changes
                 </button>
-              ) : null}
-            </p>
-          ) : null}
-          {showLanded && landedHere.length > 0 ? (
-            <p className="openspec-shell-note" data-testid="pipeline-landed-shown">
-              <span>{`${landedHere.length} of these have landed.`}</span>
-              <button type="button" className="openspec-pipeline-button" data-testid="pipeline-hide-landed" onClick={() => setShowLanded(false)}>
-                Hide Landed Changes
-              </button>
-            </p>
-          ) : null}
-          {showLegend ? <Legend testId="pipeline-legend" /> : null}
-          {local.error !== undefined
-            ? <p className="openspec-shell-error" role="alert" data-testid="pipeline-error">{local.error}</p>
-            : null}
-          {report === undefined
-            ? (local.error === undefined
-              ? <p className="openspec-shell-note" data-testid="pipeline-loading">{PIPELINE_FIRST_READING}</p>
-              : null)
-            : nothingToDraw && !onBoard
-              // Names the branch it read where the survey says which: an
-              // empty queue and a reading taken on a stale checkout
-              // otherwise look identical.
-              ? (report.changes.length === 0
-                ? <p className="openspec-shell-note" data-testid="pipeline-empty">No active changes{here ? ` on ${branchPhrase(here)}` : ""}.</p>
-                : <p className="openspec-shell-note" data-testid="pipeline-none-shown">Nothing to draw here.</p>)
-              : (
-                <>
-                  {/* Drawn even with nothing on it. A board whose columns
+              </p>
+            ) : null}
+            {showLegend ? <Legend testId="pipeline-legend" /> : null}
+            {local.error !== undefined
+              ? <p className="openspec-shell-error" role="alert" data-testid="pipeline-error">{local.error}</p>
+              : null}
+            {report === undefined
+              ? (local.error === undefined
+                ? <p className="openspec-shell-note" data-testid="pipeline-loading">{PIPELINE_FIRST_READING}</p>
+                : null)
+              : nothingToDraw && !onBoard
+                // Names the branch it read where the survey says which: an
+                // empty queue and a reading taken on a stale checkout
+                // otherwise look identical.
+                ? (report.changes.length === 0
+                  ? <p className="openspec-shell-note" data-testid="pipeline-empty">No active changes{here ? ` on ${branchPhrase(here)}` : ""}.</p>
+                  : <p className="openspec-shell-note" data-testid="pipeline-none-shown">Nothing to draw here.</p>)
+                : (
+                  <>
+                    {/* Drawn even with nothing on it. A board whose columns
                       appeared only once something stood in them would say
                       nothing about the way through, and a person pressing
                       "By stage" on an empty queue would see no board at
                       all (the-board-is-of-every-change). */}
-                  <LocalPicture report={boardReport ?? { ...report, changes: [] }} cards={cards} now={now} onOpenChange={onOpenChange} alsoIn={alsoInHere(here, labels)} controls={controls} directory={localDirectory} openCards={openCards} stages={stageSummaries} onBoard={onBoard} elsewhere={elsewhere} labels={labels} archivedOnMain={archivedOnDefault} filed={filedRecently} order={order} surveyedHere={here !== undefined && here.readable ? here.changes : []} {...(teamColumns !== undefined ? { teamColumns } : {})} />
-                  {/* A file that breaks a rule is refused whole, and said:
+                    <LocalPicture report={boardReport ?? { ...report, changes: [] }} cards={cards} now={now} onOpenChange={onOpenChange} alsoIn={alsoInHere(here, labels)} controls={controls} directory={localDirectory} openCards={openCards} stages={stageSummaries} onBoard={onBoard} elsewhere={elsewhere} labels={labels} archivedOnMain={archivedOnDefault} filed={filedRecently} order={order} surveyedHere={here !== undefined && here.readable ? here.changes : []} {...(teamColumns !== undefined ? { teamColumns } : {})} />
+                    {/* A file that breaks a rule is refused whole, and said:
                       silence would leave a person believing the board is
                       theirs (a-team-names-its-columns). */}
-                  {onBoard && named.value?.kind === "refused" ? (
-                    <p className="openspec-shell-note" data-testid="pipeline-columns-refused">{`openspec/board.json is not used: ${named.value.reason}`}</p>
-                  ) : null}
-                  {/* The archive holds more than a board should draw: the
+                    {onBoard && named.value?.kind === "refused" ? (
+                      <p className="openspec-shell-note" data-testid="pipeline-columns-refused">{`openspec/board.json is not used: ${named.value.reason}`}</p>
+                    ) : null}
+                    {/* The archive holds more than a board should draw: the
                       rest is counted, never listed. */}
-                  {onBoard && describeOlderArchive(filed.value) !== undefined ? (
-                    <p className="openspec-shell-note" data-testid="pipeline-archive-more">{describeOlderArchive(filed.value)}</p>
-                  ) : null}
-                  {nothingToDraw ? (
-                    <p className="openspec-shell-note" data-testid="pipeline-board-empty">
-                      {report.changes.length === 0
-                        ? `No active changes${here ? ` on ${branchPhrase(here)}` : ""}: every column is empty.`
-                        : "Every column is empty: nothing here matches the filter."}
-                    </p>
-                  ) : null}
-                </>
-              )}
-        </div>
-      </section>
+                    {onBoard && describeOlderArchive(filed.value) !== undefined ? (
+                      <p className="openspec-shell-note" data-testid="pipeline-archive-more">{describeOlderArchive(filed.value)}</p>
+                    ) : null}
+                    {nothingToDraw ? (
+                      <p className="openspec-shell-note" data-testid="pipeline-board-empty">
+                        {report.changes.length === 0
+                          ? `No active changes${here ? ` on ${branchPhrase(here)}` : ""}: every column is empty.`
+                          : "Every column is empty: nothing here matches the filter."}
+                      </p>
+                    ) : null}
+                  </>
+                )}
+          </div>
+        </section>
 
-      {/* From the report this already read: no second fetch, and no
+        {/* From the report this already read: no second fetch, and no
           suggestion computed here — `buildHints` derived them in core
           before the payload was sent. */}
-      {report !== undefined ? <HintList hints={report.hints} {...(copyText !== undefined ? { copyText } : {})} /> : null}
-      {others.value ? <OtherDirectories survey={others.value} labels={labels} now={now} onCards={onCards} openCards={openCards} archivedOnMain={archivedOnDefault} drawsChanges={!onBoard} order={order} controls={controls} /> : null}
-      {others.error !== undefined
-        ? <p className="openspec-shell-note" data-testid="pipeline-survey-error">The other working directories could not be read: {others.error}</p>
-        : null}
-      {answerTarget !== undefined && !nothingLeftToAnswer && onAnswerQuestion !== undefined ? (
-        <ModalLayer onCancel={() => setAnswerFor(undefined)}>
-        <AnswerQuestionsForm
-          target={answerTarget}
-          onAnswer={(questionId, answer) => {
-            onAnswerQuestion({
-              changeName: answerTarget.changeName,
-              ...(answerTarget.runId !== undefined ? { runId: answerTarget.runId } : {}),
-              workingDirectory: answerTarget.workingDirectory,
-              questionId,
-              answer,
-            });
-            setTimeout(() => void Promise.all([others.read(), held.read()]), RUN_CONTROL_REREAD_MS);
-          }}
-          onClose={() => setAnswerFor(undefined)}
-        />
-        </ModalLayer>
-      ) : null}
-      {archiveLanded !== undefined && onArchive !== undefined ? (
-        <ModalLayer onCancel={() => setArchiveLanded(undefined)}>
-          <form
-            role="dialog"
-            aria-modal="true"
-            aria-label="Archive Landed Changes"
-            className="openspec-pipeline-stop-form"
-            data-testid="pipeline-confirm-archive-landed"
-            onSubmit={(event) => {
-              event.preventDefault();
-              onArchive(archiveLanded);
-              setArchiveLanded(undefined);
-            }}
-          >
-            <p><strong>{`Archive ${archiveLanded.length === 1 ? archiveLanded[0] : `${archiveLanded.length} landed changes`}?`}</strong></p>
-            <p>Their specs are merged into openspec/specs, and the changes move to the archive.</p>
-            <div className="openspec-pipeline-stop-form-actions">
-              <button type="submit" className="openspec-pipeline-button openspec-pipeline-button--stop" data-testid="pipeline-confirm-archive-landed-yes">Archive</button>
-              <button type="button" className="openspec-pipeline-button" onClick={() => setArchiveLanded(undefined)}>Cancel</button>
-            </div>
-          </form>
-        </ModalLayer>
-      ) : null}
-      {confirmFor !== undefined && changeActions !== undefined ? (
-        <ModalLayer onCancel={() => setConfirmFor(undefined)}>
-        <ConfirmActionForm
-          action={confirmFor.action}
-          changeName={confirmFor.changeName}
-          onConfirm={() => {
-            changeActions.perform(confirmFor.action.id, confirmFor.changeName, { confirmed: true });
-            setConfirmFor(undefined);
-          }}
-          onCancel={() => setConfirmFor(undefined)}
-        />
-        </ModalLayer>
-      ) : null}
-      {stopFor !== undefined && ("runId" in stopFor ? sendRunControl !== undefined : onAskToStop !== undefined) ? (
-        <ModalLayer onCancel={() => setStopFor(undefined)}>
-        <StopReasonForm
-          changeName={stopFor.changeName}
-          onAsk={(reason) => {
-            if ("runId" in stopFor) {
-              sendRunControl?.({ changeName: stopFor.changeName, runId: stopFor.runId, kind: "stop", reason });
-            } else {
-              // Through the signed channel to a run held elsewhere. The card
-              // says it is waiting until the run's record shows the stop. It
-              // reads the runs again soon, and at each clock tick until the
-              // window a run has to read the request is past, so "has not
-              // read" rests on a reading taken after that window, never on
-              // one from before the run's renewal (found by 4.5's live stop).
-              const { changeName, instanceId } = stopFor;
-              onAskToStop?.({ changeName, instanceId, reason });
-              setStopsAsked((current) => new Map(current).set(instanceId, new Date().toISOString()));
-              const rereadUntil = Date.now() + STOP_REQUEST_READ_WITHIN_MS;
-              const reread = () => {
-                void Promise.all([others.read(), held.read()]);
-                if (Date.now() <= rereadUntil) setTimeout(reread, PIPELINE_CLOCK_INTERVAL_MS);
-              };
-              setTimeout(reread, RUN_CONTROL_REREAD_MS);
-            }
-            setStopFor(undefined);
-          }}
-          onCancel={() => setStopFor(undefined)}
-        />
-        </ModalLayer>
-      ) : null}
-      {chosen !== undefined ? (
-        <ModalLayer onCancel={() => setChosen(undefined)}>
-        <TaskPanel
-          selection={currentSelection(chosen)}
-          {...(taskActions !== undefined ? { actions: taskActions } : {})}
-          {...(copyText !== undefined ? { copyText } : {})}
-          onClose={() => setChosen(undefined)}
-          // What a press changed is read again at once, and the panel shows
-          // the task as it now reads.
-          onChanged={() => void Promise.all([local.read(), others.read(), ended.read()])}
-        />
-        </ModalLayer>
-      ) : null}
-    </div>
+        {report !== undefined ? <HintList hints={report.hints} {...(copyText !== undefined ? { copyText } : {})} /> : null}
+        {others.value ? <OtherDirectories survey={others.value} labels={labels} now={now} onCards={onCards} openCards={openCards} archivedOnMain={archivedOnDefault} drawsChanges={!onBoard} order={order} controls={controls} /> : null}
+        {others.error !== undefined
+          ? <p className="openspec-shell-note" data-testid="pipeline-survey-error">The other working directories could not be read: {others.error}</p>
+          : null}
+        {answerTarget !== undefined && !nothingLeftToAnswer && onAnswerQuestion !== undefined ? (
+          <ModalLayer onCancel={() => setAnswerFor(undefined)}>
+            <AnswerQuestionsForm
+              target={answerTarget}
+              onAnswer={(questionId, answer) => {
+                onAnswerQuestion({
+                  changeName: answerTarget.changeName,
+                  ...(answerTarget.runId !== undefined ? { runId: answerTarget.runId } : {}),
+                  workingDirectory: answerTarget.workingDirectory,
+                  questionId,
+                  answer,
+                });
+                setTimeout(() => void Promise.all([others.read(), held.read()]), RUN_CONTROL_REREAD_MS);
+              }}
+              onClose={() => setAnswerFor(undefined)}
+            />
+          </ModalLayer>
+        ) : null}
+        {archiveLanded !== undefined && onArchive !== undefined ? (
+          <ModalLayer onCancel={() => setArchiveLanded(undefined)}>
+            <form
+              role="dialog"
+              aria-modal="true"
+              aria-label="Archive Landed Changes"
+              className="openspec-pipeline-stop-form"
+              data-testid="pipeline-confirm-archive-landed"
+              onSubmit={(event) => {
+                event.preventDefault();
+                onArchive(archiveLanded);
+                setArchiveLanded(undefined);
+              }}
+            >
+              <p><strong>{`Archive ${archiveLanded.length === 1 ? archiveLanded[0] : `${archiveLanded.length} landed changes`}?`}</strong></p>
+              <p>Their specs are merged into openspec/specs, and the changes move to the archive.</p>
+              <div className="openspec-pipeline-stop-form-actions">
+                <button type="submit" className="openspec-pipeline-button openspec-pipeline-button--stop" data-testid="pipeline-confirm-archive-landed-yes">Archive</button>
+                <button type="button" className="openspec-pipeline-button" onClick={() => setArchiveLanded(undefined)}>Cancel</button>
+              </div>
+            </form>
+          </ModalLayer>
+        ) : null}
+        {confirmFor !== undefined && changeActions !== undefined ? (
+          <ModalLayer onCancel={() => setConfirmFor(undefined)}>
+            <ConfirmActionForm
+              action={confirmFor.action}
+              changeName={confirmFor.changeName}
+              onConfirm={() => {
+                changeActions.perform(confirmFor.action.id, confirmFor.changeName, { confirmed: true });
+                setConfirmFor(undefined);
+              }}
+              onCancel={() => setConfirmFor(undefined)}
+            />
+          </ModalLayer>
+        ) : null}
+        {stopFor !== undefined && ("runId" in stopFor ? sendRunControl !== undefined : onAskToStop !== undefined) ? (
+          <ModalLayer onCancel={() => setStopFor(undefined)}>
+            <StopReasonForm
+              changeName={stopFor.changeName}
+              onAsk={(reason) => {
+                if ("runId" in stopFor) {
+                  sendRunControl?.({ changeName: stopFor.changeName, runId: stopFor.runId, kind: "stop", reason });
+                } else {
+                  // Through the signed channel to a run held elsewhere. The card
+                  // says it is waiting until the run's record shows the stop. It
+                  // reads the runs again soon, and at each clock tick until the
+                  // window a run has to read the request is past, so "has not
+                  // read" rests on a reading taken after that window, never on
+                  // one from before the run's renewal (found by 4.5's live stop).
+                  const { changeName, instanceId } = stopFor;
+                  onAskToStop?.({ changeName, instanceId, reason });
+                  setStopsAsked((current) => new Map(current).set(instanceId, new Date().toISOString()));
+                  const rereadUntil = Date.now() + STOP_REQUEST_READ_WITHIN_MS;
+                  const reread = () => {
+                    void Promise.all([others.read(), held.read()]);
+                    if (Date.now() <= rereadUntil) setTimeout(reread, PIPELINE_CLOCK_INTERVAL_MS);
+                  };
+                  setTimeout(reread, RUN_CONTROL_REREAD_MS);
+                }
+                setStopFor(undefined);
+              }}
+              onCancel={() => setStopFor(undefined)}
+            />
+          </ModalLayer>
+        ) : null}
+        {chosen !== undefined ? (
+          <ModalLayer onCancel={() => setChosen(undefined)}>
+            <TaskPanel
+              selection={currentSelection(chosen)}
+              {...(taskActions !== undefined ? { actions: taskActions } : {})}
+              {...(copyText !== undefined ? { copyText } : {})}
+              onClose={() => setChosen(undefined)}
+              // What a press changed is read again at once, and the panel shows
+              // the task as it now reads.
+              onChanged={() => void Promise.all([local.read(), others.read(), ended.read()])}
+            />
+          </ModalLayer>
+        ) : null}
+      </div>
     </TaskCardContext.Provider>
   );
 }
@@ -1407,6 +1407,7 @@ function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, dire
                 actions={elsewhereActions.get(name) ?? []}
                 {...(controls.chooseAction !== undefined ? { onChooseAction: controls.chooseAction } : {})}
                 {...(controls.onStart !== undefined ? { onStart: controls.onStart } : {})}
+                {...(controls.onViewLogs !== undefined ? { onViewLogs: controls.onViewLogs } : {})}
               />
             );
           }
@@ -1627,68 +1628,68 @@ function Picture({ layout, testIdPrefix, laneHeading, renderNode }: {
 
   return (
     <>
-    {/* Its own scroller, so a wide repository never makes the page body
+      {/* Its own scroller, so a wide repository never makes the page body
         scroll sideways — the rule the shell's tables already follow. */}
-    <div className="openspec-pipeline-scroll">
-      <div
-        className="openspec-pipeline-picture"
-        data-testid={`${testIdPrefix}picture`}
-        style={{ "--pipeline-w": layout.width, "--pipeline-h": layout.height } as Record<string, number>}
-      >
-        <Edges edges={layout.edges} width={layout.width} height={layout.height} testIdPrefix={testIdPrefix} />
-        {byColumn.map((nodes, column) => {
-          // The board dresses its columns: a stage's picture and its own
-          // colour beside its word, and how many stand in it
-          // (the-board-wears-its-stages). Absent in the arrangement by
-          // declared order, whose columns are a sequence rather than six
-          // named places.
-          const look = layout.laneLooks?.[column];
-          const x = column * (NODE_WIDTH + COLUMN_GAP);
-          return (
-            <div className={`openspec-pipeline-lane${look ? " openspec-pipeline-stage-lane" : ""}`} key={column}>
-              {/* A rule between stages, never before the first. */}
-              {look && column > 0 ? (
-                <div
-                  className="openspec-pipeline-stage-rule"
-                  aria-hidden="true"
-                  style={{ "--x": x - COLUMN_GAP / 2 } as Record<string, number>}
-                />
-              ) : null}
-              {/* Numbered where the arrangement is the declared order: the
+      <div className="openspec-pipeline-scroll">
+        <div
+          className="openspec-pipeline-picture"
+          data-testid={`${testIdPrefix}picture`}
+          style={{ "--pipeline-w": layout.width, "--pipeline-h": layout.height } as Record<string, number>}
+        >
+          <Edges edges={layout.edges} width={layout.width} height={layout.height} testIdPrefix={testIdPrefix} />
+          {byColumn.map((nodes, column) => {
+            // The board dresses its columns: a stage's picture and its own
+            // colour beside its word, and how many stand in it
+            // (the-board-wears-its-stages). Absent in the arrangement by
+            // declared order, whose columns are a sequence rather than six
+            // named places.
+            const look = layout.laneLooks?.[column];
+            const x = column * (NODE_WIDTH + COLUMN_GAP);
+            return (
+              <div className={`openspec-pipeline-lane${look ? " openspec-pipeline-stage-lane" : ""}`} key={column}>
+                {/* A rule between stages, never before the first. */}
+                {look && column > 0 ? (
+                  <div
+                    className="openspec-pipeline-stage-rule"
+                    aria-hidden="true"
+                    style={{ "--x": x - COLUMN_GAP / 2 } as Record<string, number>}
+                  />
+                ) : null}
+                {/* Numbered where the arrangement is the declared order: the
                   repository states an order there, and each card says what
                   it waits on. The board heads its columns with the stages
                   core names (the-board-shows-the-stages). Placed by the same
                   units as the cards, in the strip core leaves above them. */}
-              <Heading
-                className={`openspec-pipeline-lane-heading${look ? " openspec-pipeline-stage-heading" : ""}`}
-                style={{
-                  "--x": x,
-                  "--w": NODE_WIDTH,
-                  "--h": LANE_HEADING,
-                  ...(look
-                    ? { "--stage-colour": `var(--${look.token})`, "--stage-ink": `var(--${look.token}-ink)` }
-                    : {}),
-                } as Record<string, number | string>}
-              >
-                {look ? <span className="openspec-pipeline-stage-mark"><Icon meaning={look.icon} /></span> : null}
-                <span className={look ? "openspec-pipeline-stage-word" : undefined}>
-                  {layout.lanes?.[column] ?? describeLane(column)}
-                </span>
-                {/* Said in words for a reader who hears the heading, and
-                    shown as a figure for one who scans it. */}
-                {look ? (
-                  <span className="openspec-pipeline-stage-count" data-testid={`${testIdPrefix}stage-count-${column}`}>
-                    <span className="openspec-visually-hidden">{`, ${nodes.length} ${nodes.length === 1 ? "change" : "changes"}`}</span>
-                    <span aria-hidden="true">{nodes.length}</span>
+                <Heading
+                  className={`openspec-pipeline-lane-heading${look ? " openspec-pipeline-stage-heading" : ""}`}
+                  style={{
+                    "--x": x,
+                    "--w": NODE_WIDTH,
+                    "--h": LANE_HEADING,
+                    ...(look
+                      ? { "--stage-colour": `var(--${look.token})`, "--stage-ink": `var(--${look.token}-ink)` }
+                      : {}),
+                  } as Record<string, number | string>}
+                >
+                  {look ? <span className="openspec-pipeline-stage-mark"><Icon meaning={look.icon} /></span> : null}
+                  <span className={look ? "openspec-pipeline-stage-word" : undefined}>
+                    {layout.lanes?.[column] ?? describeLane(column)}
                   </span>
-                ) : null}
-              </Heading>
-              {nodes.map(renderNode)}
-            </div>
-          );
-        })}
+                  {/* Said in words for a reader who hears the heading, and
+                    shown as a figure for one who scans it. */}
+                  {look ? (
+                    <span className="openspec-pipeline-stage-count" data-testid={`${testIdPrefix}stage-count-${column}`}>
+                      <span className="openspec-visually-hidden">{`, ${nodes.length} ${nodes.length === 1 ? "change" : "changes"}`}</span>
+                      <span aria-hidden="true">{nodes.length}</span>
+                    </span>
+                  ) : null}
+                </Heading>
+                {nodes.map(renderNode)}
+              </div>
+            );
+          })}
+        </div>
       </div>
-    </div>
     </>
   );
 }
@@ -2216,7 +2217,7 @@ function OtherDirectories({ survey, labels, now, onCards, openCards, archivedOnM
   survey: WorktreeSurvey;
   /** A change's actions, for the card of its own worktree drawn here, as
    * on the board (a-change-is-committed-where-it-is-made). */
-  controls?: Pick<CardControlHandlers, "actions" | "chooseAction" | "onStart">;
+  controls?: Pick<CardControlHandlers, "actions" | "chooseAction" | "onStart" | "onViewLogs">;
   order: ChangeOrder;
   labels: Map<string, string>;
   now: Date;
@@ -2261,7 +2262,7 @@ function OtherDirectories({ survey, labels, now, onCards, openCards, archivedOnM
 
 function OtherDirectory({ directory, index, labels, now, onCards, openCards, archivedOnMain, drawsChanges, order, controls }: {
   directory: SurveyedDirectory;
-  controls?: Pick<CardControlHandlers, "actions" | "chooseAction" | "onStart">;
+  controls?: Pick<CardControlHandlers, "actions" | "chooseAction" | "onStart" | "onViewLogs">;
   order: ChangeOrder;
   index: number;
   labels: Map<string, string>;
@@ -2347,7 +2348,7 @@ function foreignDetails(
 
 function ForeignChanges({ directory, testId, labels, openCards, archivedOnMain, order, controls }: {
   directory: Extract<SurveyedDirectory, { readable: true }>;
-  controls?: Pick<CardControlHandlers, "actions" | "chooseAction" | "onStart">;
+  controls?: Pick<CardControlHandlers, "actions" | "chooseAction" | "onStart" | "onViewLogs">;
   order: ChangeOrder;
   testId: string;
   labels: Map<string, string>;
@@ -2408,6 +2409,7 @@ function ForeignChanges({ directory, testId, labels, openCards, archivedOnMain, 
             actions={actionsOf.get(node.change.changeName) ?? []}
             {...(controls?.chooseAction !== undefined ? { onChooseAction: controls.chooseAction } : {})}
             {...(controls?.onStart !== undefined ? { onStart: controls.onStart } : {})}
+            {...(controls?.onViewLogs !== undefined ? { onViewLogs: controls.onViewLogs } : {})}
           />
         )}
       />
@@ -2440,7 +2442,7 @@ function elsewhereDetails(
  * that directory is the change's own worktree, which its card works
  * (ADR 0026 amended 2026-10-05, a-card-works-its-own-tasks). Then its name
  * opens the change there, and its rows and list carry their actions. */
-function DirectoryCard({ node, change, directory, details, testId, open, onToggle, actions, onChooseAction, onStart }: {
+function DirectoryCard({ node, change, directory, details, testId, open, onToggle, actions, onChooseAction, onStart, onViewLogs }: {
   node: ChangeLayoutNode;
   change: SurveyedChange | undefined;
   directory: Extract<SurveyedDirectory, { readable: true }>;
@@ -2455,6 +2457,8 @@ function DirectoryCard({ node, change, directory, details, testId, open, onToggl
   /** Starts the change, on a card of its own worktree: the run runs there
    * (a-change-is-committed-where-it-is-made). */
   onStart?: (changeName: string, directory?: string) => void;
+  /** Shows the change's run logs, on a card of its own worktree, where they are kept. */
+  onViewLogs?: (changeName: string) => void;
 }) {
   const taskCards = useContext(TaskCardContext);
   const name = node.change.changeName;
@@ -2499,6 +2503,11 @@ function DirectoryCard({ node, change, directory, details, testId, open, onToggl
             : <button type="button" className="openspec-pipeline-button openspec-pipeline-button--forward" data-testid={`${testId}-start`} aria-label={`Run Change ${name}`} title={`Run ${name} in ${directory.label}`} onClick={() => onStart(name, directory.path)}><Icon meaning="run" />Run Change...</button>}
         </div>
       ) : null}
+      {own && onViewLogs !== undefined ? (
+        <div className="openspec-pipeline-node-controls" data-testid={`${testId}-logs-controls`}>
+          <button type="button" className="openspec-pipeline-button" data-testid={`${testId}-logs`} aria-label={`Show Logs ${name}`} onClick={() => onViewLogs(name)}><Icon meaning="log" />Show Logs</button>
+        </div>
+      ) : null}
       {counted ? <Progress done={change.tasksDone} total={change.tasksTotal} /> : null}
       <CardDetails details={details} />
       {rows.length > 0 ? (
@@ -2517,8 +2526,9 @@ function DirectoryCard({ node, change, directory, details, testId, open, onToggl
 }
 
 /** A change of another working directory, drawn on this board. */
-function ElsewhereNode({ node, change, where, labels, archivedOnMain, stage, now, testId, open, onToggle, actions, onChooseAction, onStart }: {
+function ElsewhereNode({ node, change, where, labels, archivedOnMain, stage, now, testId, open, onToggle, actions, onChooseAction, onStart, onViewLogs }: {
   onStart?: (changeName: string, directory?: string) => void;
+  onViewLogs?: (changeName: string) => void;
   node: ChangeLayoutNode;
   change: SurveyedChange;
   where: Extract<SurveyedDirectory, { readable: true }>;
@@ -2533,13 +2543,14 @@ function ElsewhereNode({ node, change, where, labels, archivedOnMain, stage, now
   onChooseAction?: (action: ChangeAction, changeName: string) => void;
 }) {
   const details = elsewhereDetails(change, where, labels, archivedOnMain, stage, now);
-  return <DirectoryCard node={node} change={change} directory={where} details={details} testId={testId} open={open} onToggle={onToggle} actions={actions} {...(onChooseAction !== undefined ? { onChooseAction } : {})} {...(onStart !== undefined ? { onStart } : {})} />;
+  return <DirectoryCard node={node} change={change} directory={where} details={details} testId={testId} open={open} onToggle={onToggle} actions={actions} {...(onChooseAction !== undefined ? { onChooseAction } : {})} {...(onStart !== undefined ? { onStart } : {})} {...(onViewLogs !== undefined ? { onViewLogs } : {})} />;
 }
 
 /** A change of another working directory, drawn in that directory's own
  * picture. */
-function ForeignNode({ node, change, directory, labels, testId, open, onToggle, archivedOnMain, actions, onChooseAction, onStart }: {
+function ForeignNode({ node, change, directory, labels, testId, open, onToggle, archivedOnMain, actions, onChooseAction, onStart, onViewLogs }: {
   onStart?: (changeName: string, directory?: string) => void;
+  onViewLogs?: (changeName: string) => void;
   node: ChangeLayoutNode;
   actions?: readonly ChangeActionState[];
   onChooseAction?: (action: ChangeAction, changeName: string) => void;
@@ -2552,5 +2563,5 @@ function ForeignNode({ node, change, directory, labels, testId, open, onToggle, 
   archivedOnMain: ReadonlySet<string>;
 }) {
   const details = [...foreignDetails(change, node.change.blockers, labels, archivedOnMain), ...notOnServerDetails(change, directory)];
-  return <DirectoryCard node={node} change={change} directory={directory} details={details} testId={testId} open={open} onToggle={onToggle} actions={actions ?? []} {...(onChooseAction !== undefined ? { onChooseAction } : {})} {...(onStart !== undefined ? { onStart } : {})} />;
+  return <DirectoryCard node={node} change={change} directory={directory} details={details} testId={testId} open={open} onToggle={onToggle} actions={actions ?? []} {...(onChooseAction !== undefined ? { onChooseAction } : {})} {...(onStart !== undefined ? { onStart } : {})} {...(onViewLogs !== undefined ? { onViewLogs } : {})} />;
 }

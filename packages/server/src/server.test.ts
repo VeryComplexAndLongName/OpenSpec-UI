@@ -1770,6 +1770,19 @@ describe("server — REST /api/status", () => {
       expect(escaping.status).toBe(400);
       expect(missing.status).toBe(404);
     });
+
+    // a-change-shows-the-logs-of-its-own-worktree: the change is named, never
+    // a path; a change with no worktree of its own reads the workspace root.
+    it("reads a named change's log from the workspace root where it has no worktree, and refuses a change that is not a name", async () => {
+      const cwd = await createTempWorkspace();
+      await createFileRunLogs(cwd).open({ runId: "run-c", agent: "claude-cli", kind: "implement", cwd, changeName: "demo" }).end({ outcome: "completed" });
+
+      const named = await fetch(`${baseUrl}/api/run-logs/read`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ cwd, runId: "run-c", changeName: "demo" }) });
+      const bad = await fetch(`${baseUrl}/api/run-logs/read`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ cwd, runId: "run-c", changeName: 5 }) });
+
+      expect(named.status).toBe(200);
+      expect(bad.status).toBe(400);
+    });
   });
 
   describe("change last runs (a-card-says-what-its-change-is-doing)", () => {
@@ -1994,49 +2007,49 @@ describe("server — REST /api/status", () => {
     expect(await readFile(journal.filePath, "utf8")).toBe(futureJournal);
   });
 
-// main-catches-up-with-what-landed 3.1: the two routes, over a workspace
-// that is not a git repository at all - which is the honest shape of "the
-// repository cannot answer".
-describe("the drift between a checkout and its remote", () => {
-  it("answers null where the repository cannot say", async () => {
-    const cwd = await createTempWorkspace();
+  // main-catches-up-with-what-landed 3.1: the two routes, over a workspace
+  // that is not a git repository at all - which is the honest shape of "the
+  // repository cannot answer".
+  describe("the drift between a checkout and its remote", () => {
+    it("answers null where the repository cannot say", async () => {
+      const cwd = await createTempWorkspace();
 
-    const response = await fetch(`${baseUrl}/api/main-drift`, {
-      method: "POST",
-      headers: JSON_HEADERS,
-      body: JSON.stringify({ cwd }),
-    });
-    const body = (await response.json()) as { drift: unknown };
+      const response = await fetch(`${baseUrl}/api/main-drift`, {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ cwd }),
+      });
+      const body = (await response.json()) as { drift: unknown };
 
-    expect(response.status).toBe(200);
-    expect(body.drift).toBeNull();
-  });
-
-  it("refuses a body with no cwd", async () => {
-    const response = await fetch(`${baseUrl}/api/main-drift`, {
-      method: "POST",
-      headers: JSON_HEADERS,
-      body: JSON.stringify({}),
+      expect(response.status).toBe(200);
+      expect(body.drift).toBeNull();
     });
 
-    expect(response.status).toBe(400);
-  });
+    it("refuses a body with no cwd", async () => {
+      const response = await fetch(`${baseUrl}/api/main-drift`, {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({}),
+      });
 
-  it("answers a catch-up with a refusal rather than a failure", async () => {
-    const cwd = await createTempWorkspace();
-
-    const response = await fetch(`${baseUrl}/api/main-drift/catch-up`, {
-      method: "POST",
-      headers: JSON_HEADERS,
-      body: JSON.stringify({ cwd }),
+      expect(response.status).toBe(400);
     });
-    const body = (await response.json()) as { ok: boolean; why?: string };
 
-    expect(response.status).toBe(200);
-    expect(body.ok).toBe(false);
-    expect(typeof body.why).toBe("string");
+    it("answers a catch-up with a refusal rather than a failure", async () => {
+      const cwd = await createTempWorkspace();
+
+      const response = await fetch(`${baseUrl}/api/main-drift/catch-up`, {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ cwd }),
+      });
+      const body = (await response.json()) as { ok: boolean; why?: string };
+
+      expect(response.status).toBe(200);
+      expect(body.ok).toBe(false);
+      expect(typeof body.why).toBe("string");
+    });
   });
-});
 });
 
 describe("server — WebSocket /api/ws", () => {
