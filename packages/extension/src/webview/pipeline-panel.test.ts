@@ -321,6 +321,22 @@ describe("PipelinePanel — answering the view", () => {
     expect(post).toHaveBeenCalledWith(expect.objectContaining({ id: "g:3", ok: false, error: "no log is kept for run never-ran" }));
   });
 
+  // a-change-shows-the-logs-of-its-own-worktree: reading one run names its
+  // change, so it is read where the list found it; a path is never taken.
+  it("reads one run's log for the change a request names, and refuses a change name that is not a name", async () => {
+    const { pipeline } = createPipelinePanel();
+    pipeline.show();
+
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "n:0", op: "pipeline/run-log", args: { runId: "never-ran", changeName: "alpha" } });
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "n:1", op: "pipeline/run-log", args: { runId: "never-ran", changeName: "" } });
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "n:2", op: "pipeline/run-log", args: { runId: "never-ran", changeName: 7 } });
+
+    const post = created[0]!.webview.postMessage;
+    expect(post).toHaveBeenCalledWith(expect.objectContaining({ id: "n:0", ok: false, error: "no log is kept for run never-ran" }));
+    expect(post).toHaveBeenCalledWith(expect.objectContaining({ id: "n:1", ok: false, error: "a change name, when given, must be a non-empty string" }));
+    expect(post).toHaveBeenCalledWith(expect.objectContaining({ id: "n:2", ok: false, error: "a change name, when given, must be a non-empty string" }));
+  });
+
   // a-card-works-its-own-tasks 3.2: a card's task controls, refused by
   // shape before anything is looked up, and answered with core's refusal
   // where the change has no worktree of its own.

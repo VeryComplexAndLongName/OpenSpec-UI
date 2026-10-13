@@ -146,7 +146,7 @@ function PipelineApp() {
   // (a-change-shows-its-run-logs).
   const [logsFor, setLogsFor] = useState<string | null>(null);
   const logsLoad = useCallback(() => bridge.request<RunLogSummary[]>("pipeline/run-logs", { changeName: logsFor ?? "" }), [bridge, logsFor]);
-  const logsRead = useCallback((runId: string) => bridge.request<RunLogRecord[]>("pipeline/run-log", { runId }), [bridge]);
+  const logsRead = useCallback((runId: string) => bridge.request<RunLogRecord[]>("pipeline/run-log", { runId, ...(logsFor !== null ? { changeName: logsFor } : {}) }), [bridge, logsFor]);
   // The zoom and the open cards, in the webview's own state: the panel does
   // not keep its page while hidden, so a view that kept them alone would
   // reset every time (a-card-opens-to-its-tasks). The view guards both.

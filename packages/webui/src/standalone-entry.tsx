@@ -600,9 +600,9 @@ function StandaloneApp() {
     void askRunToStopRequest(apiFetch, cwd, request.instanceId, request.reason).catch(() => undefined);
   }, [cwd]);
   // What the folded row presses: the changes it named, archived one after
-   // another by the server, and the readings taken again so the picture
-   // stops drawing what is now in the archive
-   // (what-is-finished-is-tidied-away).
+  // another by the server, and the readings taken again so the picture
+  // stops drawing what is now in the archive
+  // (what-is-finished-is-tidied-away).
   const pipelineArchive = useCallback((changeNames: string[]) => {
     void (async () => {
       try {
@@ -681,7 +681,7 @@ function StandaloneApp() {
     },
   }), []);
   const logsLoad = useCallback(() => listChangeRunLogs(apiFetch, cwd, logsFor ?? ""), [cwd, logsFor]);
-  const logsRead = useCallback((runId: string) => readChangeRunLog(apiFetch, cwd, runId), [cwd]);
+  const logsRead = useCallback((runId: string) => readChangeRunLog(apiFetch, cwd, runId, logsFor ?? undefined), [cwd, logsFor]);
   // `handleRunWithHarness` is a hoisted declaration further down and reads
   // `cwd` itself, as `loadChangeEditor` does for `openChangeInEditor` below.
   const pipelineStart = useCallback((changeName: string, directory?: string) => {
@@ -2007,1006 +2007,1006 @@ function StandaloneApp() {
       </div> : null}
 
       <div className="openspec-page">
-      {isStandaloneHost && pageHead ? (
-        <PageHead
-          head={pageHead}
-          action={activeTab === "overview" ? (
-            <button className="button openspec-button-quiet" type="button" data-testid="summary-refresh" onClick={handleLoadOverview} disabled={overviewLoading || cwd.trim().length === 0}>
-              <Icon meaning="refresh" />Refresh Summary
-            </button>
-          ) : activeTab === "harness-settings" ? (
-            <button
-              className="button openspec-button-quiet"
-              type="button"
-              data-testid="harness-settings-file"
-              aria-pressed={harnessFileShown}
-              onClick={() => setHarnessFileShown((shown) => !shown)}
-              disabled={cwd.trim().length === 0}
-            >
-              <Icon meaning="open" />agent-harness.json
-            </button>
-          ) : undefined}
-        />
-      ) : null}
+        {isStandaloneHost && pageHead ? (
+          <PageHead
+            head={pageHead}
+            action={activeTab === "overview" ? (
+              <button className="button openspec-button-quiet" type="button" data-testid="summary-refresh" onClick={handleLoadOverview} disabled={overviewLoading || cwd.trim().length === 0}>
+                <Icon meaning="refresh" />Refresh Summary
+              </button>
+            ) : activeTab === "harness-settings" ? (
+              <button
+                className="button openspec-button-quiet"
+                type="button"
+                data-testid="harness-settings-file"
+                aria-pressed={harnessFileShown}
+                onClick={() => setHarnessFileShown((shown) => !shown)}
+                disabled={cwd.trim().length === 0}
+              >
+                <Icon meaning="open" />agent-harness.json
+              </button>
+            ) : undefined}
+          />
+        ) : null}
 
-      {/* Outside the tabs, because a schedule moves a person between
+        {/* Outside the tabs, because a schedule moves a person between
           them: a sentence rendered only inside the change editor was
           unreadable to whoever it had just moved somewhere else, and
           unannounced to a screen reader either way.
           See a-schedule-keeps-its-promise. */}
-      <div role="status" aria-live="polite" data-testid="schedule-status">
-        {scheduleMessage ? <p className="openspec-shell-note">{scheduleMessage}</p> : null}
-      </div>
+        <div role="status" aria-live="polite" data-testid="schedule-status">
+          {scheduleMessage ? <p className="openspec-shell-note">{scheduleMessage}</p> : null}
+        </div>
 
-      <Tabs tabs={visibleTabs} activeTab={activeTab} onSelect={setActiveTab} busy={busyTabs(shownReadings)} />
+        <Tabs tabs={visibleTabs} activeTab={activeTab} onSelect={setActiveTab} busy={busyTabs(shownReadings)} />
 
-      <TabPanel id="run-a-command" activeTab={activeTab} lazy>
-      {/* The shared components (the-remaining-tabs-wear-metro): where the
+        <TabPanel id="run-a-command" activeTab={activeTab} lazy>
+          {/* The shared components (the-remaining-tabs-wear-metro): where the
           work happens in one panel, initialization in its own, and the run
           itself below them. */}
-      <div className="openspec-run-screen">
-        <section className="openspec-panel">
-          <div className="openspec-panel-head">
-            <h2>Where the work happens</h2>
-            <span className="openspec-panel-head-note">the workspace every command runs in</span>
-          </div>
-          <div className="openspec-panel-body">
-            <div className="openspec-shell-grid">
-              <label className="openspec-shell-field">
-                Workspace root (cwd)
-                <input
-                  type="text"
-                  value={cwd}
-                  onChange={(e) => handleCwdChange(e.target.value)}
-                  onBlur={() => void handleRootBlur()}
-                  placeholder="C:\\path\\to\\repo"
-                />
-              </label>
-              <label className="openspec-shell-field">
-                Change directory
-                <input
-                  type="text"
-                  value={changeDir}
-                  onChange={(e) => setChangeDir(e.target.value)}
-                  placeholder="C:\\path\\to\\repo\\openspec\\changes"
-                />
-              </label>
-            </div>
-          </div>
-          <p className="openspec-panel-fine">
-            Changing <strong>Workspace root (cwd)</strong> auto-fills <strong>Change directory</strong> as
-            <code> openspec/changes</code>.
-            {workspaceRootSyncError ? ` Workspace root sync failed: ${workspaceRootSyncError}` : ""}
-          </p>
-        </section>
+          <div className="openspec-run-screen">
+            <section className="openspec-panel">
+              <div className="openspec-panel-head">
+                <h2>Where the work happens</h2>
+                <span className="openspec-panel-head-note">the workspace every command runs in</span>
+              </div>
+              <div className="openspec-panel-body">
+                <div className="openspec-shell-grid">
+                  <label className="openspec-shell-field">
+                    Workspace root (cwd)
+                    <input
+                      type="text"
+                      value={cwd}
+                      onChange={(e) => handleCwdChange(e.target.value)}
+                      onBlur={() => void handleRootBlur()}
+                      placeholder="C:\\path\\to\\repo"
+                    />
+                  </label>
+                  <label className="openspec-shell-field">
+                    Change directory
+                    <input
+                      type="text"
+                      value={changeDir}
+                      onChange={(e) => setChangeDir(e.target.value)}
+                      placeholder="C:\\path\\to\\repo\\openspec\\changes"
+                    />
+                  </label>
+                </div>
+              </div>
+              <p className="openspec-panel-fine">
+                Changing <strong>Workspace root (cwd)</strong> auto-fills <strong>Change directory</strong> as
+                <code> openspec/changes</code>.
+                {workspaceRootSyncError ? ` Workspace root sync failed: ${workspaceRootSyncError}` : ""}
+              </p>
+            </section>
 
-        {canInitialize ? (
-          <section className="openspec-panel">
-            <div className="openspec-panel-head">
-              <h2>This workspace is not initialized</h2>
-              <span className="openspec-panel-head-note">OpenSpec initialization artifacts were not found</span>
-            </div>
-            <div className="openspec-panel-body">
-              <label className="openspec-shell-field">
-                AI tools for OpenSpec init
-                <select
-                  multiple
-                  size={8}
-                  value={initTools}
-                  onChange={(e) => {
-                    const selected = Array.from(e.currentTarget.selectedOptions).map((option) => option.value);
-                    setInitTools(selected);
-                  }}
-                >
-                  {SUPPORTED_INIT_TOOLS.map((tool) => (
-                    <option key={tool} value={tool}>
-                      {tool}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="openspec-check-row">
-                <input
-                  type="checkbox"
-                  data-testid="init-append-workflow-rules"
-                  checked={initAppendRules}
-                  onChange={(e) => setInitAppendRules(e.currentTarget.checked)}
-                />
-                <span>Add how work is done here (each change in its own working directory, who does which stage) to the end of an existing CLAUDE.md or AGENTS.md</span>
-              </label>
-              <label className="openspec-check-row">
-                <input
-                  type="checkbox"
-                  data-testid="init-commit-setup"
-                  checked={initCommitSetup}
-                  onChange={(e) => setInitCommitSetup(e.currentTarget.checked)}
-                />
-                <span>Commit the OpenSpec setup to main and push it, so each change can be cut from origin/main</span>
-              </label>
-            </div>
-            <div className="openspec-panel-foot">
-              <button className="button primary" type="button" onClick={handleInitializeOpenSpec} disabled={initLoading || cwd.trim().length === 0}>
-                {initLoading ? "Initializing..." : "Initialize Workspace"}
-              </button>
-              {initMessage ? <span className="openspec-shell-note">{initMessage}</span> : null}
-            </div>
-          </section>
-        ) : null}
+            {canInitialize ? (
+              <section className="openspec-panel">
+                <div className="openspec-panel-head">
+                  <h2>This workspace is not initialized</h2>
+                  <span className="openspec-panel-head-note">OpenSpec initialization artifacts were not found</span>
+                </div>
+                <div className="openspec-panel-body">
+                  <label className="openspec-shell-field">
+                    AI tools for OpenSpec init
+                    <select
+                      multiple
+                      size={8}
+                      value={initTools}
+                      onChange={(e) => {
+                        const selected = Array.from(e.currentTarget.selectedOptions).map((option) => option.value);
+                        setInitTools(selected);
+                      }}
+                    >
+                      {SUPPORTED_INIT_TOOLS.map((tool) => (
+                        <option key={tool} value={tool}>
+                          {tool}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="openspec-check-row">
+                    <input
+                      type="checkbox"
+                      data-testid="init-append-workflow-rules"
+                      checked={initAppendRules}
+                      onChange={(e) => setInitAppendRules(e.currentTarget.checked)}
+                    />
+                    <span>Add how work is done here (each change in its own working directory, who does which stage) to the end of an existing CLAUDE.md or AGENTS.md</span>
+                  </label>
+                  <label className="openspec-check-row">
+                    <input
+                      type="checkbox"
+                      data-testid="init-commit-setup"
+                      checked={initCommitSetup}
+                      onChange={(e) => setInitCommitSetup(e.currentTarget.checked)}
+                    />
+                    <span>Commit the OpenSpec setup to main and push it, so each change can be cut from origin/main</span>
+                  </label>
+                </div>
+                <div className="openspec-panel-foot">
+                  <button className="button primary" type="button" onClick={handleInitializeOpenSpec} disabled={initLoading || cwd.trim().length === 0}>
+                    {initLoading ? "Initializing..." : "Initialize Workspace"}
+                  </button>
+                  {initMessage ? <span className="openspec-shell-note">{initMessage}</span> : null}
+                </div>
+              </section>
+            ) : null}
 
-        {cwd.trim().length > 0 && changeDir.trim().length > 0 ? (
-          <AiPanel
-            transport={transport}
-            cwd={cwd}
-            changeDir={changeDir}
-            detectedAgents={detectedAgents}
-            stepAgents={stepAgents}
-            {...(runStageKind !== undefined ? { initialCommandKind: runStageKind } : {})}
-            onRefreshAgents={() => void handleRefreshAgents()}
-            onRunTerminal={isStandaloneHost ? handleRunTerminal : undefined}
-          />
-        ) : (
-          <section className="openspec-panel">
-            <div className="openspec-panel-head"><h2>Run a command</h2></div>
-            <p className="openspec-panel-body openspec-panel-empty">Enter cwd and change directory to enable the AI panel.</p>
-          </section>
+            {cwd.trim().length > 0 && changeDir.trim().length > 0 ? (
+              <AiPanel
+                transport={transport}
+                cwd={cwd}
+                changeDir={changeDir}
+                detectedAgents={detectedAgents}
+                stepAgents={stepAgents}
+                {...(runStageKind !== undefined ? { initialCommandKind: runStageKind } : {})}
+                onRefreshAgents={() => void handleRefreshAgents()}
+                onRunTerminal={isStandaloneHost ? handleRunTerminal : undefined}
+              />
+            ) : (
+              <section className="openspec-panel">
+                <div className="openspec-panel-head"><h2>Run a command</h2></div>
+                <p className="openspec-panel-body openspec-panel-empty">Enter cwd and change directory to enable the AI panel.</p>
+              </section>
+            )}
+          </div>
+        </TabPanel>
+
+        {visibleTabIds.has("processes") && (
+          <TabPanel id="processes" activeTab={activeTab} lazy>
+            <PanelStatus reading={shownReadings["processes"]} testId="tab-reading-processes" />
+            <BusyFieldset busy={shownReadings["processes"] !== null}>
+              <section className="openspec-shell-panel">
+                {cwd.trim().length > 0 ? <ProcessesView api={processesApi} changeProgress={changeProgress} onReadingChange={setProcessesReading} /> : <p>Enter workspace root to load processes.</p>}
+              </section>
+            </BusyFieldset>
+          </TabPanel>
         )}
-      </div>
-      </TabPanel>
 
-      {visibleTabIds.has("processes") && (
-      <TabPanel id="processes" activeTab={activeTab} lazy>
-      <PanelStatus reading={shownReadings["processes"]} testId="tab-reading-processes" />
-      <BusyFieldset busy={shownReadings["processes"] !== null}>
-      <section className="openspec-shell-panel">
-        {cwd.trim().length > 0 ? <ProcessesView api={processesApi} changeProgress={changeProgress} onReadingChange={setProcessesReading} /> : <p>Enter workspace root to load processes.</p>}
-      </section>
-      </BusyFieldset>
-      </TabPanel>
-      )}
-
-      {visibleTabIds.has("diff-preview") && (
-      <TabPanel id="diff-preview" activeTab={activeTab} lazy>
-      <PanelStatus reading={shownReadings["diff-preview"]} testId="tab-reading-diff-preview" />
-      <BusyFieldset busy={shownReadings["diff-preview"] !== null}>
-      {/* The shared components, as every redrawn tab uses them
+        {visibleTabIds.has("diff-preview") && (
+          <TabPanel id="diff-preview" activeTab={activeTab} lazy>
+            <PanelStatus reading={shownReadings["diff-preview"]} testId="tab-reading-diff-preview" />
+            <BusyFieldset busy={shownReadings["diff-preview"] !== null}>
+              {/* The shared components, as every redrawn tab uses them
           (the-remaining-tabs-wear-metro): the tab's controls in one
           toolbar, and what it read in a panel that names it. */}
-      <div className="openspec-diff-screen">
-        <div className="openspec-controls" data-testid="diff-toolbar">
-          <select
-            aria-label="Change to diff"
-            data-testid="change-diff-picker"
-            value={diffChangeName}
-            onChange={(e) => void loadDiff(e.target.value)}
-            disabled={(overview?.changes.length ?? 0) === 0}
-          >
-            <option value="">Select change</option>
-            {(overview?.changes ?? []).map((change) => (
-              <option key={change.name} value={change.name}>{change.name}</option>
-            ))}
-          </select>
-          <button className="button"
-            type="button"
-            onClick={() => void loadDiff(diffChangeName)}
-            disabled={diffLoading || diffChangeName.length === 0}
-          >
-            <Icon meaning="refresh" />Refresh Diff
-          </button>
-          {diffError ? <span className="openspec-shell-note" data-testid="change-diff-error">{diffError}</span> : null}
-        </div>
-
-        <section className="openspec-panel" data-testid="change-diff-panel">
-          <div className="openspec-panel-head">
-            <h2>{diffChangeName.length > 0 ? diffChangeName : "Uncommitted work"}</h2>
-            {diffAnswer && diffAnswer.diff.length > 0 ? (
-              <span className="openspec-panel-head-note" data-testid="change-diff-files">
-                {diffAnswer.files.length === 1 ? "1 file" : `${diffAnswer.files.length} files`} changed
-              </span>
-            ) : null}
-          </div>
-          {diffAnswer ? (
-            diffAnswer.diff.length === 0 ? (
-              <p className="openspec-panel-body openspec-panel-empty" data-testid="change-diff-empty">This change has nothing uncommitted.</p>
-            ) : (
-              <>
-                {/* The files the answer already carries, which the tab
-                    only counted before. */}
-                <table className="table openspec-table" data-testid="change-diff-file-table">
-                  <thead>
-                    <tr><th scope="col">File</th></tr>
-                  </thead>
-                  <tbody>
-                    {diffAnswer.files.map((file) => <tr key={file}><td>{file}</td></tr>)}
-                  </tbody>
-                </table>
-                <div className="openspec-panel-body">
-                  <ChangeDiff unified={diffAnswer.diff} />
+              <div className="openspec-diff-screen">
+                <div className="openspec-controls" data-testid="diff-toolbar">
+                  <select
+                    aria-label="Change to diff"
+                    data-testid="change-diff-picker"
+                    value={diffChangeName}
+                    onChange={(e) => void loadDiff(e.target.value)}
+                    disabled={(overview?.changes.length ?? 0) === 0}
+                  >
+                    <option value="">Select change</option>
+                    {(overview?.changes ?? []).map((change) => (
+                      <option key={change.name} value={change.name}>{change.name}</option>
+                    ))}
+                  </select>
+                  <button className="button"
+                    type="button"
+                    onClick={() => void loadDiff(diffChangeName)}
+                    disabled={diffLoading || diffChangeName.length === 0}
+                  >
+                    <Icon meaning="refresh" />Refresh Diff
+                  </button>
+                  {diffError ? <span className="openspec-shell-note" data-testid="change-diff-error">{diffError}</span> : null}
                 </div>
-                {diffAnswer.truncated ? (
-                  <p className="openspec-panel-fine" data-testid="change-diff-truncated">
-                    The diff was cut to its first {Math.round(diffAnswer.maxBytes / 1000)} KB; the rest is not shown.
-                  </p>
-                ) : null}
-              </>
-            )
-          ) : (
-            <p className="openspec-panel-body openspec-panel-empty">Choose a change to see what it has changed and not yet committed.</p>
-          )}
-        </section>
-      </div>
-      </BusyFieldset>
-      </TabPanel>
-      )}
 
-      {visibleTabIds.has("overview") && (
-      <TabPanel id="overview" activeTab={activeTab} lazy>
-      <PanelStatus reading={shownReadings["overview"]} testId="tab-reading-overview" />
-      <BusyFieldset busy={shownReadings["overview"] !== null}>
-      <div className="openspec-summary">
-        {overviewError ? <p className="openspec-notice openspec-overview-error">Failed to load summary: {overviewError}</p> : null}
-
-        {overview ? (() => {
-          // What the mockup's summary shows, worked out in one place
-          // (the-summary-looks-like-the-mockup).
-          const figures = summaryFigures(overview, humanOnly?.status === "loaded" ? humanOnly.inbox.items : null);
-          return (
-            <div className="openspec-overview" data-testid="openspec-overview">
-              <ul className="openspec-overview-tiles" data-testid="overview-tiles">
-                {figures.tiles.map((tile) => (
-                  <li className="openspec-overview-tile" key={tile.key} data-testid={`overview-tile-${tile.key}`}>
-                    <span className="openspec-overview-tile-icon" aria-hidden="true"><Icon meaning={SUMMARY_TILE_ICONS[tile.key]} /></span>
-                    <span className="openspec-overview-tile-text">
-                      <span className="openspec-overview-tile-label">{tile.label}</span>
-                      <strong className="openspec-overview-tile-value">{tile.value}</strong>
-                      <span className="openspec-tile-note">{tile.note}</span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-
-              <ChangesList
-                onCompliance={() => setComplianceOpen(true)}
-                changes={overview.changes.map((change) => toChangeSummary(change, toChangeState(change.status)))}
-                ownerships={changeOwners}
-                {...(standings && standingStates
-                  ? {
-                    states: standingStates,
-                    sources: describeStandingSources(standings.sources),
-                  }
-                  : {})}
-                onRefresh={() => void refreshStandings()}
-                refreshing={standingsRefreshing}
-                {...(standingsError ? { refreshError: standingsError } : {})}
-                footnote={<span className="openspec-overview-meta">Workspace read from <strong>{overview.root.path}</strong> ({overview.root.source}).</span>}
-              />
-
-              <div className="openspec-summary-pair">
-                <SpecsPanel top={figures.topSpecs} all={overview.specs} />
-                <RecentlyArchivedPanel
-                  recent={figures.recentlyArchived}
-                  all={overview.archivedChangeSummaries.map((change) => toChangeSummary(change, "archived"))}
-                />
-              </div>
-            </div>
-          );
-        })() : null}
-
-        <LeftoverList reading={leftovers} error={leftoversError} onRemove={(target) => void handleRemoveLeftover(target)} />
-
-        {humanOnly ? (
-          <section className="openspec-panel openspec-overview-block" data-testid="human-only-inbox">
-            <div className="openspec-panel-head"><h2>Waiting on somebody</h2></div>
-            <div className="openspec-panel-body">
-            <p
-              className={humanOnly.status === "failed" ? "openspec-overview-error" : "openspec-shell-note"}
-              data-testid="human-only-inbox-basis"
-            >
-              {(() => {
-                const said = describeHumanOnlyInboxState(humanOnly);
-                return withMessageCode(said.text, said.code);
-              })()}
-            </p>
-            {humanOnly.status === "loaded" && humanOnly.inbox.items.length > 0 ? (
-              <ul className="openspec-shell-note">
-                {humanOnly.inbox.items.map((item) => {
-                  const key = `${item.changeName}:${item.lineNumber}`;
-                  // The control exists only where it can do something:
-                  // an item waiting on a person is offered no run, and
-                  // neither is one naming an id this build does not
-                  // carry. See a-delegated-item-runs-its-agent.
-                  const runnable = item.waitingOn.kind === "agent" && item.waitingOn.known;
-                  const outcome = delegatedOutcomes[key];
-                  const who = describeWaitingOn(item.waitingOn);
-                  return (
-                    <li key={key} data-testid={`waiting-row-${key}`}>
-                      <strong>{item.changeName}</strong>{` — ${item.text}`}
-                      {` (waiting on ${withMessageCode(who.text, who.code)})`}
-                      {runnable ? (
-                        <>
-                          {" "}
-                          <button className="button"
-                            type="button"
-                            data-testid={`run-delegated-${key}`}
-                            // The pair is the label; which agent runs it is
-                            // in the name and on hover (ADR 0045).
-                            aria-label={item.waitingOn.kind === "agent" ? `Run Item on ${item.waitingOn.agent}` : undefined}
-                            title={item.waitingOn.kind === "agent" ? `Run on ${item.waitingOn.agent}` : undefined}
-                            disabled={runningDelegated !== null}
-                            onClick={() => void runDelegatedItem(item)}
-                          >
-                            {runningDelegated === key
-                              ? "Running..."
-                              : "Run Item"}
-                          </button>
-                        </>
-                      ) : null}
-                      {item.reply ? <DelegatedReply reply={item.reply} testId={`delegated-reply-${key}`} /> : null}
-                      {outcome ? (
-                        <div data-testid={`delegated-outcome-${key}`}>
-                          {withMessageCode(outcome.message, outcome.code)}
-                          {outcome.lastStderr ? (
-                            // The whole tail, one click away; the message
-                            // already quotes its last line.
-                            <details className="openspec-delegated-stderr" data-testid={`delegated-stderr-${key}`}>
-                              <summary>What the agent last said</summary>
-                              <pre>{outcome.lastStderr}</pre>
-                            </details>
-                          ) : null}
+                <section className="openspec-panel" data-testid="change-diff-panel">
+                  <div className="openspec-panel-head">
+                    <h2>{diffChangeName.length > 0 ? diffChangeName : "Uncommitted work"}</h2>
+                    {diffAnswer && diffAnswer.diff.length > 0 ? (
+                      <span className="openspec-panel-head-note" data-testid="change-diff-files">
+                        {diffAnswer.files.length === 1 ? "1 file" : `${diffAnswer.files.length} files`} changed
+                      </span>
+                    ) : null}
+                  </div>
+                  {diffAnswer ? (
+                    diffAnswer.diff.length === 0 ? (
+                      <p className="openspec-panel-body openspec-panel-empty" data-testid="change-diff-empty">This change has nothing uncommitted.</p>
+                    ) : (
+                      <>
+                        {/* The files the answer already carries, which the tab
+                    only counted before. */}
+                        <table className="table openspec-table" data-testid="change-diff-file-table">
+                          <thead>
+                            <tr><th scope="col">File</th></tr>
+                          </thead>
+                          <tbody>
+                            {diffAnswer.files.map((file) => <tr key={file}><td>{file}</td></tr>)}
+                          </tbody>
+                        </table>
+                        <div className="openspec-panel-body">
+                          <ChangeDiff unified={diffAnswer.diff} />
                         </div>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : null}
-            {humanOnly.status === "loaded" && (humanOnly.inbox.questions ?? []).length > 0 ? (
-              <OperatorQuestionsPrompt
-                questions={humanOnly.inbox.questions ?? []}
-                onAnswer={answerInboxQuestion}
-              />
-            ) : null}
-            {humanOnly.status === "loaded" ? (
-              <EnrolmentRequests
-                requests={humanOnly.inbox.enrolments ?? []}
-                confirming={confirmingEnrolment}
-                outcomes={enrolmentOutcomes}
-                onConfirm={(keyId) => void confirmEnrolment(keyId)}
-              />
-            ) : null}
-            </div>
-          </section>
-        ) : null}
-      </div>
-      </BusyFieldset>
-      </TabPanel>
-      )}
+                        {diffAnswer.truncated ? (
+                          <p className="openspec-panel-fine" data-testid="change-diff-truncated">
+                            The diff was cut to its first {Math.round(diffAnswer.maxBytes / 1000)} KB; the rest is not shown.
+                          </p>
+                        ) : null}
+                      </>
+                    )
+                  ) : (
+                    <p className="openspec-panel-body openspec-panel-empty">Choose a change to see what it has changed and not yet committed.</p>
+                  )}
+                </section>
+              </div>
+            </BusyFieldset>
+          </TabPanel>
+        )}
 
-      {visibleTabIds.has("change-editor") && (
-      <TabPanel id="change-editor" activeTab={activeTab} lazy>
-      <PanelStatus reading={shownReadings["change-editor"]} testId="tab-reading-change-editor" />
-      <BusyFieldset busy={shownReadings["change-editor"] !== null}>
-      {/* The shared components (the-remaining-tabs-wear-metro): one
+        {visibleTabIds.has("overview") && (
+          <TabPanel id="overview" activeTab={activeTab} lazy>
+            <PanelStatus reading={shownReadings["overview"]} testId="tab-reading-overview" />
+            <BusyFieldset busy={shownReadings["overview"] !== null}>
+              <div className="openspec-summary">
+                {overviewError ? <p className="openspec-notice openspec-overview-error">Failed to load summary: {overviewError}</p> : null}
+
+                {overview ? (() => {
+                  // What the mockup's summary shows, worked out in one place
+                  // (the-summary-looks-like-the-mockup).
+                  const figures = summaryFigures(overview, humanOnly?.status === "loaded" ? humanOnly.inbox.items : null);
+                  return (
+                    <div className="openspec-overview" data-testid="openspec-overview">
+                      <ul className="openspec-overview-tiles" data-testid="overview-tiles">
+                        {figures.tiles.map((tile) => (
+                          <li className="openspec-overview-tile" key={tile.key} data-testid={`overview-tile-${tile.key}`}>
+                            <span className="openspec-overview-tile-icon" aria-hidden="true"><Icon meaning={SUMMARY_TILE_ICONS[tile.key]} /></span>
+                            <span className="openspec-overview-tile-text">
+                              <span className="openspec-overview-tile-label">{tile.label}</span>
+                              <strong className="openspec-overview-tile-value">{tile.value}</strong>
+                              <span className="openspec-tile-note">{tile.note}</span>
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+
+                      <ChangesList
+                        onCompliance={() => setComplianceOpen(true)}
+                        changes={overview.changes.map((change) => toChangeSummary(change, toChangeState(change.status)))}
+                        ownerships={changeOwners}
+                        {...(standings && standingStates
+                          ? {
+                            states: standingStates,
+                            sources: describeStandingSources(standings.sources),
+                          }
+                          : {})}
+                        onRefresh={() => void refreshStandings()}
+                        refreshing={standingsRefreshing}
+                        {...(standingsError ? { refreshError: standingsError } : {})}
+                        footnote={<span className="openspec-overview-meta">Workspace read from <strong>{overview.root.path}</strong> ({overview.root.source}).</span>}
+                      />
+
+                      <div className="openspec-summary-pair">
+                        <SpecsPanel top={figures.topSpecs} all={overview.specs} />
+                        <RecentlyArchivedPanel
+                          recent={figures.recentlyArchived}
+                          all={overview.archivedChangeSummaries.map((change) => toChangeSummary(change, "archived"))}
+                        />
+                      </div>
+                    </div>
+                  );
+                })() : null}
+
+                <LeftoverList reading={leftovers} error={leftoversError} onRemove={(target) => void handleRemoveLeftover(target)} />
+
+                {humanOnly ? (
+                  <section className="openspec-panel openspec-overview-block" data-testid="human-only-inbox">
+                    <div className="openspec-panel-head"><h2>Waiting on somebody</h2></div>
+                    <div className="openspec-panel-body">
+                      <p
+                        className={humanOnly.status === "failed" ? "openspec-overview-error" : "openspec-shell-note"}
+                        data-testid="human-only-inbox-basis"
+                      >
+                        {(() => {
+                          const said = describeHumanOnlyInboxState(humanOnly);
+                          return withMessageCode(said.text, said.code);
+                        })()}
+                      </p>
+                      {humanOnly.status === "loaded" && humanOnly.inbox.items.length > 0 ? (
+                        <ul className="openspec-shell-note">
+                          {humanOnly.inbox.items.map((item) => {
+                            const key = `${item.changeName}:${item.lineNumber}`;
+                            // The control exists only where it can do something:
+                            // an item waiting on a person is offered no run, and
+                            // neither is one naming an id this build does not
+                            // carry. See a-delegated-item-runs-its-agent.
+                            const runnable = item.waitingOn.kind === "agent" && item.waitingOn.known;
+                            const outcome = delegatedOutcomes[key];
+                            const who = describeWaitingOn(item.waitingOn);
+                            return (
+                              <li key={key} data-testid={`waiting-row-${key}`}>
+                                <strong>{item.changeName}</strong>{` — ${item.text}`}
+                                {` (waiting on ${withMessageCode(who.text, who.code)})`}
+                                {runnable ? (
+                                  <>
+                                    {" "}
+                                    <button className="button"
+                                      type="button"
+                                      data-testid={`run-delegated-${key}`}
+                                      // The pair is the label; which agent runs it is
+                                      // in the name and on hover (ADR 0045).
+                                      aria-label={item.waitingOn.kind === "agent" ? `Run Item on ${item.waitingOn.agent}` : undefined}
+                                      title={item.waitingOn.kind === "agent" ? `Run on ${item.waitingOn.agent}` : undefined}
+                                      disabled={runningDelegated !== null}
+                                      onClick={() => void runDelegatedItem(item)}
+                                    >
+                                      {runningDelegated === key
+                                        ? "Running..."
+                                        : "Run Item"}
+                                    </button>
+                                  </>
+                                ) : null}
+                                {item.reply ? <DelegatedReply reply={item.reply} testId={`delegated-reply-${key}`} /> : null}
+                                {outcome ? (
+                                  <div data-testid={`delegated-outcome-${key}`}>
+                                    {withMessageCode(outcome.message, outcome.code)}
+                                    {outcome.lastStderr ? (
+                                      // The whole tail, one click away; the message
+                                      // already quotes its last line.
+                                      <details className="openspec-delegated-stderr" data-testid={`delegated-stderr-${key}`}>
+                                        <summary>What the agent last said</summary>
+                                        <pre>{outcome.lastStderr}</pre>
+                                      </details>
+                                    ) : null}
+                                  </div>
+                                ) : null}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      ) : null}
+                      {humanOnly.status === "loaded" && (humanOnly.inbox.questions ?? []).length > 0 ? (
+                        <OperatorQuestionsPrompt
+                          questions={humanOnly.inbox.questions ?? []}
+                          onAnswer={answerInboxQuestion}
+                        />
+                      ) : null}
+                      {humanOnly.status === "loaded" ? (
+                        <EnrolmentRequests
+                          requests={humanOnly.inbox.enrolments ?? []}
+                          confirming={confirmingEnrolment}
+                          outcomes={enrolmentOutcomes}
+                          onConfirm={(keyId) => void confirmEnrolment(keyId)}
+                        />
+                      ) : null}
+                    </div>
+                  </section>
+                ) : null}
+              </div>
+            </BusyFieldset>
+          </TabPanel>
+        )}
+
+        {visibleTabIds.has("change-editor") && (
+          <TabPanel id="change-editor" activeTab={activeTab} lazy>
+            <PanelStatus reading={shownReadings["change-editor"]} testId="tab-reading-change-editor" />
+            <BusyFieldset busy={shownReadings["change-editor"] !== null}>
+              {/* The shared components (the-remaining-tabs-wear-metro): one
           toolbar for the tab, the documents behind a segmented control,
           and the editor in a panel with its save in the foot. */}
-      <div className="openspec-editor-screen">
-        <section className="openspec-panel">
-          <div className="openspec-panel-head">
-            <h2>A new change</h2>
-            <span className="openspec-panel-head-note">creates the directory and its documents</span>
-          </div>
-          <div className="openspec-panel-body">
-        <div className="openspec-shell-grid">
-          <label className="openspec-shell-field">
-            New change id
-            <input
-              type="text"
-              value={newChangeName}
-              onChange={(e) => setNewChangeName(e.target.value)}
-              placeholder="my-new-change"
-            />
-          </label>
-          <label className="openspec-shell-field">
-            Description
-            <input
-              type="text"
-              value={newChangeDescription}
-              onChange={(e) => setNewChangeDescription(e.target.value)}
-              placeholder="Short change description"
-            />
-          </label>
-        </div>
-          </div>
-          <div className="openspec-panel-foot">
-            <button className="button primary" type="button" onClick={handleCreateChange} disabled={editorCreating || cwd.trim().length === 0}>
-              {editorCreating ? "Creating..." : "Create Change"}
-            </button>
-          </div>
-        </section>
+              <div className="openspec-editor-screen">
+                <section className="openspec-panel">
+                  <div className="openspec-panel-head">
+                    <h2>A new change</h2>
+                    <span className="openspec-panel-head-note">creates the directory and its documents</span>
+                  </div>
+                  <div className="openspec-panel-body">
+                    <div className="openspec-shell-grid">
+                      <label className="openspec-shell-field">
+                        New change id
+                        <input
+                          type="text"
+                          value={newChangeName}
+                          onChange={(e) => setNewChangeName(e.target.value)}
+                          placeholder="my-new-change"
+                        />
+                      </label>
+                      <label className="openspec-shell-field">
+                        Description
+                        <input
+                          type="text"
+                          value={newChangeDescription}
+                          onChange={(e) => setNewChangeDescription(e.target.value)}
+                          placeholder="Short change description"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                  <div className="openspec-panel-foot">
+                    <button className="button primary" type="button" onClick={handleCreateChange} disabled={editorCreating || cwd.trim().length === 0}>
+                      {editorCreating ? "Creating..." : "Create Change"}
+                    </button>
+                  </div>
+                </section>
 
-        <div className="openspec-controls" data-testid="change-editor-toolbar">
+                <div className="openspec-controls" data-testid="change-editor-toolbar">
 
-          <select
-            aria-label="Change to edit"
-            value={editorChangeName}
-            onChange={(e) => {
-              setEditorChangeName(e.target.value);
-              setEditorRevision("");
-            }}
-            disabled={overview?.changes.length === 0}
-          >
-            <option value="">Select change</option>
-            {(overview?.changes ?? []).map((change) => (
-              <option key={change.name} value={change.name}>{change.name}</option>
-            ))}
-          </select>
+                  <select
+                    aria-label="Change to edit"
+                    value={editorChangeName}
+                    onChange={(e) => {
+                      setEditorChangeName(e.target.value);
+                      setEditorRevision("");
+                    }}
+                    disabled={overview?.changes.length === 0}
+                  >
+                    <option value="">Select change</option>
+                    {(overview?.changes ?? []).map((change) => (
+                      <option key={change.name} value={change.name}>{change.name}</option>
+                    ))}
+                  </select>
 
-          <button className="button"
-            type="button"
-            onClick={() => void loadChangeEditor(editorChangeName)}
-            disabled={editorLoading || editorChangeName.trim().length === 0}
-          >
-            {editorLoading ? "Loading..." : "Open Change"}
-          </button>
+                  <button className="button"
+                    type="button"
+                    onClick={() => void loadChangeEditor(editorChangeName)}
+                    disabled={editorLoading || editorChangeName.trim().length === 0}
+                  >
+                    {editorLoading ? "Loading..." : "Open Change"}
+                  </button>
 
-          <button className="button primary"
-            type="button"
-            data-testid="run-with-harness-button"
-            onClick={() => void handleRunWithHarness()}
-            disabled={runHarnessLoading || cwd.trim().length === 0 || editorChangeName.trim().length === 0}
-          >
-            {runHarnessLoading ? "Resolving..." : "Run Change..."}
-          </button>
-          {editorMessage ? <span className="openspec-shell-note">{editorMessage}</span> : null}
-          {runHarnessMessage ? <span className="openspec-shell-note" data-testid="run-with-harness-message">{runHarnessMessage}</span> : null}
-        </div>
+                  <button className="button primary"
+                    type="button"
+                    data-testid="run-with-harness-button"
+                    onClick={() => void handleRunWithHarness()}
+                    disabled={runHarnessLoading || cwd.trim().length === 0 || editorChangeName.trim().length === 0}
+                  >
+                    {runHarnessLoading ? "Resolving..." : "Run Change..."}
+                  </button>
+                  {editorMessage ? <span className="openspec-shell-note">{editorMessage}</span> : null}
+                  {runHarnessMessage ? <span className="openspec-shell-note" data-testid="run-with-harness-message">{runHarnessMessage}</span> : null}
+                </div>
 
-        {runDispatch && runOpenedFrom === "editor" ? (
-          <RunDialog
-            changeName={runChangeName}
-            plan={runDispatch.plan}
-            {...(runStanding ? { standing: runStanding } : {})}
-            stats={runStats}
-            onChoose={startChosenRun}
-            onApplyTemplate={(template) => void applyTemplateToChange(template)}
-            appliedNote={runAppliedNote}
-            onUseAgent={(agentId) => void putAgentOnEveryStage(agentId)}
-            useAgentNote={runUseAgentNote}
-            onSchedule={(path, startAt) => void scheduleRun(path, startAt)}
-            {...(runNote ? { note: runNote } : {})}
-            onDismiss={() => { setRunDispatch(null); setRunNote(null); setRunAppliedNote(null); setRunUseAgentNote(null); }}
-          />
-        ) : null}
-        {chainChangeDir ? (
-          <HarnessChainPanel transport={transport} cwd={cwd} changeDir={chainChangeDir} budget={chainBudget} />
-        ) : null}
+                {runDispatch && runOpenedFrom === "editor" ? (
+                  <RunDialog
+                    changeName={runChangeName}
+                    plan={runDispatch.plan}
+                    {...(runStanding ? { standing: runStanding } : {})}
+                    stats={runStats}
+                    onChoose={startChosenRun}
+                    onApplyTemplate={(template) => void applyTemplateToChange(template)}
+                    appliedNote={runAppliedNote}
+                    onUseAgent={(agentId) => void putAgentOnEveryStage(agentId)}
+                    useAgentNote={runUseAgentNote}
+                    onSchedule={(path, startAt) => void scheduleRun(path, startAt)}
+                    {...(runNote ? { note: runNote } : {})}
+                    onDismiss={() => { setRunDispatch(null); setRunNote(null); setRunAppliedNote(null); setRunUseAgentNote(null); }}
+                  />
+                ) : null}
+                {chainChangeDir ? (
+                  <HarnessChainPanel transport={transport} cwd={cwd} changeDir={chainChangeDir} budget={chainBudget} />
+                ) : null}
 
-        <div className="openspec-controls">
-          <div className="openspec-segmented" role="group" aria-label="Document to edit">
-            {(["proposal", "design", "tasks", "spec"] as EditorTab[]).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                aria-pressed={!harnessPaneOpen && tab === editorTab}
-                onClick={() => { setEditorTab(tab); setHarnessPaneOpen(false); }}
-              >
-                {tab}
-              </button>
-            ))}
-            <button
-              type="button"
-              data-testid="change-editor-tab-harness"
-              aria-pressed={harnessPaneOpen}
-              onClick={() => setHarnessPaneOpen(true)}
-            >
-              Harness
-            </button>
-          </div>
-        </div>
+                <div className="openspec-controls">
+                  <div className="openspec-segmented" role="group" aria-label="Document to edit">
+                    {(["proposal", "design", "tasks", "spec"] as EditorTab[]).map((tab) => (
+                      <button
+                        key={tab}
+                        type="button"
+                        aria-pressed={!harnessPaneOpen && tab === editorTab}
+                        onClick={() => { setEditorTab(tab); setHarnessPaneOpen(false); }}
+                      >
+                        {tab}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      data-testid="change-editor-tab-harness"
+                      aria-pressed={harnessPaneOpen}
+                      onClick={() => setHarnessPaneOpen(true)}
+                    >
+                      Harness
+                    </button>
+                  </div>
+                </div>
 
-        {harnessPaneOpen ? (
-          // The loaded change, not the one merely selected: choosing another
-          // change in the list clears the revision until it is loaded.
-          editorRevision.length > 0 && editorChangeName.trim().length > 0 ? (
-            <ChangeHarnessSettingsView
-              api={harnessSettingsApi}
-              changeName={editorChangeName}
-              onEditGlobal={() => setActiveTab("harness-settings")}
-            />
-          ) : (
-            <section className="openspec-panel">
-              <div className="openspec-panel-head"><h2>Harness</h2></div>
-              <p className="openspec-panel-body openspec-panel-empty" data-testid="change-editor-harness-empty">Load a change to configure it.</p>
-            </section>
-          )
-        ) : (
-        <>
-        <section className="openspec-panel">
-          {/* The change, with the document as its note: the textarea
+                {harnessPaneOpen ? (
+                  // The loaded change, not the one merely selected: choosing another
+                  // change in the list clears the revision until it is loaded.
+                  editorRevision.length > 0 && editorChangeName.trim().length > 0 ? (
+                    <ChangeHarnessSettingsView
+                      api={harnessSettingsApi}
+                      changeName={editorChangeName}
+                      onEditGlobal={() => setActiveTab("harness-settings")}
+                    />
+                  ) : (
+                    <section className="openspec-panel">
+                      <div className="openspec-panel-head"><h2>Harness</h2></div>
+                      <p className="openspec-panel-body openspec-panel-empty" data-testid="change-editor-harness-empty">Load a change to configure it.</p>
+                    </section>
+                  )
+                ) : (
+                  <>
+                    <section className="openspec-panel">
+                      {/* The change, with the document as its note: the textarea
               below already carries the label "Markdown (proposal)", and a
               head repeating it spends the line twice. */}
-          <div className="openspec-panel-head">
-            <h2>{editorChangeName.trim().length > 0 ? editorChangeName : "No change loaded"}</h2>
-            <span className="openspec-panel-head-note">{editorTab}</span>
-          </div>
-        {editorTab === "tasks" ? (
-          <div className="openspec-controls">
-            <select
-              aria-label="Copy tasks from archived change"
-              value={archivedTemplateSource}
-              onChange={(e) => setArchivedTemplateSource(e.target.value)}
-              disabled={(overview?.archivedChanges.length ?? 0) === 0}
-            >
-              <option value="">Select archived change</option>
-              {(overview?.archivedChanges ?? []).map((name) => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
-            <button className="button"
-              type="button"
-              onClick={() => void handleInsertTasksTemplate()}
-              disabled={
-                archivedTemplateLoading ||
-                archivedTemplateSource.trim().length === 0 ||
-                editorChangeName.trim().length === 0
-              }
-            >
-              {archivedTemplateLoading ? "Inserting..." : "Copy Tasks"}
-            </button>
-          </div>
-        ) : null}
-        {editorTab === "tasks" && archivedTemplateMessage ? (
-          <p className="openspec-panel-fine">{archivedTemplateMessage}</p>
-        ) : null}
-
-        <div className="openspec-panel-body openspec-editor-grid">
-          <label className="openspec-shell-field">
-            Markdown ({editorTab})
-            <textarea
-              className="openspec-editor-textarea"
-              value={editorFiles[editorTab]}
-              onChange={(e) => {
-                const value = e.target.value;
-                // Which change has edits nobody has saved. A schedule
-                // that came due must not load another change's files
-                // over them — the save would then post these files
-                // under that change's name, be refused by the hash
-                // check, and the person would be told to reload, which
-                // discards them. See a-schedule-keeps-its-promise.
-                unsavedChange.current = editorChangeName;
-                setEditorFiles((prev) => ({ ...prev, [editorTab]: value }));
-              }}
-              placeholder="Write markdown content"
-            />
-          </label>
-
-          <div className="openspec-editor-preview">
-            <h3>Preview</h3>
-            <MarkdownPreview content={editorFiles[editorTab]} />
-          </div>
-        </div>
-
-        <div className="openspec-panel-foot">
-          <button className="button primary"
-            type="button"
-            onClick={handleSaveEditor}
-            disabled={editorSaving || editorChangeName.trim().length === 0 || editorRevision.length === 0}
-          >
-            {editorSaving ? "Saving..." : "Save Change"}
-          </button>
-        </div>
-        </section>
-        </>
-        )}
-      </div>
-      </BusyFieldset>
-      </TabPanel>
-      )}
-
-      {visibleTabIds.has("templates") && (
-      <TabPanel id="templates" activeTab={activeTab} lazy>
-      <PanelStatus reading={shownReadings["templates"]} testId="tab-reading-templates" />
-      <BusyFieldset busy={shownReadings["templates"] !== null}>
-      {/* The shared components (the-remaining-tabs-wear-metro): one
-          toolbar, the catalog in a panel that says how many, and the
-          chosen template in a panel of its own. */}
-      <div className="openspec-templates-screen">
-        <div className="openspec-controls">
-          <button className="button primary" type="button" onClick={() => void handleLoadTemplates()} disabled={templatesLoading || cwd.trim().length === 0}>
-            {templatesLoading ? "Loading..." : "Show Templates"}
-          </button>
-          {templatesError ? <span className="openspec-overview-error">Failed to load templates: {templatesError}</span> : null}
-          {templateActionMessage ? <span className="openspec-shell-note">{templateActionMessage}</span> : null}
-        </div>
-
-        <section className="openspec-panel">
-          <div className="openspec-panel-head">
-            <h2>Template catalog</h2>
-            {templates ? (
-              <span className="openspec-panel-head-note">
-                {allTemplates.length === 1 ? "1 template" : `${allTemplates.length} templates`}
-              </span>
-            ) : null}
-          </div>
-          {templates ? (
-            allTemplates.length === 0 ? (
-              <p className="openspec-panel-body openspec-panel-empty">This workspace offers no templates.</p>
-            ) : (
-              /* The category is a column rather than a row spanning the
-                 table, so the catalog is one table and not a list of
-                 headings pretending to be rows. */
-              <table className="table openspec-table" data-testid="templates-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Title</th>
-                    <th scope="col">Category</th>
-                    <th scope="col">Origin</th>
-                    <th scope="col"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {allTemplates.map((template) => (
-                    <tr key={template.key} data-testid={`template-row-${template.key}`}>
-                      <td>
-                        {template.manifest.title}
-                        {template.manifest.forkedFrom
-                          ? <span className="badge openspec-template-badge openspec-template-badge--customized">customized</span>
-                          : null}
-                      </td>
-                      <td>{template.manifest.category}</td>
-                      <td>
-                        <span className={`badge openspec-template-badge openspec-template-badge--${template.origin}`}>{template.origin}</span>
-                      </td>
-                      <td className="openspec-table-actions">
-                        <button className="button" type="button" onClick={() => handleSelectTemplate(template)}>
-                          Show Template
-                        </button>
-                        {template.origin === "built-in" && !isTemplateCustomized(template.manifest.id) ? (
+                      <div className="openspec-panel-head">
+                        <h2>{editorChangeName.trim().length > 0 ? editorChangeName : "No change loaded"}</h2>
+                        <span className="openspec-panel-head-note">{editorTab}</span>
+                      </div>
+                      {editorTab === "tasks" ? (
+                        <div className="openspec-controls">
+                          <select
+                            aria-label="Copy tasks from archived change"
+                            value={archivedTemplateSource}
+                            onChange={(e) => setArchivedTemplateSource(e.target.value)}
+                            disabled={(overview?.archivedChanges.length ?? 0) === 0}
+                          >
+                            <option value="">Select archived change</option>
+                            {(overview?.archivedChanges ?? []).map((name) => (
+                              <option key={name} value={name}>{name}</option>
+                            ))}
+                          </select>
                           <button className="button"
                             type="button"
-                            onClick={() => void handleCustomizeTemplate(template.manifest.id)}
-                            disabled={templateActionLoading}
+                            onClick={() => void handleInsertTasksTemplate()}
+                            disabled={
+                              archivedTemplateLoading ||
+                              archivedTemplateSource.trim().length === 0 ||
+                              editorChangeName.trim().length === 0
+                            }
                           >
-                            Edit Template
+                            {archivedTemplateLoading ? "Inserting..." : "Copy Tasks"}
                           </button>
-                        ) : null}
-                        {template.origin === "project" ? (
-                          <button className="button alert"
-                            type="button"
-                            onClick={() => void handleDeleteProjectTemplate(template.manifest.id)}
-                            disabled={templateActionLoading}
-                          >
-                            Delete Template...
-                          </button>
-                        ) : null}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )
-          ) : (
-            <p className="openspec-panel-body openspec-panel-empty">Load the catalog to see the templates this workspace offers.</p>
-          )}
-        </section>
+                        </div>
+                      ) : null}
+                      {editorTab === "tasks" && archivedTemplateMessage ? (
+                        <p className="openspec-panel-fine">{archivedTemplateMessage}</p>
+                      ) : null}
 
-        {selectedTemplate ? (
-          <section className="openspec-panel" data-testid="template-chosen">
-            <div className="openspec-panel-head">
-              <h2>{selectedTemplate.manifest.title}</h2>
-              <span className="openspec-panel-head-note">{selectedTemplate.manifest.category}</span>
-            </div>
-            <div className="openspec-panel-body">
-              <p className="openspec-shell-note">{selectedTemplate.manifest.summary}</p>
-              {selectedTemplate.manifest.variables.map((variable) => (
-                <label key={variable.name} className="openspec-shell-field">
-                  {variable.prompt}
-                  <input
-                    type="text"
-                    aria-label={variable.name}
-                    value={templateVariableValues[variable.name] ?? ""}
-                    onChange={(e) =>
-                      setTemplateVariableValues((prev) => ({ ...prev, [variable.name]: e.target.value }))
-                    }
-                  />
-                </label>
-              ))}
-            </div>
-            <div className="openspec-panel-foot">
-              <label className="openspec-shell-field">
-                Insert into change
-                <select
-                  aria-label="Insert template into change"
-                  value={templateInsertTargetChange}
-                  onChange={(e) => setTemplateInsertTargetChange(e.target.value)}
-                  disabled={(overview?.changes.length ?? 0) === 0}
-                >
-                  <option value="">Select target change</option>
-                  {(overview?.changes ?? []).map((change) => (
-                    <option key={change.name} value={change.name}>{change.name}</option>
-                  ))}
-                </select>
-              </label>
-              <button className="button primary"
-                type="button"
-                onClick={() => void handleInsertTemplateIntoChange()}
-                disabled={templateActionLoading || templateInsertTargetChange.trim().length === 0}
-              >
-                {templateActionLoading ? "Inserting..." : "Insert Template"}
-              </button>
-            </div>
-          </section>
-        ) : null}
-      </div>
-      </BusyFieldset>
-      </TabPanel>
-      )}
+                      <div className="openspec-panel-body openspec-editor-grid">
+                        <label className="openspec-shell-field">
+                          Markdown ({editorTab})
+                          <textarea
+                            className="openspec-editor-textarea"
+                            value={editorFiles[editorTab]}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              // Which change has edits nobody has saved. A schedule
+                              // that came due must not load another change's files
+                              // over them — the save would then post these files
+                              // under that change's name, be refused by the hash
+                              // check, and the person would be told to reload, which
+                              // discards them. See a-schedule-keeps-its-promise.
+                              unsavedChange.current = editorChangeName;
+                              setEditorFiles((prev) => ({ ...prev, [editorTab]: value }));
+                            }}
+                            placeholder="Write markdown content"
+                          />
+                        </label>
 
-      {visibleTabIds.has("timeline") && (
-      <TabPanel id="timeline" activeTab={activeTab} lazy>
-      <PanelStatus reading={shownReadings["timeline"]} testId="tab-reading-timeline" />
-      <BusyFieldset busy={shownReadings["timeline"] !== null}>
-      <div className="openspec-timeline-screen">
-        {/* The mockup's toolbar (the-change-timeline-looks-like-the-mockup):
+                        <div className="openspec-editor-preview">
+                          <h3>Preview</h3>
+                          <MarkdownPreview content={editorFiles[editorTab]} />
+                        </div>
+                      </div>
+
+                      <div className="openspec-panel-foot">
+                        <button className="button primary"
+                          type="button"
+                          onClick={handleSaveEditor}
+                          disabled={editorSaving || editorChangeName.trim().length === 0 || editorRevision.length === 0}
+                        >
+                          {editorSaving ? "Saving..." : "Save Change"}
+                        </button>
+                      </div>
+                    </section>
+                  </>
+                )}
+              </div>
+            </BusyFieldset>
+          </TabPanel>
+        )}
+
+        {visibleTabIds.has("templates") && (
+          <TabPanel id="templates" activeTab={activeTab} lazy>
+            <PanelStatus reading={shownReadings["templates"]} testId="tab-reading-templates" />
+            <BusyFieldset busy={shownReadings["templates"] !== null}>
+              {/* The shared components (the-remaining-tabs-wear-metro): one
+          toolbar, the catalog in a panel that says how many, and the
+          chosen template in a panel of its own. */}
+              <div className="openspec-templates-screen">
+                <div className="openspec-controls">
+                  <button className="button primary" type="button" onClick={() => void handleLoadTemplates()} disabled={templatesLoading || cwd.trim().length === 0}>
+                    {templatesLoading ? "Loading..." : "Show Templates"}
+                  </button>
+                  {templatesError ? <span className="openspec-overview-error">Failed to load templates: {templatesError}</span> : null}
+                  {templateActionMessage ? <span className="openspec-shell-note">{templateActionMessage}</span> : null}
+                </div>
+
+                <section className="openspec-panel">
+                  <div className="openspec-panel-head">
+                    <h2>Template catalog</h2>
+                    {templates ? (
+                      <span className="openspec-panel-head-note">
+                        {allTemplates.length === 1 ? "1 template" : `${allTemplates.length} templates`}
+                      </span>
+                    ) : null}
+                  </div>
+                  {templates ? (
+                    allTemplates.length === 0 ? (
+                      <p className="openspec-panel-body openspec-panel-empty">This workspace offers no templates.</p>
+                    ) : (
+                      /* The category is a column rather than a row spanning the
+                         table, so the catalog is one table and not a list of
+                         headings pretending to be rows. */
+                      <table className="table openspec-table" data-testid="templates-table">
+                        <thead>
+                          <tr>
+                            <th scope="col">Title</th>
+                            <th scope="col">Category</th>
+                            <th scope="col">Origin</th>
+                            <th scope="col"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {allTemplates.map((template) => (
+                            <tr key={template.key} data-testid={`template-row-${template.key}`}>
+                              <td>
+                                {template.manifest.title}
+                                {template.manifest.forkedFrom
+                                  ? <span className="badge openspec-template-badge openspec-template-badge--customized">customized</span>
+                                  : null}
+                              </td>
+                              <td>{template.manifest.category}</td>
+                              <td>
+                                <span className={`badge openspec-template-badge openspec-template-badge--${template.origin}`}>{template.origin}</span>
+                              </td>
+                              <td className="openspec-table-actions">
+                                <button className="button" type="button" onClick={() => handleSelectTemplate(template)}>
+                                  Show Template
+                                </button>
+                                {template.origin === "built-in" && !isTemplateCustomized(template.manifest.id) ? (
+                                  <button className="button"
+                                    type="button"
+                                    onClick={() => void handleCustomizeTemplate(template.manifest.id)}
+                                    disabled={templateActionLoading}
+                                  >
+                                    Edit Template
+                                  </button>
+                                ) : null}
+                                {template.origin === "project" ? (
+                                  <button className="button alert"
+                                    type="button"
+                                    onClick={() => void handleDeleteProjectTemplate(template.manifest.id)}
+                                    disabled={templateActionLoading}
+                                  >
+                                    Delete Template...
+                                  </button>
+                                ) : null}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )
+                  ) : (
+                    <p className="openspec-panel-body openspec-panel-empty">Load the catalog to see the templates this workspace offers.</p>
+                  )}
+                </section>
+
+                {selectedTemplate ? (
+                  <section className="openspec-panel" data-testid="template-chosen">
+                    <div className="openspec-panel-head">
+                      <h2>{selectedTemplate.manifest.title}</h2>
+                      <span className="openspec-panel-head-note">{selectedTemplate.manifest.category}</span>
+                    </div>
+                    <div className="openspec-panel-body">
+                      <p className="openspec-shell-note">{selectedTemplate.manifest.summary}</p>
+                      {selectedTemplate.manifest.variables.map((variable) => (
+                        <label key={variable.name} className="openspec-shell-field">
+                          {variable.prompt}
+                          <input
+                            type="text"
+                            aria-label={variable.name}
+                            value={templateVariableValues[variable.name] ?? ""}
+                            onChange={(e) =>
+                              setTemplateVariableValues((prev) => ({ ...prev, [variable.name]: e.target.value }))
+                            }
+                          />
+                        </label>
+                      ))}
+                    </div>
+                    <div className="openspec-panel-foot">
+                      <label className="openspec-shell-field">
+                        Insert into change
+                        <select
+                          aria-label="Insert template into change"
+                          value={templateInsertTargetChange}
+                          onChange={(e) => setTemplateInsertTargetChange(e.target.value)}
+                          disabled={(overview?.changes.length ?? 0) === 0}
+                        >
+                          <option value="">Select target change</option>
+                          {(overview?.changes ?? []).map((change) => (
+                            <option key={change.name} value={change.name}>{change.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <button className="button primary"
+                        type="button"
+                        onClick={() => void handleInsertTemplateIntoChange()}
+                        disabled={templateActionLoading || templateInsertTargetChange.trim().length === 0}
+                      >
+                        {templateActionLoading ? "Inserting..." : "Insert Template"}
+                      </button>
+                    </div>
+                  </section>
+                ) : null}
+              </div>
+            </BusyFieldset>
+          </TabPanel>
+        )}
+
+        {visibleTabIds.has("timeline") && (
+          <TabPanel id="timeline" activeTab={activeTab} lazy>
+            <PanelStatus reading={shownReadings["timeline"]} testId="tab-reading-timeline" />
+            <BusyFieldset busy={shownReadings["timeline"] !== null}>
+              <div className="openspec-timeline-screen">
+                {/* The mockup's toolbar (the-change-timeline-looks-like-the-mockup):
             the modes as one segmented control, then, for one change, the
             picker that loads what it is given and the stale threshold. The
             comparison carries the same control in its own toolbar row, so
             the screen keeps one row of controls (the-timeline-compares-changes). */}
-        {timelineMode === "multi" ? null : (
-        <div className="openspec-controls openspec-timeline-toolbar" data-testid="timeline-toolbar">
-          {timelineModes}
-          {timelineMode === "single" ? (
-            <Fragment>
-              {/* Found by typing part of its name: a list of hundreds of
+                {timelineMode === "multi" ? null : (
+                  <div className="openspec-controls openspec-timeline-toolbar" data-testid="timeline-toolbar">
+                    {timelineModes}
+                    {timelineMode === "single" ? (
+                      <Fragment>
+                        {/* Found by typing part of its name: a list of hundreds of
                   archived changes could not be searched by eye
                   (the-timeline-finds-a-change). */}
-              <ChangePicker
-                label="Change to show a timeline for"
-                placeholder="Find a change by name"
-                testId="timeline-change-picker"
-                options={timelinePickerOptions}
-                value={timelineSelection}
-                onChange={(selection) => {
-                  setTimelineSelection(selection);
-                  // The change shown goes at once. Left up while the next one
-                  // is read, it sat under a picker naming another change, with
-                  // its own name in the page head (found by 6.6's live check).
-                  timelineReading.current += 1;
-                  setTimeline(null);
-                  setTimelineMessage(null);
-                  void loadTimeline(selection);
-                }}
-                disabled={timelinePickerOptions.length === 0}
-              />
-              {timelineMessage ? <span className="openspec-shell-note" data-testid="timeline-message">{timelineMessage}</span> : null}
-              <label className="openspec-timeline-stale">
-                Stale after
-                <input
-                  type="number"
-                  aria-label="Stale task threshold in days"
-                  min={1}
-                  value={staleThresholdDays}
-                  onChange={(e) => setStaleThresholdDays(Number(e.target.value) || DEFAULT_STALE_TASK_THRESHOLD_DAYS)}
-                />
-                days
-              </label>
-            </Fragment>
-          ) : null}
-        </div>
+                        <ChangePicker
+                          label="Change to show a timeline for"
+                          placeholder="Find a change by name"
+                          testId="timeline-change-picker"
+                          options={timelinePickerOptions}
+                          value={timelineSelection}
+                          onChange={(selection) => {
+                            setTimelineSelection(selection);
+                            // The change shown goes at once. Left up while the next one
+                            // is read, it sat under a picker naming another change, with
+                            // its own name in the page head (found by 6.6's live check).
+                            timelineReading.current += 1;
+                            setTimeline(null);
+                            setTimelineMessage(null);
+                            void loadTimeline(selection);
+                          }}
+                          disabled={timelinePickerOptions.length === 0}
+                        />
+                        {timelineMessage ? <span className="openspec-shell-note" data-testid="timeline-message">{timelineMessage}</span> : null}
+                        <label className="openspec-timeline-stale">
+                          Stale after
+                          <input
+                            type="number"
+                            aria-label="Stale task threshold in days"
+                            min={1}
+                            value={staleThresholdDays}
+                            onChange={(e) => setStaleThresholdDays(Number(e.target.value) || DEFAULT_STALE_TASK_THRESHOLD_DAYS)}
+                          />
+                          days
+                        </label>
+                      </Fragment>
+                    ) : null}
+                  </div>
+                )}
+
+                {timelineMode === "single" ? (
+                  timeline ? <ChangeTimelineView timeline={timeline} staleThresholdDays={staleThresholdDays} /> : null
+                ) : timelineMode === "multi" ? (
+                  /* Every change on a grid of days, read in one pass
+                     (the-timeline-compares-changes). Nothing is asked for first. */
+                  spans ? (
+                    <ChangeComparisonView
+                      leading={timelineModes}
+                      window={comparisonDays}
+                      rows={comparisonShown}
+                      total={comparisonAll.length}
+                      period={comparisonPeriod}
+                      onPeriod={setComparisonPeriod}
+                      filter={comparisonFilter}
+                      onFilter={setComparisonFilter}
+                      now={comparisonNow}
+                      onOpen={openTimelineOf}
+                      timelines={comparisonCharts}
+                      readingCharts={comparisonChartsReading > 0
+                        ? `Reading the history of ${comparisonChartsReading} ${comparisonChartsReading === 1 ? "change" : "changes"} from git…`
+                        : null}
+                      chartsError={comparisonChartsError}
+                    />
+                  ) : (
+                    <Fragment>
+                      <div className="openspec-controls openspec-timeline-toolbar" data-testid="timeline-toolbar">{timelineModes}</div>
+                      {spansMessage ? <p className="openspec-shell-note" data-testid="comparison-message">{spansMessage}</p> : null}
+                    </Fragment>
+                  )
+                ) : (
+                  <section className="openspec-shell-panel">
+                    {(
+                      <Fragment>
+                        <div className="openspec-shell-grid">
+                          <label className="openspec-shell-field">
+                            Sprint start
+                            <input
+                              type="date"
+                              aria-label="Sprint report range start"
+                              value={multiRangeStart}
+                              onChange={(e) => setMultiRangeStart(e.target.value)}
+                            />
+                          </label>
+                          <label className="openspec-shell-field">
+                            Sprint end
+                            <input
+                              type="date"
+                              aria-label="Sprint report range end"
+                              value={multiRangeEnd}
+                              onChange={(e) => setMultiRangeEnd(e.target.value)}
+                            />
+                          </label>
+                        </div>
+                        <ChangeChecklist
+                          label="Changes in this sprint"
+                          changes={[
+                            ...(overview?.changes ?? []).map((change) => ({ value: `active:${change.name}`, name: change.name, archived: false })),
+                            // Newest first: a sprint is usually the last few weeks.
+                            ...[...(overview?.archivedChanges ?? [])].reverse().map((name) => ({ value: `archived:${name}`, name, archived: true })),
+                          ]}
+                          selected={multiSelection}
+                          onChange={setMultiSelection}
+                          rangeStart={multiRangeStart}
+                          rangeEnd={multiRangeEnd}
+                        />
+                        <div className="openspec-ai-panel-controls">
+                          <button className="button primary"
+                            type="button"
+                            onClick={() => void downloadSprintReport()}
+                            disabled={sprintReportLoading || multiSelection.length === 0}
+                          >
+                            {sprintReportLoading ? "Generating..." : "Generate Report"}
+                          </button>
+                        </div>
+
+                        {sprintReportMessage ? <p className="openspec-shell-note">{sprintReportMessage}</p> : null}
+                      </Fragment>
+                    )}
+                  </section>
+                )}
+              </div>
+            </BusyFieldset>
+          </TabPanel>
         )}
 
-        {timelineMode === "single" ? (
-          timeline ? <ChangeTimelineView timeline={timeline} staleThresholdDays={staleThresholdDays} /> : null
-        ) : timelineMode === "multi" ? (
-          /* Every change on a grid of days, read in one pass
-             (the-timeline-compares-changes). Nothing is asked for first. */
-          spans ? (
-            <ChangeComparisonView
-              leading={timelineModes}
-              window={comparisonDays}
-              rows={comparisonShown}
-              total={comparisonAll.length}
-              period={comparisonPeriod}
-              onPeriod={setComparisonPeriod}
-              filter={comparisonFilter}
-              onFilter={setComparisonFilter}
-              now={comparisonNow}
-              onOpen={openTimelineOf}
-              timelines={comparisonCharts}
-              readingCharts={comparisonChartsReading > 0
-                ? `Reading the history of ${comparisonChartsReading} ${comparisonChartsReading === 1 ? "change" : "changes"} from git…`
-                : null}
-              chartsError={comparisonChartsError}
-            />
-          ) : (
-            <Fragment>
-              <div className="openspec-controls openspec-timeline-toolbar" data-testid="timeline-toolbar">{timelineModes}</div>
-              {spansMessage ? <p className="openspec-shell-note" data-testid="comparison-message">{spansMessage}</p> : null}
-            </Fragment>
-          )
-        ) : (
-      <section className="openspec-shell-panel">
-        {(
-          <Fragment>
-            <div className="openspec-shell-grid">
-              <label className="openspec-shell-field">
-                Sprint start
-                <input
-                  type="date"
-                  aria-label="Sprint report range start"
-                  value={multiRangeStart}
-                  onChange={(e) => setMultiRangeStart(e.target.value)}
-                />
-              </label>
-              <label className="openspec-shell-field">
-                Sprint end
-                <input
-                  type="date"
-                  aria-label="Sprint report range end"
-                  value={multiRangeEnd}
-                  onChange={(e) => setMultiRangeEnd(e.target.value)}
-                />
-              </label>
-            </div>
-            <ChangeChecklist
-              label="Changes in this sprint"
-              changes={[
-                ...(overview?.changes ?? []).map((change) => ({ value: `active:${change.name}`, name: change.name, archived: false })),
-                // Newest first: a sprint is usually the last few weeks.
-                ...[...(overview?.archivedChanges ?? [])].reverse().map((name) => ({ value: `archived:${name}`, name, archived: true })),
-              ]}
-              selected={multiSelection}
-              onChange={setMultiSelection}
-              rangeStart={multiRangeStart}
-              rangeEnd={multiRangeEnd}
-            />
-            <div className="openspec-ai-panel-controls">
-              <button className="button primary"
-                type="button"
-                onClick={() => void downloadSprintReport()}
-                disabled={sprintReportLoading || multiSelection.length === 0}
-              >
-                {sprintReportLoading ? "Generating..." : "Generate Report"}
-              </button>
-            </div>
-
-            {sprintReportMessage ? <p className="openspec-shell-note">{sprintReportMessage}</p> : null}
-          </Fragment>
-        )}
-      </section>
-        )}
-      </div>
-      </BusyFieldset>
-      </TabPanel>
-      )}
-
-      {visibleTabIds.has("pipeline") && (
-      <TabPanel id="pipeline" activeTab={activeTab} lazy>
-      {/* No panel around it: the Pipeline is laid out in panels of its own
+        {visibleTabIds.has("pipeline") && (
+          <TabPanel id="pipeline" activeTab={activeTab} lazy>
+            {/* No panel around it: the Pipeline is laid out in panels of its own
           (the-pipeline-cards-wear-metro). */}
-      <div className="openspec-pipeline-tab">
-        {cwd.trim().length > 0
-          ? (
-            <>
-              <PipelineView
-                load={pipelineLoad}
-                survey={pipelineSurvey}
-                lastRuns={pipelineLastRuns}
-                standings={pipelineStandings}
-                stages={pipelineStages}
-                archived={pipelineArchived}
-                columns={pipelineColumns}
-                drift={pipelineDrift}
-                onCatchUp={pipelineCatchUp}
-                liveRuns={pipelineLiveRuns}
-                refresh={pipelineRefresh}
-                isActive={activeTab === "pipeline"}
-                onOpenChange={openChangeInEditor}
-                onRunControl={pipelineRunControl}
-              onAnswerQuestion={pipelineAnswerQuestion}
-                onStart={pipelineStart}
-                onUpdatePlan={pipelineUpdatePlan}
-                onViewLogs={setLogsFor}
-                copyText={pipelineCopyText}
-                viewState={pipelineViewState}
-                onAskToStop={pipelineAskToStop}
-                onArchive={pipelineArchive}
-                onReadingChange={setPipelineReading}
-                taskActions={pipelineTaskActions}
-                changeActions={pipelineChangeActions}
-                {...(pipelineFocus !== undefined ? { focus: pipelineFocus } : {})}
-              />
-              {actionFor !== null ? (
-                <ModalLayer
-                  testId="pipeline-action-layer"
-                  onCancel={() => {
-                    setActionFor(null);
-                    void pipelineRefresh().catch(() => undefined);
-                  }}
-                >
-                  <ChangeActionDialog
-                    key={`${actionFor.action} ${actionFor.changeName}`}
-                    target={actionFor}
-                    perform={performChangeAction}
-                    harnessApi={harnessSettingsApi}
-                    onClose={() => {
-                      setActionFor(null);
-                      void pipelineRefresh().catch(() => undefined);
-                    }}
-                  />
-                </ModalLayer>
-              ) : null}
-              {logsFor !== null ? (
-                <ModalLayer onCancel={() => setLogsFor(null)}>
-                  <RunLogsView changeName={logsFor} load={logsLoad} read={logsRead} onClose={() => setLogsFor(null)} />
-                </ModalLayer>
-              ) : null}
-              {runOpenedFrom === "pipeline" && runHarnessMessage
-                ? <p className="openspec-shell-note" data-testid="pipeline-run-message">{runHarnessMessage}</p>
-                : null}
-              {/* The run a card's Start opened, over the Pipeline where it
+            <div className="openspec-pipeline-tab">
+              {cwd.trim().length > 0
+                ? (
+                  <>
+                    <PipelineView
+                      load={pipelineLoad}
+                      survey={pipelineSurvey}
+                      lastRuns={pipelineLastRuns}
+                      standings={pipelineStandings}
+                      stages={pipelineStages}
+                      archived={pipelineArchived}
+                      columns={pipelineColumns}
+                      drift={pipelineDrift}
+                      onCatchUp={pipelineCatchUp}
+                      liveRuns={pipelineLiveRuns}
+                      refresh={pipelineRefresh}
+                      isActive={activeTab === "pipeline"}
+                      onOpenChange={openChangeInEditor}
+                      onRunControl={pipelineRunControl}
+                      onAnswerQuestion={pipelineAnswerQuestion}
+                      onStart={pipelineStart}
+                      onUpdatePlan={pipelineUpdatePlan}
+                      onViewLogs={setLogsFor}
+                      copyText={pipelineCopyText}
+                      viewState={pipelineViewState}
+                      onAskToStop={pipelineAskToStop}
+                      onArchive={pipelineArchive}
+                      onReadingChange={setPipelineReading}
+                      taskActions={pipelineTaskActions}
+                      changeActions={pipelineChangeActions}
+                      {...(pipelineFocus !== undefined ? { focus: pipelineFocus } : {})}
+                    />
+                    {actionFor !== null ? (
+                      <ModalLayer
+                        testId="pipeline-action-layer"
+                        onCancel={() => {
+                          setActionFor(null);
+                          void pipelineRefresh().catch(() => undefined);
+                        }}
+                      >
+                        <ChangeActionDialog
+                          key={`${actionFor.action} ${actionFor.changeName}`}
+                          target={actionFor}
+                          perform={performChangeAction}
+                          harnessApi={harnessSettingsApi}
+                          onClose={() => {
+                            setActionFor(null);
+                            void pipelineRefresh().catch(() => undefined);
+                          }}
+                        />
+                      </ModalLayer>
+                    ) : null}
+                    {logsFor !== null ? (
+                      <ModalLayer onCancel={() => setLogsFor(null)}>
+                        <RunLogsView changeName={logsFor} load={logsLoad} read={logsRead} onClose={() => setLogsFor(null)} />
+                      </ModalLayer>
+                    ) : null}
+                    {runOpenedFrom === "pipeline" && runHarnessMessage
+                      ? <p className="openspec-shell-note" data-testid="pipeline-run-message">{runHarnessMessage}</p>
+                      : null}
+                    {/* The run a card's Start opened, over the Pipeline where it
                   was pressed: its dialog, and then the chain it started
                   (a-change-is-run-from-its-card). */}
-              {(runDispatch && runOpenedFrom === "pipeline") || pipelineChain ? (
-                <ModalLayer onCancel={closePipelineRun} testId="pipeline-run-layer">
-                <div ref={pipelineRunLayer}>
-                  {runDispatch && runOpenedFrom === "pipeline" ? (
-                    <RunDialog
-                      changeName={runChangeName}
-                      plan={runDispatch.plan}
-                      {...(runStanding ? { standing: runStanding } : {})}
-                      stats={runStats}
-                      onChoose={startChosenRun}
-                      onApplyTemplate={(template) => void applyTemplateToChange(template)}
-                      appliedNote={runAppliedNote}
-                      onUseAgent={(agentId) => void putAgentOnEveryStage(agentId)}
-                      useAgentNote={runUseAgentNote}
-                      onSchedule={(path, startAt) => void scheduleRun(path, startAt)}
-                      onDismiss={closePipelineRun}
-                    />
-                  ) : null}
-                  {pipelineChain ? (
-                    <section
-                      className="openspec-shell-panel"
-                      data-testid="pipeline-run-chain"
-                      role="dialog"
-                      aria-modal="true"
-                      aria-label={`Run ${runChangeName}`}
-                      tabIndex={-1}
-                    >
-                      <h3>{`Run ${runChangeName}`}</h3>
-                      <HarnessChainPanel transport={transport} cwd={pipelineChain.root} changeDir={pipelineChain.changeDir} budget={pipelineChain.budget} />
-                      <button className="button" type="button" data-testid="pipeline-run-close" onClick={closePipelineRun}>Close</button>
-                    </section>
-                  ) : null}
-                </div>
-                </ModalLayer>
-              ) : null}
-            </>
-          )
-          : <p>Enter workspace root to see the pipeline.</p>}
-      </div>
-      </TabPanel>
-      )}
+                    {(runDispatch && runOpenedFrom === "pipeline") || pipelineChain ? (
+                      <ModalLayer onCancel={closePipelineRun} testId="pipeline-run-layer">
+                        <div ref={pipelineRunLayer}>
+                          {runDispatch && runOpenedFrom === "pipeline" ? (
+                            <RunDialog
+                              changeName={runChangeName}
+                              plan={runDispatch.plan}
+                              {...(runStanding ? { standing: runStanding } : {})}
+                              stats={runStats}
+                              onChoose={startChosenRun}
+                              onApplyTemplate={(template) => void applyTemplateToChange(template)}
+                              appliedNote={runAppliedNote}
+                              onUseAgent={(agentId) => void putAgentOnEveryStage(agentId)}
+                              useAgentNote={runUseAgentNote}
+                              onSchedule={(path, startAt) => void scheduleRun(path, startAt)}
+                              onDismiss={closePipelineRun}
+                            />
+                          ) : null}
+                          {pipelineChain ? (
+                            <section
+                              className="openspec-shell-panel"
+                              data-testid="pipeline-run-chain"
+                              role="dialog"
+                              aria-modal="true"
+                              aria-label={`Run ${runChangeName}`}
+                              tabIndex={-1}
+                            >
+                              <h3>{`Run ${runChangeName}`}</h3>
+                              <HarnessChainPanel transport={transport} cwd={pipelineChain.root} changeDir={pipelineChain.changeDir} budget={pipelineChain.budget} />
+                              <button className="button" type="button" data-testid="pipeline-run-close" onClick={closePipelineRun}>Close</button>
+                            </section>
+                          ) : null}
+                        </div>
+                      </ModalLayer>
+                    ) : null}
+                  </>
+                )
+                : <p>Enter workspace root to see the pipeline.</p>}
+            </div>
+          </TabPanel>
+        )}
 
-      {visibleTabIds.has("harness-settings") && (
-      <TabPanel id="harness-settings" activeTab={activeTab} lazy>
-      <PanelStatus reading={shownReadings["harness-settings"]} testId="tab-reading-harness-settings" />
-      <BusyFieldset busy={shownReadings["harness-settings"] !== null}>
-      {/* Said where a person used to find a change's settings, since that
+        {visibleTabIds.has("harness-settings") && (
+          <TabPanel id="harness-settings" activeTab={activeTab} lazy>
+            <PanelStatus reading={shownReadings["harness-settings"]} testId="tab-reading-harness-settings" />
+            <BusyFieldset busy={shownReadings["harness-settings"] !== null}>
+              {/* Said where a person used to find a change's settings, since that
           is where they will look first (a-change-is-configured-from-the-
           change): in the page head's sentence where there is a page head,
           and here where there is none. */}
-      {isStandaloneHost ? null : (
-        <p className="openspec-shell-note" data-testid="harness-settings-change-pointer">
-          A change's own settings are in the Change Editor, under Harness.
-        </p>
-      )}
-      {cwd.trim().length > 0
-        ? <GlobalHarnessSettingsView api={harnessSettingsApi} onReadingChange={setHarnessReading} showFile={harnessFileShown} />
-        : <p className="openspec-shell-note">Enter workspace root to configure the harness.</p>}
-      </BusyFieldset>
-      </TabPanel>
-      )}
+              {isStandaloneHost ? null : (
+                <p className="openspec-shell-note" data-testid="harness-settings-change-pointer">
+                  A change's own settings are in the Change Editor, under Harness.
+                </p>
+              )}
+              {cwd.trim().length > 0
+                ? <GlobalHarnessSettingsView api={harnessSettingsApi} onReadingChange={setHarnessReading} showFile={harnessFileShown} />
+                : <p className="openspec-shell-note">Enter workspace root to configure the harness.</p>}
+            </BusyFieldset>
+          </TabPanel>
+        )}
 
       </div>
 

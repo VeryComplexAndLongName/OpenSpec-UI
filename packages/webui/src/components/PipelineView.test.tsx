@@ -1974,6 +1974,24 @@ describe("PipelineView — a card works its own tasks", () => {
     expect(screen.queryByTestId("pipeline-directory-0-node-fresh-start")).toBeNull();
   });
 
+  it("shows the logs of a change from the card of its own worktree, and not on a card that is not its own", async () => {
+    const onViewLogs = vi.fn();
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        survey={async () => survey(directory(), own(), theirs({ changes: [{ changeName: "their-change", tasksDone: 0, tasksTotal: 1, blockers: [], alsoIn: [], tasks: [ownRows[1]!] }] }))}
+        onViewLogs={onViewLogs}
+      />,
+    );
+
+    const logs = await screen.findByTestId("pipeline-directory-0-node-fresh-logs");
+    expect(logs).toHaveAccessibleName("Show Logs fresh");
+    fireEvent.click(logs);
+    expect(onViewLogs).toHaveBeenCalledWith("fresh");
+    expect(screen.queryByTestId("pipeline-directory-1-node-their-change-logs")).toBeNull();
+  });
+
   it("holds a task's whole text in the hint of its row", async () => {
     await openOwnCard();
     const row = screen.getByTestId("pipeline-directory-0-node-fresh-tasks").querySelector("[data-word='only a person can close it']");

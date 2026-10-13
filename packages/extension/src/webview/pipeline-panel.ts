@@ -36,14 +36,15 @@ import {
   surveyWorktrees,
   type CatchUpResult,
   type ChangeStageReading,
-  type ArchiveReading,  type BoardColumnsReading,
+  type ArchiveReading, type BoardColumnsReading,
   type ChangeStandings,
   type MainDrift,
   type LastRunsReport,
   type LiveRuns,
   type WorktreeSurvey,
   isRunLogId,
-  listRunLogs,
+  listChangeRunLogs,
+  readChangeRunLog,
   readRunLog,
   commitTaskList,
   resolveOwnWorktree,
@@ -586,16 +587,24 @@ export class PipelinePanel {
             reply({ ok: false, error: "a change name is required" });
             return;
           }
-          reply({ ok: true, value: await listRunLogs(workspaceRoot, { changeName }) });
+          reply({ ok: true, value: await listChangeRunLogs({ repositoryRoot: workspaceRoot, changeName }) });
           return;
         }
         case "pipeline/run-log": {
-          const runId = (request.args as { runId?: unknown } | undefined)?.runId;
+          const logArgs = request.args as { runId?: unknown; changeName?: unknown } | undefined;
+          const runId = logArgs?.runId;
           if (typeof runId !== "string" || !isRunLogId(runId)) {
             reply({ ok: false, error: "a run id is required" });
             return;
           }
-          const records = await readRunLog(workspaceRoot, runId);
+          const named = logArgs?.changeName;
+          if (named !== undefined && (typeof named !== "string" || named.length === 0)) {
+            reply({ ok: false, error: "a change name, when given, must be a non-empty string" });
+            return;
+          }
+          const records = named === undefined
+            ? await readRunLog(workspaceRoot, runId)
+            : await readChangeRunLog({ repositoryRoot: workspaceRoot, changeName: named, runId });
           if (records === undefined) {
             reply({ ok: false, error: `no log is kept for run ${runId}` });
             return;

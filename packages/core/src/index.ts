@@ -52,6 +52,7 @@ export * from "./change-in-its-worktree.js";
 export * from "./openspec-setup-commit.js";
 export * from "./harness-config.js";
 export * from "./run-log.js";
+export * from "./change-run-logs.js";
 export * from "./harness-config-schema.js";
 export * from "./harness-chain-runner.js";
 export * from "./process-scheduler.js";
