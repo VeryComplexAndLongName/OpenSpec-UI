@@ -857,12 +857,16 @@ in nothing.
 
 The standalone server SHALL answer `POST /api/run-logs/list` with an
 authorized workspace's logged runs, one change's when the body names it,
-and `POST /api/run-logs/read` with one run's log. It SHALL answer 400 for a
-run id that could name a file outside the log directory, and 404 where no
-log is kept.
+and `POST /api/run-logs/read` with one run's log. Where the body names a
+change, both SHALL read from that change's own worktree, found from its
+name, and from the workspace root where it has none. It SHALL answer 400
+for a run id that could name a file outside the log directory, and 404
+where no log is kept.
 
-The Pipeline SHALL offer Logs on every change's card. It SHALL open, over
-the board and in view whatever the board's height and scroll:
+The Pipeline SHALL offer Logs on every change's card, including the card of
+a change worked in its own worktree drawn from another directory's
+picture. It SHALL open, over the board and in view whatever the board's
+height and scroll:
 
 - the change's runs, newest first, each with when it started, what it
   was, the agent and how it ended;
@@ -896,6 +900,17 @@ showed 82 pixels of itself at the window's bottom edge.
 
 - **WHEN** a person presses Escape in the logs view
 - **THEN** the view closes and the focus is back on the Logs button that opened it
+
+#### Scenario: A change worked in its own worktree
+
+- **WHEN** a person presses Logs on the card of a change whose runs were
+  logged in its own worktree
+- **THEN** the view lists those runs and opens the one chosen
+
+#### Scenario: A request names a path
+
+- **WHEN** the list request names a path in place of a change
+- **THEN** the server reads nothing outside the workspace
 
 ### Requirement: A sprint's changes are picked from a checklist
 
