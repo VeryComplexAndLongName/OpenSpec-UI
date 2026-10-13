@@ -2311,6 +2311,11 @@ when asked, without reading each log whole. It SHALL read one run's log by
 its id, and SHALL refuse an id that could name a file outside the
 directory.
 
+Core SHALL resolve where one change's logs are read from: the change's own
+worktree, found from the change's name and the repository's worktree list,
+where it has one, and the host's own root where it has none. A request SHALL
+name the change and SHALL NOT name a path.
+
 #### Scenario: A run completes
 
 - **WHEN** a run writes to stdout and completes
@@ -2337,6 +2342,18 @@ directory.
 
 - **WHEN** a log is asked for under the id `../audit`
 - **THEN** nothing is read
+
+#### Scenario: A change worked in its own worktree
+
+- **WHEN** a change has a worktree of its own, a run there kept two logs,
+  and the host's own root kept none
+- **THEN** listing that change's logs answers both runs
+
+#### Scenario: A change with no worktree of its own
+
+- **WHEN** a change has no worktree of its own and the host's own root kept
+  a log of its run
+- **THEN** listing that change's logs answers that run from the host's root
 
 ### Requirement: A change that has landed is archived for you
 
