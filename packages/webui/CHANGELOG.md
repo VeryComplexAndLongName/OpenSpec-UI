@@ -1,5 +1,14 @@
 # @openspec-ui/webui
 
+## 1.94.1
+
+### Patch Changes
+
+- ac0e1e7: Show Logs on a change's card reads the logs of the change's own worktree, where its runs write them, and the card of a change worked in its own worktree offers it. Before, the button read only the host's root and said there were no logs.
+- Updated dependencies [9a6159f]
+- Updated dependencies [ac0e1e7]
+  - @openspec-ui/core@0.149.1
+
 ## 1.94.0
 
 ### Minor Changes
