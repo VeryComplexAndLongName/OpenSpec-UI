@@ -15,6 +15,7 @@ export * from "./change-state.js";
 export * from "./change-standing.js";
 export * from "./deferred-items.js";
 export * from "./archived-since.js";
+export * from "./resurrected-changes.js";
 export * from "./branch-rebase.js";
 export { readsArchivesAsFiles, removeTree } from "./plain-fs.js";
 export { sweepWorkspace, describeWorkspaceSweep, createArchiveFollower, sweepsAgainSoon, type ArchiveFollower, type WorkspaceSweep } from "./workspace-sweep.js";

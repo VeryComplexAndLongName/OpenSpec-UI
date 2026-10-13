@@ -190,3 +190,49 @@ describe("the people", () => {
     }]);
   });
 });
+
+// a-change-is-never-both-active-and-archived. Pull request 883 put two plans
+// back among the active changes after the base had archived them, and the
+// gate passed it.
+describe("a change that is active and archived", () => {
+  const gitWith = (active: string[], archived: string[]) => ({
+    listTreeNames: async (_ref: string, tree: string) => (tree.endsWith("/archive") ? archived : tree.startsWith("openspec/changes") ? ["archive", ...active] : []),
+    listFilesUnder: async () => [],
+    showFile: async () => undefined,
+  });
+
+  it("fails a change the base archived and this pull request has active again, and names both", async () => {
+    const root = await workspace({ "the-change": CLOSED, "put-back": CLOSED });
+
+    const result = await runValidateAll(root, {
+      change: "the-change",
+      archivedSince: "origin/main",
+      git: gitWith(["the-change"], ["2026-10-10-put-back"]),
+      ...seams,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.resurrectedChanges).toEqual([{ changeName: "put-back", archivedAs: "2026-10-10-put-back" }]);
+  });
+
+  it("passes a change the base still has active, which this pull request archives", async () => {
+    const root = await workspace({ "landing": CLOSED });
+
+    const result = await runValidateAll(root, {
+      change: "landing",
+      archivedSince: "origin/main",
+      git: gitWith(["landing"], ["2026-10-10-landing"]),
+      ...seams,
+    });
+
+    expect(result.resurrectedChanges).toBeUndefined();
+  });
+
+  it("says nothing where no base was given", async () => {
+    const root = await workspace({ "put-back": CLOSED });
+
+    const result = await runValidateAll(root, { change: "put-back", ...seams });
+
+    expect(result.resurrectedChanges).toBeUndefined();
+  });
+});
