@@ -497,6 +497,9 @@ function formatText(result: ValidateAllResult): string {
   for (const problem of result.historyProblems ?? []) {
     lines.push(`FAIL  ${problem.file}: ${problem.problem}`);
   }
+  for (const one of result.resurrectedChanges ?? []) {
+    lines.push(`FAIL  ${one.changeName} is active, and the base archived it as ${one.archivedAs}`);
+  }
   lines.push(result.ok ? "\nAll changes valid." : "\nOne or more changes failed validation.");
   return lines.join("\n");
 }

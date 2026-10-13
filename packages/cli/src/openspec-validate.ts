@@ -14,8 +14,10 @@ import {
   readArchivedSince,
   readPeople,
   readPeopleAt,
+  readResurrectedChanges,
   type HistoryProblem,
   type PeopleProblem,
+  type ResurrectedChange,
   readTaskChecklist,
   validateChange,
   type GitWrapper,
@@ -59,6 +61,9 @@ export interface ValidateAllResult {
    * or changed, and a file this pull request adds that does not check out
    * or breaks a hand-over rule (a-change-keeps-its-history, ADR 0037). */
   historyProblems?: HistoryProblem[];
+  /** Changes this pull request has active although the base already archived
+   * them, where a base was given (a-change-is-never-both-active-and-archived). */
+  resurrectedChanges?: ResurrectedChange[];
 }
 
 /** The two calls that spawn the `openspec` CLI. Seams, because the job
@@ -182,11 +187,21 @@ export async function runValidateAll(
     historyProblems = [{ file: "openspec/changes", problem: `the histories could not be checked: ${error instanceof Error ? error.message : String(error)}` }];
   }
 
+  const resurrected: ResurrectedChange[] = [];
+  if (options.archivedSince !== undefined) {
+    try {
+      resurrected.push(...await readResurrectedChanges(cwd, options.archivedSince, options.git ?? createGitWrapper({ cwd })));
+    } catch (error) {
+      archiveCheckFailed ??= error instanceof Error ? error.message : String(error);
+    }
+  }
+
   const ok = results.every((result) => result.valid)
     && (archived === undefined || archived.length === 0)
     && archiveCheckFailed === undefined
     && peopleProblems.length === 0
-    && historyProblems.length === 0;
+    && historyProblems.length === 0
+    && resurrected.length === 0;
   return {
     ok,
     results,
@@ -194,5 +209,6 @@ export async function runValidateAll(
     ...(archiveCheckFailed !== undefined ? { archiveCheckFailed } : {}),
     ...(peopleProblems.length > 0 ? { peopleProblems } : {}),
     ...(historyProblems.length > 0 ? { historyProblems } : {}),
+    ...(resurrected.length > 0 ? { resurrectedChanges: resurrected } : {}),
   };
 }
