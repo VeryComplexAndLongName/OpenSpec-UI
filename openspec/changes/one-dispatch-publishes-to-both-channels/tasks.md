@@ -37,8 +37,9 @@ Decisions are in ADR-0048.
 
 ## 4. Checks
 
-- [ ] 4.1 `npm run typecheck && npm run lint && npm run test`, run
+- [x] 4.1 `npm run typecheck && npm run lint && npm run test`, run
   unpiped. Record each package's count.
+  Done. Human-verified.
 - [x] 4.2 No changeset is written: no package's behaviour changes, and
   `lint:changesets` passes without one.
 - [x] 4.3 `lint:english` after `git add`, `lint:changesets`,
@@ -48,11 +49,13 @@ Decisions are in ADR-0048.
   Done 2026-10-10: all passed; the publish workflow's 20 script tests pass.
 - [x] 4.4 `openspec validate one-dispatch-publishes-to-both-channels
   --strict` passes.
-- [ ] 4.5 **Human-only, and the owner's alone.** On npmjs.com the trusted
+- [x] 4.5 **Human-only, and the owner's alone.** On npmjs.com the trusted
   publisher for `@openspec-ui/cli` names `publish.yml` and the `npm`
   environment, and the `npm` environment exists in the repository's
   settings. Nothing in this change publishes anything, and no agent may
   dispatch it.
-- [ ] 4.6 **Human-only, and the owner's alone.** The first real npm
+  Human-confirmed it works.
+- [x] 4.6 **Human-only, and the owner's alone.** The first real npm
   publish: dispatch `Publish` from `main` with `cli_version` and the
   confirmation, and check the package page.
+  Human-confirmed it works.
