@@ -457,7 +457,7 @@ async function readBranchRefs(
   git: Partial<Pick<GitWrapper, "listRefs">>,
   options: WorktreeSurveyOptions,
 ): Promise<Map<string, string> | undefined> {
-  if (git.listRefs === undefined || !directories.some((directory) => !directory.isMain && directory.branch !== undefined)) return undefined;
+  if (git.listRefs === undefined || !directories.some((directory) => !directory.isMain && (directory.branch !== undefined || directory.head !== undefined))) return undefined;
   const remote = options.remote ?? "origin";
   try {
     return new Map((await git.listRefs(["refs/heads", `refs/remotes/${remote}`])).map((ref) => [ref.name, ref.commit]));
@@ -486,8 +486,10 @@ async function markFinishedDirectories(
   options: WorktreeSurveyOptions,
   branchRefs: Map<string, string> | undefined,
 ): Promise<void> {
+  // A directory on no branch is a candidate where it has a commit to ask
+  // about (a-detached-directory-is-offered-for-removal).
   const candidates = directories.filter(
-    (directory) => !directory.isMain && directory.branch !== undefined && directory.runs.length === 0,
+    (directory) => !directory.isMain && (directory.branch !== undefined || directory.head !== undefined) && directory.runs.length === 0,
   );
   if (candidates.length === 0 || branchRefs === undefined || git.mergeBase === undefined) return;
 
@@ -504,7 +506,23 @@ async function markFinishedDirectories(
   });
 
   for (const directory of candidates) {
-    const branch = directory.branch as string;
+    if (directory.branch === undefined) {
+      // No branch, so nothing can be gone: the one thing to ask is whether
+      // the default branch already contains the commit this directory is
+      // at. It is the answer a merged branch gives, and no other.
+      const head = directory.head;
+      if (head === undefined || mainCommit === undefined) continue;
+      try {
+        if (await git.mergeBase(mainCommit, head) !== head) continue;
+      } catch {
+        continue;
+      }
+      if (!await isClean(directory.path)) continue;
+      const reason = "merged" as const;
+      directory.finishedWith = { reason };
+      continue;
+    }
+    const branch = directory.branch;
     const localCommit = refs.get(`refs/heads/${branch}`);
     const remoteCommit = refs.get(`refs/remotes/${remote}/${branch}`);
     let reason: "merged" | "branch-gone" | undefined;

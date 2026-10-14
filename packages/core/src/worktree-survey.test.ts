@@ -763,6 +763,71 @@ describe("surveyWorktrees - a directory with nothing left to do", () => {
   });
 });
 
+// a-detached-directory-is-offered-for-removal: a directory on no branch has
+// no upstream to be gone, so the one thing asked of it is whether the
+// default branch already contains the commit it is at.
+describe("surveyWorktrees - a directory on no branch", () => {
+  function detachedGit(head: string, merged: string[], refs: Record<string, string> = { "refs/remotes/origin/main": "main-commit" }) {
+    return {
+      worktreeList: async (): Promise<Array<{ path: string; branch?: string; head?: string }>> => [],
+      configuredIdentity: async () => "someone@example.com",
+      listRefs: async () => Object.entries(refs).map(([name, commit]) => ({ name, commit })),
+      mergeBase: async (_left: string, right: string) => (merged.includes(right) ? right : "0000000"),
+      head,
+    };
+  }
+
+  async function surveyed(options: { head: string; merged: string[]; clean?: boolean; withRun?: boolean; refs?: Record<string, string> }) {
+    const { main, worktreeRoot, rootSources } = await repository();
+    const second = path.join(worktreeRoot, "repo", "check");
+    await makeChange(main, "change-a");
+    await makeChange(second, "change-b");
+    if (options.withRun) {
+      await writeStatus(agentStatusDirectory(worktreeRoot, main), {
+        instanceId: "run-b",
+        workingDirectory: second,
+        changeName: "change-b",
+        activity: "Bash: npm test",
+      });
+    }
+    const base = detachedGit(options.head, options.merged, options.refs);
+    const git = { ...base, worktreeList: async () => [{ path: main, branch: "main" }, { path: second, head: options.head }] };
+    return surveyWorktrees({ workspaceRoot: main, git, rootSources, isClean: async () => options.clean ?? true });
+  }
+
+  it("says it is finished with, naming no branch, where the default branch contains its commit and its tree is clean", async () => {
+    const survey = await surveyed({ head: "old-commit", merged: ["old-commit"] });
+
+    expect(survey.directories[1]?.branch).toBeUndefined();
+    expect(survey.directories[1]?.finishedWith).toEqual({ reason: "merged" });
+  });
+
+  it("says nothing where the default branch does not contain its commit", async () => {
+    const survey = await surveyed({ head: "ahead-commit", merged: [] });
+
+    expect(survey.directories[1]?.finishedWith).toBeUndefined();
+  });
+
+  it("says nothing where its tree is not clean", async () => {
+    const survey = await surveyed({ head: "old-commit", merged: ["old-commit"], clean: false });
+
+    expect(survey.directories[1]?.finishedWith).toBeUndefined();
+  });
+
+  it("says nothing where a run is recorded against it", async () => {
+    const survey = await surveyed({ head: "old-commit", merged: ["old-commit"], withRun: true });
+
+    expect(survey.directories[1]?.runs.length).toBeGreaterThan(0);
+    expect(survey.directories[1]?.finishedWith).toBeUndefined();
+  });
+
+  it("says nothing where the default branch cannot be found in the refs", async () => {
+    const survey = await surveyed({ head: "old-commit", merged: ["old-commit"], refs: { "refs/remotes/origin/other": "x" } });
+
+    expect(survey.directories[1]?.finishedWith).toBeUndefined();
+  });
+});
+
 describe("surveyWorktrees - a change the server does not have", () => {
   // a-change-is-committed-where-it-is-made: read from the refs the survey
   // lists anyway, so no git runs in the directory.
