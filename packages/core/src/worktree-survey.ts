@@ -518,7 +518,8 @@ async function markFinishedDirectories(
         continue;
       }
       if (!await isClean(directory.path)) continue;
-      directory.finishedWith = { reason: "merged" };
+      const reason = "merged" as const;
+      directory.finishedWith = { reason };
       continue;
     }
     const branch = directory.branch;
