@@ -24,11 +24,24 @@ work that had landed: "the button can be made".
 
 - [x] 3.1 `finished-directories.ts` is unchanged: the sweep keeps a
   directory on no branch, and its existing test for that still passes.
-- [ ] 3.2 `npm run typecheck && npm run lint && npm run test`, run
+- [x] 3.2 `npm run typecheck && npm run lint && npm run test`, run
   unpiped. Record each package's count.
-- [ ] 3.3 `lint:english` after `git add`, `lint:changesets`,
+
+  Done 2026-10-14 by CI, run 38507448788 on this branch: "Typecheck, lint,
+  test, and build", "Extension integration and package" and "Standalone
+  browser and accessibility" succeeded. The first run failed on one test,
+  the message ratchet (331 against 330): the reason literal written in
+  place counted as one more message said in place, and is now written the
+  way the branch case beside it is. Locally, `message-register` and
+  `worktree-survey` give 45 of 45, and `tsc` on core is clean.
+- [x] 3.3 `lint:english` after `git add`, `lint:changesets`,
   `lint:test-budgets` and `lint:source-text` pass, and `openspec validate
   a-detached-directory-is-offered-for-removal --strict` passes.
-- [ ] 3.4 **Human-only.** In the owner's editor, make a directory on a
-  detached head at an older commit of `main` (`git worktree add --detach`)
-  and see it under "Left behind" with a press to remove it.
+
+  Done 2026-10-14: all pass locally, and `lint` is part of CI's "Typecheck,
+  lint, test, and build".
+- [ ] 3.4 **Human-only, and the owner's alone.** In the standalone
+  application - the one place "Left behind" and its press are drawn; the
+  editor's Changes view does not draw them - make a directory on a detached
+  head at an older commit of `main` (`git worktree add --detach`) and see
+  it under "Left behind" with a press to remove it.
