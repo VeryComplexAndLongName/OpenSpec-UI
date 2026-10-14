@@ -40,8 +40,14 @@ work that had landed: "the button can be made".
 
   Done 2026-10-14: all pass locally, and `lint` is part of CI's "Typecheck,
   lint, test, and build".
-- [ ] 3.4 **Human-only, and the owner's alone.** In the standalone
+- [x] 3.4 **Human-only, and the owner's alone.** In the standalone
   application - the one place "Left behind" and its press are drawn; the
   editor's Changes view does not draw them - make a directory on a detached
   head at an older commit of `main` (`git worktree add --detach`) and see
   it under "Left behind" with a press to remove it.
+
+  Human-confirmed 2026-10-14: the owner ran the standalone application from
+  this branch and reported that it works. Before that, the survey run from
+  the branch against the owner's repository had marked `C:/Temp/qwerty` (a
+  detached head at `271bfa56`, clean, contained in `origin/main`) as
+  `finishedWith: { reason: "merged" }`.
