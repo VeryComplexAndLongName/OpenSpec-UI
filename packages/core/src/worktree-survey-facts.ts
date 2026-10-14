@@ -157,8 +157,10 @@ interface SurveyedDirectoryBase {
    * (the-workspace-clears-what-it-left-behind). Never a removal: a
    * directory whose branch merged can still hold somebody's uncommitted
    * work, so this is what a press is offered beside, not what a sweep
-   * acts on. */
-  finishedWith?: { reason: "merged" | "branch-gone"; branch: string };
+   * acts on. A directory on no branch has none to name: it is finished
+   * with, as "merged", where the default branch already contains the commit
+   * it is at (a-detached-directory-is-offered-for-removal). */
+  finishedWith?: { reason: "merged" | "branch-gone"; branch?: string };
   /** Where this directory's own change is not on the server: its branch was
    * never pushed, or the server's copy is at another commit - usually one it has not been pushed. Read from
    * the refs the survey already lists, so no git runs in the directory; a
