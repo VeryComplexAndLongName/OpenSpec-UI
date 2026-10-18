@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-18T05:57:13.605Z",
+  "repository": "VeryComplexAndLongName/OpenSpec-UI",
+  "commit": "ec4b1bc5915b7f7f670eb25bf3a4227aa6f1136e",
+  "products": [
+    {
+      "id": "vscode-extension",
+      "name": "VS Code Extension",
+      "package": "openspec-ui-vscode",
+      "public": true,
+      "version": "0.106.2",
+      "released_at": "2026-10-18T05:57:13.605Z",
+      "tag": "openspec-ui-vscode@0.106.2",
+      "prerelease": false,
+      "summary": "OpenSpec Workbench inside VS Code.",
+      "links": {
+        "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
+        "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.106.2"
+      },
+      "artifacts": [
+        {
+          "kind": "vsix",
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.106.2/openspec-ui-vscode-0.106.2.vsix",
+          "size_bytes": 11046009
+        }
+      ],
+      "changes": [
+        {
+          "kind": "patch",
+          "summary": "A working directory on no branch, with a clean tree and no run recorded, is offered for removal under \"Left behind\" where the default branch already contains the commit it is at (a-detached-directory-is-offered-for-removal). Before, such a directory was never offered: it has no branch to be merged or gone, and it stood beside the checkout drawing cards for work that had landed. The sweep still keeps it; removing it is a press."
+        }
+      ]
+    },
+    {
+      "id": "standalone-app",
+      "name": "Standalone App",
+      "package": "@openspec-ui/server",
+      "public": true,
+      "version": "1.62.2",
+      "released_at": "2026-10-18T05:57:13.605Z",
+      "prerelease": false,
+      "summary": "Local web application, no editor required.",
+      "links": {
+        "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/server/CHANGELOG.md",
+        "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/server/README.md"
+      },
+      "artifacts": [],
+      "changes": []
+    },
+    {
+      "id": "core",
+      "name": "Core",
+      "package": "@openspec-ui/core",
+      "public": false,
+      "version": "0.149.2",
+      "released_at": "2026-10-18T05:57:13.605Z",
+      "prerelease": false,
+      "summary": "Execution engine shared by both delivery targets.",
+      "links": {
+        "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/core/CHANGELOG.md",
+        "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/core/README.md"
+      },
+      "artifacts": [],
+      "changes": [
+        {
+          "kind": "patch",
+          "summary": "A working directory on no branch, with a clean tree and no run recorded, is offered for removal under \"Left behind\" where the default branch already contains the commit it is at (a-detached-directory-is-offered-for-removal). Before, such a directory was never offered: it has no branch to be merged or gone, and it stood beside the checkout drawing cards for work that had landed. The sweep still keeps it; removing it is a press."
+        }
+      ]
+    },
+    {
+      "id": "shared-ui",
+      "name": "Shared UI",
+      "package": "@openspec-ui/webui",
+      "public": false,
+      "version": "1.94.2",
+      "released_at": "2026-10-18T05:57:13.605Z",
+      "prerelease": false,
+      "links": {
+        "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
+        "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/README.md"
+      },
+      "artifacts": [],
+      "changes": []
+    },
+    {
+      "id": "ci-cli",
+      "name": "CLI",
+      "package": "@openspec-ui/cli",
+      "public": true,
+      "version": "0.32.1",
+      "released_at": "2026-10-18T05:57:13.605Z",
+      "prerelease": false,
+      "summary": "Run, validate and check OpenSpec changes from a terminal or CI.",
+      "links": {
+        "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
+        "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/README.md",
+        "npm": "https://www.npmjs.com/package/@openspec-ui/cli"
+      },
+      "artifacts": [],
+      "changes": [
+        {
+          "kind": "patch",
+          "summary": "The merge gate refuses a change the pull request puts back among the active ones after its base archived it, so the board cannot show a shipped change as unfinished."
+        }
+      ]
+    }
+  ]
+}
