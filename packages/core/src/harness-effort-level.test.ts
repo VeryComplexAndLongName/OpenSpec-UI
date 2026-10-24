@@ -7,11 +7,13 @@ import { HARNESS_AGENT_CAPABILITIES } from "./harness-step-agent.js";
 
 describe("resolveEffortLevel", () => {
   it("gives each agent its own top and bottom value", () => {
-    // The point of a level: `max` is a value `claude` accepts and
-    // `codex` does not, so a stored literal would be wrong for one of
-    // them the moment it was applied.
+    // The point of a level: `none` is a value `copilot` accepts and
+    // `claude` does not, so a stored literal would be wrong for one of
+    // them the moment it was applied. (`codex` now takes `claude`'s five,
+    // read from its own model catalog: codex-cli-is-a-full-agent.)
     expect(resolveEffortLevel("claude-cli", "highest").effort).toBe("max");
-    expect(resolveEffortLevel("codex-cli", "highest").effort).toBe("high");
+    expect(resolveEffortLevel("codex-cli", "highest").effort).toBe("max");
+    expect(resolveEffortLevel("codex-cli", "lowest").effort).toBe("low");
     expect(resolveEffortLevel("claude-cli", "lowest").effort).toBe("low");
     expect(resolveEffortLevel("copilot-cli", "lowest").effort).toBe("none");
   });

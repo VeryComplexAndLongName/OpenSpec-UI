@@ -2960,8 +2960,9 @@ describe("createRunChoiceHandler", () => {
       // asked for the staging allowlist to be removed.
       gitStageAllowlist: { remotes: ["origin"], branches: ["main"] },
       maxStageAttempts: 3,
-      // `codex-cli`'s own highest, not `max`, which it does not accept.
-      stepAgents: { apply: { agent: "codex-cli", effort: "high" } },
+      // `codex-cli`'s own highest, resolved against the levels its model
+      // catalog gives it (codex-cli-is-a-full-agent).
+      stepAgents: { apply: { agent: "codex-cli", effort: "max" } },
     });
     // Re-read, not re-rendered: the dialog should show what the file now
     // resolves to.
