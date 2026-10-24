@@ -1,5 +1,15 @@
 # @openspec-ui/webui
 
+## 1.94.3
+
+### Patch Changes
+
+- 625e5d5: Include visible zoom percentages and task text in Pipeline button accessible names.
+- Updated dependencies [662bf5d]
+- Updated dependencies [1c70be4]
+- Updated dependencies [9234ad9]
+  - @openspec-ui/core@0.150.0
+
 ## 1.94.2
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @openspec-ui/core
 
+## 0.150.0
+
+### Minor Changes
+
+- 1c70be4: **Codex over ACP is a full agent** (codex-cli-acp-is-a-full-agent, ADR 0052). `codex-cli-acp` now runs a stage in a named sandbox - `workspace-write` for plan, implement, update and verify, `read-only` otherwise, as `codex-cli` does - and with the stage's model and effort (`low` to `max`), all set as ACP session options through `session/set_config_option` before the prompt. Every option is checked first against what the agent's session lists; a model or effort it does not offer fails the run in words before anything is set (`OSW-AGT-223`, `OSW-AGT-224`). It reports tokens and a context gauge. Separately, the ACP driver now reads cached input under ACP's own field names (`cachedReadTokens`, `cachedWriteTokens`), so an ACP agent's cached tokens are recorded at all. The bridge is `npm install -g @agentclientprotocol/codex-acp`.
+- 9234ad9: **Codex CLI is a full agent** (codex-cli-is-a-full-agent, ADR 0051). Told no sandbox, `codex exec` ran read-only: an apply stage on `codex-cli` wrote nothing and was read as done. Codex now runs `codex exec --json --sandbox workspace-write` for plan, implement, update and verify, and `--sandbox read-only` for review and the rest; full access and the bypass flag are refused. A stage's `model` is passed with `--model`. The JSON stream is read: the agent's messages, the commands it runs and a failed one's exit code and output, the files it changed, the turn's token usage (cached input apart) - so a token ceiling can act on Codex - and a turn Codex reports failed fails the run (`OSW-AGT-222`), though `codex` exits 0. Its efforts follow codex's own model catalog: `low`, `medium`, `high`, `xhigh`, `max` - `minimal`, which no current model takes, goes - and before codex starts, a model it does not list, or an effort the model does not take, is refused in words (`OSW-AGT-011`, `OSW-AGT-012`).
+
+### Patch Changes
+
+- 662bf5d: **An ACP agent is heard on stderr** (an-acp-agent-is-heard-on-stderr). The ACP session driver - shared by `claude-cli-acp`, `copilot-cli-acp`, `deepseek-cli-acp`, `codex-cli-acp` and `local-llm-acp` - spawned each agent with stderr piped and never read it, so an agent writing its logs there could stall mid-run once the pipe filled, and a run that failed said only that the connection closed. stderr is now read from the moment the agent starts, handed on as `stderr` events as the raw-text adapters do, and the last of it (up to 4000 characters) ends a failed run's reason - "not signed in", a crash, whatever the agent said.
+
 ## 0.149.2
 
 ### Patch Changes
