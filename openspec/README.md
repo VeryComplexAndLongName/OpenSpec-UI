@@ -28,6 +28,33 @@ Required flow for every change:
 Reason: this keeps a full audit trail, supports safer rollback decisions, and
 preserves implementation history in a single structured process.
 
+### Local checks cover the change; full verification runs in CI
+
+Every agent follows the verification policy in
+[`config.yaml`](config.yaml): its context, task rules, and apply/archive
+guidance. Select local checks for the changed behavior and directly
+affected callers or contracts: named test files or test names, changed
+lint paths, affected TypeScript projects, and relevant smoke scenarios.
+Record exactly what ran and what passed.
+
+Complete verification runs only in CI. Do not run `npm run verify`,
+unscoped root checks, or unfiltered package, browser, or integration
+suites locally. Dividing a complete run into batches, worktrees, or
+assignments to other agents is still a complete local run.
+
+New local tasks name their scoped commands explicitly. They do not use
+`check(test)`, `check(lint)`, or `check(typecheck)`: those Harness checks
+expand to unscoped root npm scripts before the verifying agent starts.
+Update a conflicting active task's verification scope before executing
+it; leave archived verification records as history.
+
+Submit the pull request after its relevant local checks pass and let the
+existing CI gates perform full verification. Until CI finishes, report
+that full result as pending. Full-suite verification belongs to those
+gates, not to an item in the local tasks.md checklist or a pre-commit
+prerequisite. Archiving uses actual CI evidence instead of rerunning
+complete suites locally.
+
 ### Tick a verification item after it passes, not before the commit
 
 `tasks.md` is what decides whether a change may be archived, so it has to

@@ -27,6 +27,15 @@ context: |
   of the first change, not an optional follow-up.
   Testing uses Vitest. Contract tests between webui and server are required
   before archiving any change that touches their protocol.
+  Every agent working in this repository must run only targeted local
+  verification of changed behavior and directly affected callers/contracts.
+  Select test files or test names, lint paths, affected TypeScript projects,
+  and relevant smoke checks explicitly. Full verification and unfiltered
+  test/browser/integration suites, even within one package, run only in CI.
+  Do not run npm run verify or other unscoped root verification locally,
+  or reproduce a full run in batches, worktrees, or separate agent runs.
+  Keep the existing CI gates; report scoped local results separately from
+  full CI results, and never treat an unexecuted full suite as passed.
 
 rules:
   proposal:
@@ -47,6 +56,29 @@ rules:
   tasks:
     - Every task must be verifiable (a specific file/test), not an abstract
       "improve X".
+    - >-
+      Every agent implementing or verifying a change must run only targeted
+      local checks of the changed behavior and directly affected callers or
+      contracts. State selected test files or test names, lint paths,
+      affected TypeScript projects, and relevant smoke checks in tasks.
+      Full verification and unfiltered suites, even within one package,
+      run only in CI; do not split a full local run into batches, worktrees,
+      or agent assignments. Do not add local npm run verify, unfiltered
+      package suites, or unscoped root verification commands.
+    - >-
+      Do not declare check(test), check(lint), or check(typecheck) on this
+      repository's local tasks: the Harness expands them to unscoped root
+      npm scripts before the verifying agent runs. Write an explicitly
+      scoped local command in task text instead. When an existing task
+      conflicts with this policy, update its verification scope before
+      running it; do not silently execute the broad command or mark it
+      passed without evidence. Keep archived records unchanged.
+    - >-
+      Record the selected local commands and their actual results. Full
+      verification belongs to the existing pull-request CI gates, not to a
+      full-suite item in the local tasks.md checklist or a pre-commit
+      prerequisite. Report full CI separately as pending until it finishes;
+      never mark an unexecuted suite as passed.
     - Tasks in execution-core that implement the security model (allowlist,
       cwd sandbox, audit) cannot be marked complete without the corresponding
       test in tasks — this is not a decorative section.
@@ -103,10 +135,16 @@ operations:
       - Use the runtime pinned in the root package.json (`volta` + `engines`)
         for local and CI execution; do not run repository commands with
         arbitrary global Node.js/npm versions.
-      - Before completing apply, tsc (typecheck), eslint, and vitest must pass
-        for the affected packages; for server/extension, a manual smoke test
-        (a real run, not just unit tests) is also required before a task may be
-        marked complete.
+      - >-
+        Before completing apply, run only targeted local verification:
+        selected tests for changed behavior and directly affected contracts,
+        lint on changed source paths, and affected TypeScript project checks
+        where relevant. For server/extension behavior changes, run a relevant
+        real smoke scenario before its task is marked complete. Full
+        repository verification and unfiltered package, browser, or
+        integration suites run only in CI; never run them locally, even in
+        separate batches, worktrees, or agent runs. Do not require a full
+        local run before committing; preserve the existing CI gates.
       - A version bump in the affected package's package.json is mandatory in
         sync with every externally visible behavior change, proposed via a
         changeset (`npx changeset`) in the same change rather than editing
@@ -123,6 +161,11 @@ operations:
         separately if the UI exposes build information.
   archive:
     guidance:
+      - >-
+        Use recorded targeted local evidence and the actual full CI results;
+        do not rerun complete suites locally to archive a change. A full CI
+        result is pending until CI reports it, and required verification
+        items stay open until their evidence is available.
       - Before archiving, proposal.md/design.md must explicitly state which
         contract tests between webui and server actually passed (not "should
         pass"), and which risks remain open, with a link to the specific task.
