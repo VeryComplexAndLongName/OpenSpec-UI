@@ -36,9 +36,23 @@ context: |
   or reproduce a full run in batches, worktrees, or separate agent runs.
   Keep the existing CI gates; report scoped local results separately from
   full CI results, and never treat an unexecuted full suite as passed.
+  Release notes describe the product a person uses, even when its code
+  changes only in Core or Shared UI. Every new proposal has a Changelog
+  section naming affected public deliveries with one to three concrete
+  bullets. Each bullet uses one or two sentences stating observable
+  behavior and essential requirements or limits; keep each changeset
+  body within 80 words. Name the affected delivery packages in Changesets
+  so their users receive authored notes, not only Updated dependencies.
 
 rules:
   proposal:
+    - >-
+      Add a Changelog section with affected public deliveries and one to
+      three concise, concrete bullets suitable for their release notes.
+      State what users can do or what now behaves differently, where it
+      applies, and only essential requirements or limits. Avoid vague
+      fixes, implementation diaries, unsupported claims and dependency-only
+      placeholders. If no public behavior changes, explain that scope.
     - The "Why" section must reference a specific architecture decision from
       docs/adr/ or a specific risk raised in review — not an abstract "we need
       this feature".
@@ -54,6 +68,15 @@ rules:
       confirm backward compatibility with the already implemented adapters
       (server/extension), if they exist at the time of the change.
   tasks:
+    - >-
+      Include a task to turn the proposal's Changelog copy into Changesets
+      entries for each affected public delivery (openspec-ui-vscode,
+      @openspec-ui/server, @openspec-ui/cli), even for shared Core/UI work.
+      Use the semver level of the actual behavior change, not its code
+      location; different product audiences may need separate entries.
+      Keep one to three bullets, one or two sentences each, at most 80 words
+      per body. Verify that product notes survive manifest/release parsing;
+      Updated dependencies alone is not an authored release note.
     - Every task must be verifiable (a specific file/test), not an abstract
       "improve X".
     - >-
@@ -159,8 +182,21 @@ operations:
       - Delivery forms may show an aggregated release version, but the source
         of truth for behavior versions is the package versions; show `core`
         separately if the UI exposes build information.
+      - >-
+        Before completing apply, write short, specific product-facing
+        changeset copy from the proposal's Changelog section. Name affected
+        public delivery packages explicitly so shared capabilities are not
+        hidden in private Core notes. Preserve accurate introduction
+        versions when correcting historical copy; do not retag, replace
+        artifacts, or change package versions by hand. Follow
+        .changeset/README.md and ADR 0054.
   archive:
     guidance:
+      - >-
+        Confirm that the Changelog section and changeset describe the
+        delivered behavior concisely, name affected public deliveries,
+        and disclose essential limits without claiming more than was
+        verified. Dependency bookkeeping alone does not satisfy this check.
       - >-
         Use recorded targeted local evidence and the actual full CI results;
         do not rerun complete suites locally to archive a change. A full CI

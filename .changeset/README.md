@@ -41,6 +41,38 @@ code change it describes, until it is later applied.
    its changeset-generated entries are still what users see in the VS
    Code Marketplace "Details" tab and in GitHub Releases.
 
+## Write for the product user
+
+Start from the OpenSpec proposal's `Changelog` section (ADR 0054). Use one
+to three bullets, each one or two sentences, with at most 80 words in the
+whole changeset body. Explain the observable change, where it applies and
+only essential requirements or limits. Prefer a concrete before/after or
+new action to an implementation diary, vague fixes or `Updated dependencies`.
+
+Name each affected public delivery explicitly: `openspec-ui-vscode`,
+`@openspec-ui/server`, and/or `@openspec-ui/cli`. Core and Shared UI remain
+internal products; naming only them hides a shared feature from users.
+Choose semver for the delivered behavior. Different product audiences may
+need different changesets; do not claim a host-specific capability in an
+unaffected product. A versioned maintenance release still needs an accurate
+note about its actual maintenance outcome, without inventing new features.
+
+For example:
+
+> **Codex agents: native CLI and ACP.** Run Harness stages with a GPT model,
+> reasoning effort and a stage-appropriate sandbox. Inspect output, file
+> changes and token usage; ACP requires the separately installed bridge.
+
+The linter rejects empty named summaries, dependency-only placeholders and
+overlong copy. Editorial accuracy is still reviewed. The version PR checks
+that public-product changelogs have authored notes for their current
+versions; GitHub Highlights precede the generated PR history.
+
+A factual correction to a released entry may improve its text while
+preserving its version heading, introduction version, commit/dependency
+references, tag and artifact. This does not replace the ordinary changeset
+for new work and never justifies rebuilding an old version's artifact.
+
 ## What this repository does *not* use changesets for
 
 - **npm publishing is a dispatched step, not `changeset publish`.** Only

@@ -9,6 +9,7 @@ import {
   ReleaseManifestError,
   buildReleaseManifest,
   parseChangelog,
+  releaseHighlights,
   versionFingerprint,
 } from "./release-manifest.js";
 
@@ -142,7 +143,30 @@ describe("parseChangelog", () => {
   });
 });
 
+describe("releaseHighlights", () => {
+  it("uses complete authored notes for the matching version", () => {
+    expect(releaseHighlights("## 1.0.0\n\n- Codex runs stages\n  with model and effort.\n- Updated dependencies [abc1234]\n  - @openspec-ui/core@1.0.0\n", "1.0.0"))
+      .toBe("## Highlights\n\n- Codex runs stages with model and effort.\n");
+  });
+  it("refuses missing or mismatched product copy", () => {
+    expect(releaseHighlights("## 1.0.0\n\n- Updated dependencies [abc1234]\n  - @openspec-ui/core@1.0.0\n", "1.0.0")).toBeUndefined();
+    expect(releaseHighlights("## 0.9.0\n\n- An old feature.\n", "1.0.0")).toBeUndefined();
+  });
+});
+
 describe("buildReleaseManifest", () => {
+  it("keeps wrapped product notes visible while Core remains internal", async () => {
+    const note = "**Codex CLI and ACP.** Run Harness stages\n  with a GPT model and reasoning effort.\n";
+    const root = await fixtureRepo(Object.fromEntries(MANIFEST_PRODUCTS.map((product) => [product.directory, {
+      version: "1.0.0", changelog: `## 1.0.0\n\n### Patch Changes\n\n- ${note}\n- Updated dependencies [abc1234]\n  - @openspec-ui/core@1.0.0\n`,
+    }])));
+    const manifest = await buildReleaseManifest({ repoRoot: root, repository: "owner/name" });
+    expect(manifest.products.find((product) => product.id === "core")?.public).toBe(false);
+    for (const product of manifest.products.filter((product) => product.public)) {
+      expect(product.changes).toEqual([{ kind: "patch", summary: "**Codex CLI and ACP.** Run Harness stages with a GPT model and reasoning effort." }]);
+    }
+  });
+
   it("takes the version from package.json and the notes from the matching changelog section", async () => {
     const root = await completeRepo("1.0.0");
     const withNotes = await fixtureRepo({

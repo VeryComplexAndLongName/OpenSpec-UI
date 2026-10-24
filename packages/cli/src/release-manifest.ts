@@ -14,11 +14,9 @@
 //     names "so that repository refactoring cannot break the site or
 //     re-announce an existing version under a new identity".
 //
-// The changelog parsing below deliberately mirrors that repository's
-// `github_source.py` line for line, including which bullets it drops.
-// The site is switching from that source to this one, and a summary that
-// came out differently would look like an edited release note rather
-// than the same release from a new producer.
+// Product summaries retain complete wrapped copy while dropping dependency
+// bookkeeping. The manifest schema and product visibility remain the site's
+// existing contract (ADR 0054).
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -157,6 +155,7 @@ export function parseChangelog(markdown: string): ParsedChangelog {
   // Anything before the first section heading is a patch, matching the
   // site's default rather than dropping it.
   let kind: ChangeKind = "patch";
+  let current: ChangeEntry | undefined;
 
   for (const raw of lines.slice(start)) {
     const stripped = raw.trim();
@@ -164,28 +163,45 @@ export function parseChangelog(markdown: string): ParsedChangelog {
     const section = SECTION_HEADING.exec(stripped);
     if (section) {
       kind = (section[1] as string).toLowerCase() as ChangeKind;
+      current = undefined;
       continue;
     }
-    if (ANY_HEADING.test(stripped)) continue;
+    if (ANY_HEADING.test(stripped)) {
+      current = undefined;
+      continue;
+    }
 
     // Matched against the RAW line, not the stripped one: an indented
     // bullet is a continuation of the entry above it — the package list
     // under "Updated dependencies" — and must not become an entry of its
     // own once that parent has been dropped.
     const bullet = BULLET.exec(raw);
-    if (!bullet) continue;
+    if (!bullet) {
+      if (current && stripped && !stripped.startsWith("<!--")) current.summary += ` ${stripped}`;
+      continue;
+    }
 
     let summary = (bullet[1] ?? "").trim();
     // changesets emits a dependency-bump bullet in every package; it is
     // bookkeeping between packages, not something a visitor cares about.
+    current = undefined;
     if (!summary || summary.toLowerCase().startsWith("updated dependencies")) continue;
     summary = summary.replace(COMMIT_PREFIX, "");
     if (!summary) continue;
 
-    entries.push({ kind, summary });
+    current = { kind, summary };
+    entries.push(current);
   }
 
   return { version, entries };
+}
+
+/** Authored product copy before GitHub's automatic history. Missing or
+ * mismatched notes are a publication error, never a fabricated fallback. */
+export function releaseHighlights(markdown: string, version: string): string | undefined {
+  const parsed = parseChangelog(markdown);
+  if (parsed.version !== version || parsed.entries.length === 0) return undefined;
+  return ["## Highlights", "", ...parsed.entries.map((entry) => `- ${entry.summary}`), ""].join("\n");
 }
 
 /** A GitHub Release this manifest should point at, supplied by the

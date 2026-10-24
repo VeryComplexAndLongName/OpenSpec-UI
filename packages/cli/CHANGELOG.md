@@ -4,6 +4,7 @@
 
 ### Patch Changes
 
+- **Codex agents: native CLI and ACP.** Run Harness stages with a GPT model, reasoning effort and a stage-appropriate sandbox; inspect output and token usage. ACP requires the separately installed `@agentclientprotocol/codex-acp` bridge.
 - a9aef92: Keep every agent invocation's recorded usage across chain stages and retries,
   preserve cache/thought tokens and unknown USD cost with coverage, and retain
   requested models and Codex ACP's limited current-model attribution. Read

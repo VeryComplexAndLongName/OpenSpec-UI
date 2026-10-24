@@ -122,3 +122,37 @@ test("checkChangesets ignores README.md and non-markdown entries", async () => {
         await rm(root, { recursive: true, force: true });
     }
 });
+
+for (const body of ["", "Updated dependencies", "- Updated dependencies [abc1234]", Array(81).fill("word").join(" ")]) {
+    test(`summary rejects ${body.length === 0 ? "empty copy" : body.slice(0, 32)}`, async () => {
+        const root = await workspaceWith({ "note.md": `---\nopenspec-ui-vscode: patch\n---\n\n${body}\n` });
+        try {
+            const { problems } = await checkChangesets(root);
+            assert.equal(problems.length, 1);
+            assert.match(problems[0], /note\.md/);
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    });
+}
+
+test("summary accepts concise copy and intentional empty changesets", async () => {
+    const root = await workspaceWith({
+        "note.md": "---\nopenspec-ui-vscode: patch\n---\n\n**Codex CLI and ACP.** Run Harness stages with a GPT model and reasoning effort.\n",
+        "empty.md": "---\n---\n",
+    });
+    try {
+        assert.deepEqual((await checkChangesets(root)).problems, []);
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
+test("summary accepts the 80-word boundary", async () => {
+    const root = await workspaceWith({ "note.md": `---\nopenspec-ui-vscode: patch\n---\n\n${Array(80).fill("word").join(" ")}\n` });
+    try {
+        assert.deepEqual((await checkChangesets(root)).problems, []);
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+});

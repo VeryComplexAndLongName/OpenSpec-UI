@@ -83,6 +83,22 @@ export function readChangesetFrontmatter(label, source) {
   return { names, problems };
 }
 
+/** Mechanical editorial checks; factual accuracy and product audience
+ * still require review. An intentionally empty changeset has no names. */
+export function checkChangesetSummary(label, source, names) {
+  if (names.length === 0) return [];
+  const normalized = source.replaceAll("\r\n", "\n");
+  const end = normalized.indexOf("\n---", 3);
+  const body = normalized.slice(end + 4).trim();
+  const plain = body.replace(/^\s*[-*+]\s+/gmu, "").replace(/[`*_]/gu, "").trim();
+  if (!plain) return [`${label}: write a concrete product-facing summary for the named packages`];
+  if (/^(?:updated dependencies(?:\s*\[[^\]]*\])?|bug fixes|various improvements|internal updates)[.!:]?$/iu.test(plain)) {
+    return [`${label}: replace the placeholder with the behavior, scope and essential requirements or limits`];
+  }
+  if ((plain.match(/\S+/gu) ?? []).length > 80) return [`${label}: keep the changeset body within 80 words; describe the product outcome concisely`];
+  return [];
+}
+
 export async function checkChangesets(root = repoRoot) {
   const known = await workspacePackageNames(root);
   const problems = [];
@@ -101,6 +117,7 @@ export async function checkChangesets(root = repoRoot) {
     const source = await readFile(path.join(root, ".changeset", entry), "utf8");
     const { names, problems: unreadable } = readChangesetFrontmatter(label, source);
     problems.push(...unreadable);
+    problems.push(...checkChangesetSummary(label, source, names));
     for (const name of names) {
       if (!known.has(name)) {
         problems.push(`${label}: "${name}" is not a package in this workspace`);

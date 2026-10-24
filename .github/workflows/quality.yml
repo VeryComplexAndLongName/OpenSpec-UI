@@ -200,6 +200,8 @@ jobs:
           cache: npm
       - run: npm install --global npm@${NPM_VERSION}
       - run: npm ci
+      - name: Validate authored product release notes
+        run: node --import tsx packages/cli/scripts/write-release-notes.ts --check
       - run: npm run build
       - run: npm run package --workspace openspec-ui-vscode
 
@@ -277,12 +279,15 @@ jobs:
             exit 0
           fi
           npm run package --workspace openspec-ui-vscode
+          node --import tsx packages/cli/scripts/write-release-notes.ts \
+            packages/extension/CHANGELOG.md "${VERSION}" "${RUNNER_TEMP}/release-notes.md"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "${TAG}" -m "openspec-ui-vscode ${VERSION}"
           git push origin "${TAG}"
           gh release create "${TAG}" packages/extension/*.vsix \
             --title "openspec-ui-vscode ${VERSION}" \
+            --notes-file "${RUNNER_TEMP}/release-notes.md" \
             --generate-notes
 
   # Publishes the document OpenSpec-Ui-Homepage reads instead of walking
