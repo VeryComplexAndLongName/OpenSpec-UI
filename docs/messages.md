@@ -1381,6 +1381,22 @@ Why: A key id is already enrolled here under another public key.
 
 What to do: Remove the old enrolment, or enrol the machine under a new key.
 
+### OSW-AGT-011
+
+> error: codex has no model "{model}"; its models are {models}
+
+Why: A stage names a model for codex-cli that codex's own catalog (`codex debug models`) does not list, so the stage is refused before codex starts (codex-cli-is-a-full-agent).
+
+What to do: Name one of the models listed in the stage's harness settings, or leave the model to codex's own configuration.
+
+### OSW-AGT-012
+
+> error: {model} takes the reasoning efforts {efforts}, not "{effort}"
+
+Why: Each codex model takes its own reasoning levels, read from codex's catalog; the stage asks for one its model does not take (codex-cli-is-a-full-agent).
+
+What to do: Choose one of the efforts listed for the stage, or leave the effort to codex's default for the model.
+
 ### OSW-AGT-101
 
 > warning: not verified
@@ -1580,6 +1596,14 @@ What to do: Check for the agent's process and terminate it by hand if it is stil
 Why: This host resolved no runner for the stage's agent, so the stage can run no work and the chain fails.
 
 What to do: Configure or install an agent for that stage (or sign in the one it names), then run the change again.
+
+### OSW-AGT-222
+
+> error: codex reported the turn failed: {why}
+
+Why: `codex exec` exits 0 after a turn its own event stream reports as failed - a model it cannot reach, an expired login, a refused request - so the stream's word is taken over the exit code (codex-cli-is-a-full-agent).
+
+What to do: Put right what codex says - `codex login`, the model's name, the network - then run the stage again.
 
 ## TSK: tasks: ticks, Human-only, delegation
 

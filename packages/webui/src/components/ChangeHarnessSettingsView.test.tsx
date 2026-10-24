@@ -470,7 +470,7 @@ describe("ChangeHarnessSettingsView — a named configuration", () => {
       await applyEconomy(api);
 
       expect(screen.getByLabelText("change propose effort")).toHaveValue("low");
-      expect(screen.getByLabelText("change apply effort")).toHaveValue("minimal");
+      expect(screen.getByLabelText("change apply effort")).toHaveValue("low");
       expect(screen.getByLabelText("change propose agent")).toHaveValue("claude-cli");
       expect(screen.getByLabelText("change apply agent")).toHaveValue("codex-cli");
 
@@ -479,7 +479,7 @@ describe("ChangeHarnessSettingsView — a named configuration", () => {
       const saved = (api.writeChangeOverride as ReturnType<typeof vi.fn>).mock.calls[0]![1] as Record<string, unknown>;
       expect(saved.stepAgents).toEqual({
         propose: { agent: "claude-cli", effort: "low" },
-        apply: { agent: "codex-cli", effort: "minimal" },
+        apply: { agent: "codex-cli", effort: "low" },
       });
     });
 
@@ -488,7 +488,7 @@ describe("ChangeHarnessSettingsView — a named configuration", () => {
 
       const message = screen.getByTestId("change-harness-named-configuration-status").textContent ?? "";
       expect(message).toContain("propose low");
-      expect(message).toContain("apply minimal");
+      expect(message).toContain("apply low");
       expect(message).toContain("review (gemini-cli)");
       expect(message).toContain("No agent is chosen for verify");
       expect(message).not.toContain("None of the agents on screen");

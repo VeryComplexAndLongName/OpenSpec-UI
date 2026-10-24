@@ -224,19 +224,21 @@ const effortOf = (entry: HarnessStepAgent | undefined): string | undefined =>
 
 describe("stepAgentsForTemplate", () => {
   // The value is resolved against the agent the stage uses, because
-  // `max` is not a value `codex-cli` accepts and storing a literal would
-  // be wrong for some agent the moment it is applied.
+  // `none` is not a value `claude-cli` accepts and storing a literal would
+  // be wrong for some agent the moment it is applied. (`codex-cli` was the
+  // example until its levels were read from codex's catalog, and came out
+  // as `claude-cli`'s own five: codex-cli-is-a-full-agent.)
 
   it("resolves one level to each agent's own vocabulary", () => {
-    const thorough = HARNESS_TEMPLATES.find((t) => t.effortLevel === "highest");
-    expect(thorough).toBeDefined();
-    const applied = stepAgentsForTemplate(thorough as (typeof HARNESS_TEMPLATES)[number], {
+    const economy = HARNESS_TEMPLATES.find((t) => t.effortLevel === "lowest");
+    expect(economy).toBeDefined();
+    const applied = stepAgentsForTemplate(economy as (typeof HARNESS_TEMPLATES)[number], {
       propose: { agent: "claude-cli" },
-      apply: { agent: "codex-cli" },
+      apply: { agent: "copilot-cli" },
     });
 
-    expect(effortOf(applied.propose)).toBe("max");
-    expect(effortOf(applied.apply)).toBe("high");
+    expect(effortOf(applied.propose)).toBe("low");
+    expect(effortOf(applied.apply)).toBe("none");
   });
 
   it("keeps the agent and adds no effort for an agent that accepts none", () => {
@@ -268,10 +270,10 @@ describe("stepAgentsForTemplate", () => {
   });
 
   it("does not answer the same for agents with different vocabularies", () => {
-    const thorough = HARNESS_TEMPLATES[0] as (typeof HARNESS_TEMPLATES)[number];
-    const claude = stepAgentsForTemplate(thorough, { apply: { agent: "claude-cli" } });
-    const codex = stepAgentsForTemplate(thorough, { apply: { agent: "codex-cli" } });
-    expect(effortOf(claude.apply)).not.toBe(effortOf(codex.apply));
+    const economy = HARNESS_TEMPLATES[HARNESS_TEMPLATES.length - 1] as (typeof HARNESS_TEMPLATES)[number];
+    const claude = stepAgentsForTemplate(economy, { apply: { agent: "claude-cli" } });
+    const copilot = stepAgentsForTemplate(economy, { apply: { agent: "copilot-cli" } });
+    expect(effortOf(claude.apply)).not.toBe(effortOf(copilot.apply));
   });
 });
 
@@ -298,8 +300,8 @@ describe("templateConfigToWrite", () => {
   it("writes the agent beside the effort", () => {
     const written = templateConfigToWrite(economy, { apply: { agent: "claude-cli" } });
 
-    // An effort without its agent means nothing: `max` is a value
-    // `claude` accepts and `codex` does not.
+    // An effort without its agent means nothing: `none` is a value
+    // `copilot` accepts and `claude` does not.
     expect(written.stepAgents?.apply).toEqual({ agent: "claude-cli", effort: "low" });
   });
 
@@ -363,7 +365,7 @@ describe("changeTemplateConfigToWrite — one file, whichever surface applied it
         // The global file's model is not restated in the change's
         // override — the change inherits it, and writing it here would
         // pin a choice the workspace is free to change.
-        apply: { agent: "codex-cli", effort: "minimal" },
+        apply: { agent: "codex-cli", effort: "low" },
       },
     });
   });
@@ -372,11 +374,11 @@ describe("changeTemplateConfigToWrite — one file, whichever surface applied it
     const written = changeTemplateConfigToWrite(
       economy,
       global({ apply: "claude-cli" }),
-      { stepAgents: { apply: "codex-cli" } },
+      { stepAgents: { apply: "copilot-cli" } },
     );
 
-    // `low` is `claude-cli`'s bottom and `minimal` is `codex-cli`'s.
-    expect(written.stepAgents?.apply).toEqual({ agent: "codex-cli", effort: "minimal" });
+    // `low` is `claude-cli`'s bottom and `none` is `copilot-cli`'s.
+    expect(written.stepAgents?.apply).toEqual({ agent: "copilot-cli", effort: "none" });
   });
 
   it("keeps a custom agent the change set for the stage it is applied to", () => {

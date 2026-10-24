@@ -216,7 +216,7 @@ describe("RunDialog — advising, not just picking a path", () => {
 
     choose("thorough");
 
-    expect(screen.getByTestId("run-dialog-named-configuration-description").textContent).toContain("codex-cli high");
+    expect(screen.getByTestId("run-dialog-named-configuration-description").textContent).toContain("codex-cli max");
   });
 
   it("says plainly when the agent takes no effort setting at all", () => {

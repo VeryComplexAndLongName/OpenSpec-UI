@@ -225,11 +225,11 @@ describe("applyTemplateToChange", () => {
     // The configuration names a level, not a value: `max` is a value
     // `claude` accepts and `codex` does not. The agent is written beside
     // the effort because the effort means nothing without it.
-    const request = routedRequest(null, { stepAgents: { apply: { agent: "codex-cli" } } });
+    const request = routedRequest(null, { stepAgents: { apply: { agent: "copilot-cli" } } });
 
     return applyTemplateToChange(request, "/repo", "demo", template({})).then(() => {
       expect(writtenBy(request).config).toEqual({
-        stepAgents: { apply: { agent: "codex-cli", effort: "minimal" } },
+        stepAgents: { apply: { agent: "copilot-cli", effort: "none" } },
       });
     });
   });

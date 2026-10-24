@@ -220,7 +220,7 @@ export const HARNESS_AGENT_CAPABILITIES: Readonly<Record<string, HarnessAgentCap
   // CLI); "unknown" for every CLI nobody here has checked.
   "claude-cli": { effort: ["low", "medium", "high", "xhigh", "max"], budgetField: "maxCostUsd", reports: "none", contextGauge: "none", systemProxy: "environment" },
   "copilot-cli": { effort: ["none", "minimal", "low", "medium", "high", "xhigh", "max"], budgetField: "maxAiCredits", reports: "none", contextGauge: "none", systemProxy: "environment" },
-  "codex-cli": { effort: ["minimal", "low", "medium", "high"], reports: "none", contextGauge: "none", systemProxy: "unknown" },
+  "codex-cli": { effort: ["low", "medium", "high", "xhigh", "max"], reports: "tokens-only", contextGauge: "none", systemProxy: "unknown" },
   "gemini-cli": { reports: "none", contextGauge: "none", systemProxy: "unknown" },
   // Answers in text; its only tools are the web ones (HARNESS.md).
   "local-llm": { reports: "none", contextGauge: "none", systemProxy: "ignored", editsFiles: false },

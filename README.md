@@ -481,7 +481,7 @@ streams events over the same protocol already used for
 | --- | --- | --- |
 | Claude CLI | `claude` | Yes — used continuously in development |
 | GitHub Copilot CLI | `copilot` | Yes |
-| Codex CLI | `codex` | **No — never** |
+| Codex CLI | `codex exec --json --sandbox <read-only or workspace-write>` | Yes, 2026-10-24, `codex` 0.164.0: writes in the change's directory, refused outside it; reports tokens (ADR 0051) |
 | Gemini CLI | `gemini` | **No — never** |
 | Local LLM (OpenAI-compatible) | HTTP to `http://localhost:30000` by default | Not exercised live |
 | Local LLM agent (OpenAI-compatible, built in) | Nothing to install: a coding agent built into the product, against the same server (ADR 0038) | Yes, against SGLang serving Qwen3.6; edits files in the change's directory, asks before commands when told to |
@@ -491,10 +491,10 @@ streams events over the same protocol already used for
 | Gemini CLI (ACP) | `gemini --experimental-acp` | **No — never** |
 | DeepSeek CLI (ACP) | `dsh --profile acp` (`@deepseek-ai/dsh`) | Yes: needs Node 22.18+ on the 22 line, or 24.2+, first on the host's PATH, see `HARNESS.md` |
 
-**On that last column, plainly: `codex` and `gemini` have never been run
-by this project at all.** Neither CLI is installed on the maintainer's
-machine and neither is expected to be, so their adapters — raw and
-ACP-flavored alike — are written to the vendors' documented interfaces
+**On that last column, plainly: `gemini`, and `codex` over ACP, have never
+been run by this project at all.** The raw `codex` adapter was run against
+`codex` 0.164.0 on 2026-10-24 (codex-cli-is-a-full-agent). The others are
+written to the vendors' documented interfaces
 and unit-tested against a spec-compliant mocked peer, but have never met
 the real thing. If you use either and it misbehaves, that is the most
 likely reason, and a report would be genuinely useful. See

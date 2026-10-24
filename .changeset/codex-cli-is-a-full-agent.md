@@ -1,0 +1,5 @@
+---
+"@openspec-ui/core": minor
+---
+
+**Codex CLI is a full agent** (codex-cli-is-a-full-agent, ADR 0051). Told no sandbox, `codex exec` ran read-only: an apply stage on `codex-cli` wrote nothing and was read as done. Codex now runs `codex exec --json --sandbox workspace-write` for plan, implement, update and verify, and `--sandbox read-only` for review and the rest; full access and the bypass flag are refused. A stage's `model` is passed with `--model`. The JSON stream is read: the agent's messages, the commands it runs and a failed one's exit code and output, the files it changed, the turn's token usage (cached input apart) - so a token ceiling can act on Codex - and a turn Codex reports failed fails the run (`OSW-AGT-222`), though `codex` exits 0. Its efforts follow codex's own model catalog: `low`, `medium`, `high`, `xhigh`, `max` - `minimal`, which no current model takes, goes - and before codex starts, a model it does not list, or an effort the model does not take, is refused in words (`OSW-AGT-011`, `OSW-AGT-012`).

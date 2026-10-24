@@ -558,20 +558,17 @@
               },
               "then": {
                 "properties": {
-                  "model": {
-                    "not": {},
-                    "description": "codex-cli does not take a model."
-                  },
                   "customAgent": {
                     "not": {},
                     "description": "codex-cli does not take a custom agent."
                   },
                   "effort": {
                     "enum": [
-                      "minimal",
                       "low",
                       "medium",
-                      "high"
+                      "high",
+                      "xhigh",
+                      "max"
                     ],
                     "description": "The effort values codex-cli accepts."
                   },
