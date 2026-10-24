@@ -354,13 +354,15 @@ spend, as `deepseek-cli-acp` does; the two are not the same column.
 | `deepseek-cli-acp` | Yes, on every turn | **Measured** 2026-09-23: `{"used":8202,"size":1000000,"sessionUpdate":"usage_update"}`, and `dsh-acp`'s own `usageUpdate` builds it from a context meter |
 | `claude-cli`, `copilot-cli`, `codex-cli`, `gemini-cli`, `local-llm`, `vscode-chat` | No | Certain — they speak no ACP at all, so no update of any kind arrives |
 | `local-llm-acp` | No | Certain — it is the product's own agent and sends none: no OpenAI-compatible answer says how full the context is |
-| `copilot-cli-acp`, `claude-cli-acp`, `gemini-cli-acp`, `codex-cli-acp` | Not known | *Unobserved here.* Nothing is claimed either way, and no warning is raised: an ACP agent nobody has watched may well send one |
+| `codex-cli-acp` | Yes | **Measured** 2026-10-24 through `codex-acp` 2.2.2: `{"sessionUpdate":"usage_update","used":19361,"size":475000}` |
+| `copilot-cli-acp`, `claude-cli-acp`, `gemini-cli-acp` | Not known | *Unobserved here.* Nothing is claimed either way, and no warning is raised: an ACP agent nobody has watched may well send one |
 
 | Agent | Reports usage | Evidence | Source |
 | --- | --- | --- | --- |
 | `copilot-cli-acp` | Input, output and thought **tokens**. **No cost.** | **Measured** — see below | ACP's `PromptResponse.usage` |
 | `claude-cli-acp` | Cost (USD), input/output/cache tokens, per-model split | **Measured** — see below | `claude`'s own terminal `"result"` line (`total_cost_usd`, `usage`, `modelUsage`) |
-| `gemini-cli-acp`, `codex-cli-acp` | Whatever that CLI sends over ACP — token totals, a cost, or nothing | *Unobserved* | ACP's `PromptResponse.usage` and `usage_update` notifications |
+| `codex-cli-acp` | Input, cached-read, cached-write, output and thought **tokens**. **No cost.** | **Measured** 2026-10-24 through `codex-acp` 2.2.2: `{"inputTokens":6186,"cachedReadTokens":32512,"cachedWriteTokens":0,"outputTokens":86,"thoughtTokens":0}`; input is the uncached part | ACP's `PromptResponse.usage` |
+| `gemini-cli-acp` | Whatever that CLI sends over ACP — token totals, a cost, or nothing | *Unobserved* | ACP's `PromptResponse.usage` and `usage_update` notifications |
 | `deepseek-cli-acp` | Nothing countable: no cost, no credits, no token split | **Measured** 2026-09-23, correcting 2026-09-22: a run through `dsh` 0.1.5-rc.2 does send `usage_update`, and what it carries is `used` and `size` - the tokens now in the session's context, against the model's 1,000,000-token window. One number, growing as the conversation grows: no input/output/cache/thought split, no per-model figures, no currency. The prompt's own answer carries `stopReason` and nothing else. `dsh`'s ACP layer builds that notification from its context meter alone, so there is nothing further to read. A context gauge is not a spend, and nothing here converts one into the other | ACP's `PromptResponse.usage` and `usage_update` notifications |
 | `local-llm-acp` | Input and output **tokens**, summed over the run's model calls. **No cost.** | Certain — the product's own agent adds up what the server reports in each answer's `usage` | ACP's `PromptResponse.usage` |
 | `codex-cli` | Input, output, cached-input and reasoning **tokens**. **No cost.** Cached input is counted apart from input, which codex counts inside it | **Measured** 2026-10-24, `codex` 0.164.0 | `codex exec --json`'s `turn.completed` `usage` |

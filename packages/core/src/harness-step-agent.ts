@@ -203,9 +203,9 @@ export interface HarnessAgentCapabilities {
  * `--effort`/`--max-ai-credits`/`--max-budget-usd` flags (see
  * agents/copilot-acp.ts and agents/claude-acp.ts) and is permitted the
  * same way in default-runners.ts, so the capability set cannot honestly
- * differ. `codex-cli-acp`/`gemini-cli-acp` get an explicit empty entry —
- * their adapters deliberately render neither flag (see agents/codex-
- * acp.ts and agents/gemini-acp.ts's own header comments) — an absent row
+ * differ. `codex-cli-acp` sets its effort as an ACP session option, not a
+ * flag (agents/codex-acp.ts). `gemini-cli-acp` gets an explicit empty
+ * entry — its adapter renders neither flag (agents/gemini-acp.ts) — an absent row
  * is what let the plain/ACP tables drift apart before this change (see
  * acp-agent-capabilities proposal.md). */
 export const HARNESS_AGENT_CAPABILITIES: Readonly<Record<string, HarnessAgentCapabilities>> = {
@@ -236,10 +236,16 @@ export const HARNESS_AGENT_CAPABILITIES: Readonly<Record<string, HarnessAgentCap
   // Measured 2026-09-05 from a chain run here: cost in USD, input/output/
   // cache tokens, and a per-model split.
   "claude-cli-acp": { effort: ["low", "medium", "high", "xhigh", "max"], budgetField: "maxCostUsd", reports: "cost-and-tokens", systemProxy: "environment" },
-  // Never observed on this machine — neither binary was present when the
-  // adapters were built. `"unknown"`, not `"none"`: asserting silence
-  // would be reporting a measurement nobody made.
-  "codex-cli-acp": { reports: "unknown", systemProxy: "unknown" },
+  // Measured 2026-10-24 through codex-acp 2.2.2 (codex-cli-acp-is-a-full-
+  // agent): the prompt's answer carried input, cached-read, output and
+  // thought tokens and no cost; `usage_update` carried a context gauge
+  // (`used` of a 475,000-token `size`). Its efforts are the ones every
+  // model in the session's `reasoning_effort` option takes, `ultra`
+  // (automatic task delegation) left out.
+  "codex-cli-acp": { effort: ["low", "medium", "high", "xhigh", "max"], reports: "tokens-only", contextGauge: "sends", systemProxy: "unknown" },
+  // Never observed on this machine — the binary was not present when the
+  // adapter was built. `"unknown"`, not `"none"`: asserting silence would
+  // be reporting a measurement nobody made.
   "gemini-cli-acp": { reports: "unknown", systemProxy: "unknown" },
   // No effort or budget flag: see agents/deepseek-acp.ts. Measured
   // 2026-09-23 on a live implement run through dsh 0.1.5-rc.2, correcting

@@ -15,7 +15,7 @@ afterEach(() => {
   resolvePermissionMock.mockReset();
 });
 
-const { CodexCliAcpAdapter } = await import("./codex-acp.js");
+const { CodexCliAcpAdapter, codexAcpSessionOptions } = await import("./codex-acp.js");
 
 const command: Command = {
   kind: "implement",
@@ -64,7 +64,19 @@ describe("CodexCliAcpAdapter", () => {
       commandKind: "implement",
       prompt: expect.stringContaining("FILE CONTENT HERE"),
       signal: expect.anything(),
+      sessionOptions: { agent: "codex-acp", set: [{ id: "mode", value: "workspace-write" }] },
     });
+  });
+
+  it("sets the sandbox, the model and the effort as session options, in that order (codex-cli-acp-is-a-full-agent)", () => {
+    expect(codexAcpSessionOptions({ ...command, model: "gpt-6.1-sol", effort: "high" })).toEqual([
+      { id: "mode", value: "workspace-write" },
+      { id: "model", value: "gpt-6.1-sol" },
+      { id: "reasoning_effort", value: "high" },
+    ]);
+    // The same sandbox `codex-cli` names for the command (ADR 0051).
+    expect(codexAcpSessionOptions({ ...command, kind: "review" })).toEqual([{ id: "mode", value: "read-only" }]);
+    expect(codexAcpSessionOptions({ ...command, kind: "verify" })).toEqual([{ id: "mode", value: "workspace-write" }]);
   });
 
   it("resolvePermission delegates to the shared driver", () => {

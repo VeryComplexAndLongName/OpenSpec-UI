@@ -57,5 +57,7 @@ Alternatives / Consequences.
 | [0048](0048-npm-is-published-by-trusted-publishing-from-the-dispatch.md) | npm is published by Trusted Publishing, from the same dispatch as the Marketplace | Accepted; completes 0009 decision 5 |
 | [0049](0049-workbench-compliance-runs-only-when-idle.md) | Cache-first Compliance reuses observations and checks only in bounded idle steps | Proposed |
 | [0050](0050-process-ledger-identifies-spawned-processes.md) | A process ledger identifies spawned processes by OS snapshot | Proposed |
+| [0051](0051-codex-runs-in-a-named-sandbox.md) | Codex runs in a named sandbox, by what its stage does | Accepted |
+| [0052](0052-acp-session-options-are-checked-then-set.md) | An ACP agent's settings are session options, checked then set | Accepted |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.

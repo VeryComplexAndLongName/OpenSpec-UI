@@ -892,11 +892,16 @@ describe("ACP adapter capabilities match their plain counterparts (acp-agent-cap
     ).rejects.toThrow(/at least 30/);
   });
 
-  it("rejects effort set for codex-cli-acp, which has no command-line effort mechanism", async () => {
+  it("accepts effort and a model for codex-cli-acp, which sets both as session options, and refuses an effort it does not offer", async () => {
+    // codex-cli-acp-is-a-full-agent: not a command-line flag, an ACP
+    // session option - see agents/codex-acp.ts.
     const root = await temporaryRoot();
     await expect(
-      writeGlobalHarnessConfig(root, { stepAgents: { apply: { agent: "codex-cli-acp", effort: "low" } } }),
-    ).rejects.toThrow(/stepAgents\.apply.*"codex-cli-acp".*reasoning-effort/);
+      writeGlobalHarnessConfig(root, { stepAgents: { apply: { agent: "codex-cli-acp", model: "gpt-6.1-sol", effort: "max" } } }),
+    ).resolves.toBeUndefined();
+    await expect(
+      writeGlobalHarnessConfig(root, { stepAgents: { apply: { agent: "codex-cli-acp", effort: "minimal" } } }),
+    ).rejects.toThrow(/stepAgents\.apply.*"codex-cli-acp"/);
   });
 
   it("rejects a budget set for codex-cli-acp, which has no spending-cap mechanism", async () => {

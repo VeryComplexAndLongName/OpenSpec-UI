@@ -32,9 +32,10 @@ export interface AgentDescriptor {
    * design.md). */
   modelFlag?: string;
   /** Whether a stage may name a model for this agent: true for every agent
-   * with a `modelFlag`, and for the local LLM agents, which take the model
+   * with a `modelFlag`, for the local LLM agents, which take the model
    * in their request rather than on a command line
-   * (local-llm-codes-in-process). Read through `acceptsModel`. */
+   * (local-llm-codes-in-process), and for `codex-cli-acp`, which takes it
+   * as an ACP session option. Read through `acceptsModel`. */
   takesModel?: boolean;
   /** The CLI flag this adapter passes a custom agent with — a named
    * preset the person defined themselves. Absent means this adapter
@@ -55,7 +56,8 @@ export const AGENT_REGISTRY: readonly AgentDescriptor[] = [
   // replacements for the four above (see this file's header comment).
   { provider: "github", id: "copilot-cli-acp", label: "GitHub Copilot CLI (ACP)", modelFlag: "--model", customAgentFlag: "--agent" },
   { provider: "google", id: "gemini-cli-acp", label: "Gemini CLI (ACP)" },
-  { provider: "openai", id: "codex-cli-acp", label: "Codex CLI (ACP)" },
+  // The model is an ACP session option (codex-cli-acp-is-a-full-agent).
+  { provider: "openai", id: "codex-cli-acp", label: "Codex CLI (ACP)", takesModel: true },
   // DeepSeek through its own CLI's ACP profile (deepseek-joins-as-an-acp-agent).
   { provider: "deepseek", id: "deepseek-cli-acp", label: "DeepSeek CLI (ACP)" },
   // Label states the limitation inline, not just in the picker's own

@@ -749,17 +749,19 @@
               },
               "then": {
                 "properties": {
-                  "model": {
-                    "not": {},
-                    "description": "codex-cli-acp does not take a model."
-                  },
                   "customAgent": {
                     "not": {},
                     "description": "codex-cli-acp does not take a custom agent."
                   },
                   "effort": {
-                    "not": {},
-                    "description": "codex-cli-acp has no command-line reasoning-effort control."
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high",
+                      "xhigh",
+                      "max"
+                    ],
+                    "description": "The effort values codex-cli-acp accepts."
                   },
                   "budget": {
                     "not": {},
