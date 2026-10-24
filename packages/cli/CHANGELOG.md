@@ -1,5 +1,15 @@
 # @openspec-ui/cli
 
+## 0.32.2
+
+### Patch Changes
+
+- a9aef92: Keep every agent invocation's recorded usage across chain stages and retries,
+  preserve cache/thought tokens and unknown USD cost with coverage, and retain
+  requested models and Codex ACP's limited current-model attribution. Read
+  archived change usage from retained repository logs and disclose model
+  acceptance in CLI agent reports.
+
 ## 0.32.1
 
 ### Patch Changes
