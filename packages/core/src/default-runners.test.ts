@@ -239,11 +239,22 @@ describe("buildDefaultAllowlist", () => {
       expect(decision.allowed).toBe(false);
     });
 
+    it("refuses codex with no sandbox named, or with full access (codex-cli-is-a-full-agent)", () => {
+      const allowlist = buildDefaultAllowlist();
+      const allowed = (args: string[]) => checkAllowlist("codex-cli", { kind: "process", executable: "codex", args }, allowlist).allowed;
+
+      expect(allowed(["exec", "--skip-git-repo-check", "--json", "--sandbox", "read-only"])).toBe(true);
+      expect(allowed(["exec", "--skip-git-repo-check", "--json", "--sandbox", "workspace-write", "--model", "gpt-6.1-sol"])).toBe(true);
+      expect(allowed(["exec", "--skip-git-repo-check", "--json"])).toBe(false);
+      expect(allowed(["exec", "--skip-git-repo-check", "--json", "--sandbox", "danger-full-access"])).toBe(false);
+      expect(allowed(["exec", "--skip-git-repo-check", "--json", "--sandbox", "workspace-write", "--dangerously-bypass-approvals-and-sandbox"])).toBe(false);
+    });
+
     it("rejects -c carrying any key other than model_reasoning_effort", () => {
       const allowlist = buildDefaultAllowlist();
       const decision = checkAllowlist(
         "codex-cli",
-        { kind: "process", executable: "codex", args: ["exec", "--skip-git-repo-check", "-c", 'approval_policy="never"'] },
+        { kind: "process", executable: "codex", args: ["exec", "--skip-git-repo-check", "--json", "--sandbox", "workspace-write", "-c", 'approval_policy="never"'] },
         allowlist,
       );
       expect(decision.allowed).toBe(false);
@@ -253,7 +264,7 @@ describe("buildDefaultAllowlist", () => {
       const allowlist = buildDefaultAllowlist();
       const decision = checkAllowlist(
         "codex-cli",
-        { kind: "process", executable: "codex", args: ["exec", "--skip-git-repo-check", "-c", 'model_reasoning_effort="max"'] },
+        { kind: "process", executable: "codex", args: ["exec", "--skip-git-repo-check", "--json", "--sandbox", "workspace-write", "-c", 'model_reasoning_effort="max"'] },
         allowlist,
       );
       expect(decision.allowed).toBe(false);
@@ -266,7 +277,7 @@ describe("buildDefaultAllowlist", () => {
         {
           kind: "process",
           executable: "codex",
-          args: ["exec", "--skip-git-repo-check", "-c", 'model_reasoning_effort="low"', "-c", 'sandbox_mode="danger-full-access"'],
+          args: ["exec", "--skip-git-repo-check", "--json", "--sandbox", "workspace-write", "-c", 'model_reasoning_effort="low"', "-c", 'sandbox_mode="danger-full-access"'],
         },
         allowlist,
       );

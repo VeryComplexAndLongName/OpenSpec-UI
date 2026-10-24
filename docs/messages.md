@@ -1581,6 +1581,14 @@ Why: This host resolved no runner for the stage's agent, so the stage can run no
 
 What to do: Configure or install an agent for that stage (or sign in the one it names), then run the change again.
 
+### OSW-AGT-222
+
+> error: codex reported the turn failed: {why}
+
+Why: `codex exec` exits 0 after a turn its own event stream reports as failed - a model it cannot reach, an expired login, a refused request - so the stream's word is taken over the exit code (codex-cli-is-a-full-agent).
+
+What to do: Put right what codex says - `codex login`, the model's name, the network - then run the stage again.
+
 ## TSK: tasks: ticks, Human-only, delegation
 
 ### OSW-TSK-001

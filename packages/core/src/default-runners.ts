@@ -14,7 +14,7 @@ import { ClaudeCliAdapter } from "./agents/claude.js";
 import { ClaudeCliAcpAdapter } from "./agents/claude-acp.js";
 import { CopilotCliAdapter } from "./agents/copilot.js";
 import { CopilotCliAcpAdapter } from "./agents/copilot-acp.js";
-import { CodexCliAdapter } from "./agents/codex.js";
+import { CODEX_SANDBOXES, CodexCliAdapter } from "./agents/codex.js";
 import { DEEPSEEK_ACP_ARGS, DeepSeekAcpAdapter } from "./agents/deepseek-acp.js";
 import { CodexCliAcpAdapter } from "./agents/codex-acp.js";
 import { GeminiCliAdapter } from "./agents/gemini.js";
@@ -138,11 +138,16 @@ export function buildDefaultAllowlist(): AllowlistConfig {
         { flag: "--max-ai-credits", validate: isPositiveInteger },
       ]),
     }],
+    // The sandbox is always named, and only the two this product runs
+    // codex in: `danger-full-access` is refused (codex-cli-is-a-full-agent,
+    // ADR 0051).
     "codex-cli": [{
       executable: "codex",
-      argsAllowed: exactWithOptionalArgs(["exec", "--skip-git-repo-check"], [
+      argsAllowed: (args) => args[3] === "--sandbox" && exactWithOptionalArgs(["exec", "--skip-git-repo-check", "--json"], [
+        { flag: "--sandbox", validate: (value) => (CODEX_SANDBOXES as readonly string[]).includes(value) },
+        { flag: "--model", validate: (value) => MODEL_ID_PATTERN.test(value) },
         { flag: "-c", validate: codexReasoningEffortValidator() },
-      ]),
+      ])(args),
     }],
     "gemini-cli": [{ executable: "gemini", argsAllowed: exact(["--yolo"]) }],
     "local-llm": [{ executable: "__http__", argsAllowed: (args) => args[1] === "POST" }],

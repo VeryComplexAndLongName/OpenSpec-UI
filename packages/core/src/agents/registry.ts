@@ -46,7 +46,7 @@ export interface AgentDescriptor {
 export const AGENT_REGISTRY: readonly AgentDescriptor[] = [
   { provider: "anthropic", id: "claude-cli", label: "Claude CLI", modelFlag: "--model", customAgentFlag: "--agent" },
   { provider: "github", id: "copilot-cli", label: "GitHub Copilot CLI", modelFlag: "--model", customAgentFlag: "--agent" },
-  { provider: "openai", id: "codex-cli", label: "Codex CLI" },
+  { provider: "openai", id: "codex-cli", label: "Codex CLI", modelFlag: "--model" },
   { provider: "google", id: "gemini-cli", label: "Gemini CLI" },
   { provider: "local", id: "local-llm", label: "Local LLM (OpenAI-compatible)", takesModel: true },
   // Runs inside the product: nothing to install (ADR 0038).

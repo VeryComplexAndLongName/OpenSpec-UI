@@ -1140,7 +1140,7 @@ binary here" column repeats `README.md`'s own agent table.
 | --- | --- | --- | --- | --- | --- |
 | `claude-cli` | `claude` | Yes (`--model`) | `low`, `medium`, `high`, `xhigh`, `max` | `maxCostUsd` (`--max-budget-usd`, Claude Code v2.1.217+) | Yes — used continuously in development |
 | `copilot-cli` | `copilot` | Yes (`--model`) | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` | `maxAiCredits` (`--max-ai-credits`, minimum 30) | Yes |
-| `codex-cli` | `codex` | No | `minimal`, `low`, `medium`, `high` (from OpenAI's documented config, not live-verified here) | No | **No — never** |
+| `codex-cli` | `codex exec --json --sandbox …`: `workspace-write` for plan, implement, update and verify, `read-only` for review and the rest; never full access (ADR 0051) | Yes (`--model`) | `minimal`, `low`, `medium`, `high` (from OpenAI's documented config; `medium` live-verified) | No | Yes, 2026-10-24, `codex` 0.164.0: told nothing it ran read-only and wrote no file; with `workspace-write` it wrote in its directory and was refused in `C:\Prog` (it may also write the system's temporary directory, as Codex allows by default) |
 | `gemini-cli` | `gemini` | No | No mechanism | No | **No — never** |
 | `local-llm` | HTTP to an OpenAI-compatible `/v1/chat/completions`, with a bearer key where one is set; where, which model and which key are set outside the harness file, see "The local LLM" below | Yes, optional (in the request); see "The local LLM" for the order | No mechanism | No | Yes, 2026-09-25: a Qwen server on the LAN answered a prompt with its key, and refused it without one. Answers in text and can search/fetch public HTML; it edits no file |
 | `local-llm-acp` | Nothing: a coding agent built into the product (ADR 0038), run in process against the local LLM of "The local LLM" below, with tools to read, write, replace in a file, list, search, run a command, search the web and fetch HTML, with repository tools confined to the run's working directory | Yes, optional (in the request); see "The local LLM" for the order | No mechanism | No mechanism | Yes, see the change `local-llm-codes-in-process` for the run that verified it. Asks before a command only when told to (below) |
@@ -1193,9 +1193,8 @@ Both web tools return JSON artifacts marked `trust: "untrusted"`. `search_web` u
 | `codex-cli`, `codex-cli-acp`, `gemini-cli`, `gemini-cli-acp`, `deepseek-cli-acp`, `vscode-chat` | Unknown: not checked here; such a CLI may keep proxy settings of its own |
 
 The column is `HARNESS_AGENT_CAPABILITIES[*].systemProxy`.
-**On the "run against the real binary here" column, plainly: `codex` and
-`gemini` have never been run by this project at all**, raw or
-ACP-flavored — see `README.md`'s "Agent Selection" section for the full
+**On the "run against the real binary here" column, plainly: `gemini`,
+and `codex` over ACP, have never been run by this project at all** — see `README.md`'s "Agent Selection" section for the full
 statement. If you configure either and it misbehaves, that is the most
 likely reason.
 
