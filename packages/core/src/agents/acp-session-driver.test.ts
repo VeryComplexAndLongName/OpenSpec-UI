@@ -335,6 +335,26 @@ describe("AcpSessionDriver — reporting what the agent said it spent", () => {
     expect(events.at(-1)?.kind).toBe("completed");
   });
 
+  it("records cached input under the schema's own names, as codex-acp reports it", async () => {
+    // codex-acp 2.2.2's answer to a live prompt on 2026-10-24, its fields cut.
+    const mockAgent = agent({ name: "mock-agent" })
+      .onRequest(AGENT_METHODS.initialize, () => ({ protocolVersion: PROTOCOL_VERSION }))
+      .onRequest(AGENT_METHODS.session_new, () => ({ sessionId: "session-1" }))
+      .onRequest(AGENT_METHODS.session_prompt, async () => ({
+        stopReason: "end_turn",
+        usage: { totalTokens: 38784, inputTokens: 6186, cachedReadTokens: 32512, cachedWriteTokens: 0, outputTokens: 86, thoughtTokens: 0 },
+      }));
+
+    const driver = new AcpSessionDriver();
+    const events = await collect(
+      driver.run({ target: mockAgent, cwd: "/tmp/work", runId: "run-u3", commandKind: "implement", prompt: "do it" }),
+    );
+
+    expect(usageEventsOf(events)).toEqual([{
+      inputTokens: 6186, cacheReadInputTokens: 32512, cacheCreationInputTokens: 0, outputTokens: 86, thoughtTokens: 0,
+    }]);
+  });
+
   it("reports nothing at all when the prompt response carried no usage", async () => {
     const mockAgent = agent({ name: "mock-agent" })
       .onRequest(AGENT_METHODS.initialize, () => ({ protocolVersion: PROTOCOL_VERSION }))
@@ -449,5 +469,57 @@ describe("AcpSessionDriver — a refused prompt", () => {
       expect(failed.reason).toBe("agent refused the prompt");
       expect(failed.code).toBe("OSW-AGT-218");
     }
+  });
+});
+
+describe("AcpSessionDriver — session options (codex-cli-acp-is-a-full-agent)", () => {
+  // As codex-acp 2.2.2's session/new offered them on 2026-10-24, cut down.
+  const configOptions = [
+    { id: "mode", name: "Mode", type: "select" as const, currentValue: "agent", options: ["read-only", "workspace-write", "agent"].map((value) => ({ value, name: value })) },
+    { id: "model", name: "Model", type: "select" as const, currentValue: "gpt-6.1-sol", options: [{ group: "openai", name: "OpenAI", options: ["gpt-6.1-sol", "gpt-6-luna"].map((value) => ({ value, name: value })) }] },
+  ];
+
+  function codexLike(seen: string[]) {
+    return agent({ name: "mock-agent" })
+      .onRequest(AGENT_METHODS.initialize, () => ({ protocolVersion: PROTOCOL_VERSION }))
+      .onRequest(AGENT_METHODS.session_new, () => ({ sessionId: "session-1", configOptions }))
+      .onRequest(AGENT_METHODS.session_set_config_option, ({ params }) => {
+        seen.push(`${params.configId}=${String(params.value)}`);
+        return { configOptions };
+      })
+      .onRequest(AGENT_METHODS.session_prompt, async () => {
+        seen.push("prompt");
+        return { stopReason: "end_turn" };
+      });
+  }
+
+  it("sets each option before the prompt, in order", async () => {
+    const seen: string[] = [];
+    const events = await collect(new AcpSessionDriver().run({
+      target: codexLike(seen), cwd: "/tmp/work", runId: "run-o1", commandKind: "implement", prompt: "do it",
+      sessionOptions: { agent: "codex-acp", set: [{ id: "mode", value: "workspace-write" }, { id: "model", value: "gpt-6-luna" }] },
+    }));
+
+    expect(seen).toEqual(["mode=workspace-write", "model=gpt-6-luna", "prompt"]);
+    expect(events.at(-1)?.kind).toBe("completed");
+  });
+
+  it("fails without prompting where the session lists no such option, or no such value, naming what it does", async () => {
+    const seen: string[] = [];
+    const unknownValue = await collect(new AcpSessionDriver().run({
+      target: codexLike(seen), cwd: "/tmp/work", runId: "run-o2", commandKind: "implement", prompt: "do it",
+      sessionOptions: { agent: "codex-acp", set: [{ id: "mode", value: "workspace-write" }, { id: "model", value: "gpt-x" }] },
+    }));
+    expect(unknownValue.at(-1)).toMatchObject({ kind: "failed", code: "OSW-AGT-224", reason: 'codex-acp takes the model values gpt-6.1-sol, gpt-6-luna, not "gpt-x"' });
+
+    const unknownOption = await collect(new AcpSessionDriver().run({
+      target: codexLike(seen), cwd: "/tmp/work", runId: "run-o3", commandKind: "implement", prompt: "do it",
+      sessionOptions: { agent: "codex-acp", set: [{ id: "reasoning_effort", value: "high" }] },
+    }));
+    expect(unknownOption.at(-1)).toMatchObject({ kind: "failed", code: "OSW-AGT-223", reason: 'codex-acp offers no session option "reasoning_effort"; it offers mode, model' });
+
+    // Nothing was set, and nothing prompted: the mode the first run asked
+    // for was checked, but not sent, before the model was refused.
+    expect(seen).toEqual([]);
   });
 });

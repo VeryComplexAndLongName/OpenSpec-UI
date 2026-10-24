@@ -25,6 +25,7 @@ import {
   ndJsonStream,
   type AgentApp,
   type PermissionOption,
+  type SessionConfigOption,
   type Stream,
   type ToolCallUpdate,
 } from "@agentclientprotocol/sdk";
@@ -153,6 +154,11 @@ export interface AcpRunOptions {
    * argv (see design.md / ADR 0013's argv-cap finding). */
   prompt: string;
   signal?: AbortSignal;
+  /** Session options set with `session/set_config_option` before the
+   * prompt, in order — each one checked first against what `session/new`
+   * said the agent offers (codex-cli-acp-is-a-full-agent). `agent` is
+   * the name a refusal says. */
+  sessionOptions?: { agent: string; set: readonly AcpSessionOption[] };
   /** Set by `runProcess`, which owns the child and therefore owns the
    * terminal event on abort — see the `__aborted__` branch in `run()`. */
   deferAbortTerminalEvent?: boolean;
@@ -167,6 +173,7 @@ export interface RunAcpProcessOptions {
   commandKind: CommandKind;
   prompt: string;
   signal: AbortSignal;
+  sessionOptions?: AcpRunOptions["sessionOptions"];
   /** Where to record the spawn snapshot (ADR 0050). Defaults to the shared
    * per-working-directory ledger when omitted. */
   ledger?: ProcessLedger;
@@ -198,8 +205,11 @@ export function buildAcpUsage(
     if (typeof reported.inputTokens === "number") usage.inputTokens = reported.inputTokens;
     if (typeof reported.outputTokens === "number") usage.outputTokens = reported.outputTokens;
     if (typeof reported.thoughtTokens === "number") usage.thoughtTokens = reported.thoughtTokens;
-    if (typeof reported.cacheReadTokens === "number") usage.cacheReadInputTokens = reported.cacheReadTokens;
-    if (typeof reported.cacheCreationTokens === "number") usage.cacheCreationInputTokens = reported.cacheCreationTokens;
+    // The schema's own spelling. The names read here before were nobody's,
+    // so no ACP agent's cached input was ever recorded (found against
+    // codex-acp 2.2.2 on 2026-10-24).
+    if (typeof reported.cachedReadTokens === "number") usage.cacheReadInputTokens = reported.cachedReadTokens;
+    if (typeof reported.cachedWriteTokens === "number") usage.cacheCreationInputTokens = reported.cachedWriteTokens;
   }
 
   if (streamedCost) {
@@ -211,6 +221,33 @@ export function buildAcpUsage(
   }
 
   return Object.keys(usage).length > 0 ? usage : undefined;
+}
+
+/** One session option to set: the agent's own id for it (`model`,
+ * `reasoning_effort`, `mode`) and the value, as `session/new` lists them. */
+export interface AcpSessionOption {
+  id: string;
+  value: string;
+}
+
+/** Why `option` cannot be set on a session whose `session/new` offered
+ * `offered`, naming what there is — or `undefined` when it can. A value
+ * the agent did not list is refused rather than sent: an agent may take
+ * it silently and run with something else. */
+export function refuseSessionOption(
+  agent: string,
+  offered: readonly SessionConfigOption[] | null | undefined,
+  option: AcpSessionOption,
+): { code: string; text: string } | undefined {
+  const found = (offered ?? []).find((candidate) => candidate.id === option.id);
+  if (found === undefined) {
+    const ids = (offered ?? []).map((candidate) => candidate.id);
+    return say("OSW-AGT-223", { agent, option: option.id, offered: ids.length > 0 ? ids.join(", ") : "none" });
+  }
+  if (found.type !== "select") return undefined;
+  const values = found.options.flatMap((entry) => ("group" in entry ? entry.options : [entry])).map((entry) => entry.value);
+  if (values.includes(option.value)) return undefined;
+  return say("OSW-AGT-224", { agent, option: option.id, values: values.join(", "), value: option.value });
 }
 
 function describeToolCall(toolCall: ToolCallUpdate): string {
@@ -267,6 +304,7 @@ export class AcpSessionDriver {
     type QueueItem =
       | Event
       | { kind: "__stop__"; stopReason: string }
+      | { kind: "__refused__"; code: string; text: string }
       | { kind: "__error__"; error: unknown }
       | { kind: "__aborted__" };
     const queue: QueueItem[] = [];
@@ -343,6 +381,19 @@ export class AcpSessionDriver {
     const runSession = async (ctx: import("@agentclientprotocol/sdk").ClientContext): Promise<void> => {
       await ctx.request("initialize", { protocolVersion: PROTOCOL_VERSION });
       await ctx.buildSession(cwd).withSession(async (session) => {
+        const { agent, set } = options.sessionOptions ?? { agent: "", set: [] };
+        // Every option is checked before the first is set, so a refusal
+        // leaves nothing half-applied.
+        for (const option of set) {
+          const refusal = refuseSessionOption(agent, session.newSessionResponse.configOptions, option);
+          if (refusal) {
+            push({ kind: "__refused__", ...refusal });
+            return;
+          }
+        }
+        for (const option of set) {
+          await ctx.request("session/set_config_option", { sessionId: session.sessionId, configId: option.id, value: option.value });
+        }
         const promptResult = session.prompt(prompt);
         // The last cost an in-flight `usage_update` reported. Only its
         // `cost` is kept: `used` is tokens currently *in context*, which
@@ -410,6 +461,9 @@ export class AcpSessionDriver {
           } else {
             yield { kind: "completed", runId, timestamp: nowIso() };
           }
+        } else if (item.kind === "__refused__") {
+          done = true;
+          yield { kind: "failed", runId, timestamp: nowIso(), reason: item.text, code: item.code };
         } else if (item.kind === "__error__") {
           done = true;
           yield {
@@ -501,7 +555,10 @@ export class AcpSessionDriver {
     };
     signal.addEventListener("abort", onAbort, { once: true });
     try {
-      for await (const event of this.run({ target, cwd, runId, commandKind, prompt, signal, deferAbortTerminalEvent: true })) {
+      for await (const event of this.run({
+        target, cwd, runId, commandKind, prompt, signal, deferAbortTerminalEvent: true,
+        ...(options.sessionOptions !== undefined ? { sessionOptions: options.sessionOptions } : {}),
+      })) {
         yield* stderrEvents();
         // A failure says what the agent last wrote to stderr: a closed
         // connection or a refusal says nothing of why, and the agent

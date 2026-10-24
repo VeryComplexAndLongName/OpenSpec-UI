@@ -916,7 +916,7 @@ carried here so a reader sees the value before choosing):
 | `codex-cli` | `max` | `xhigh` | `medium` | `low` |
 | `copilot-cli` | `max` | `high` | `low` | `none` |
 | `copilot-cli-acp` | `max` | `high` | `low` | `none` |
-| `codex-cli-acp` | — | — | — | — |
+| `codex-cli-acp` | `max` | `xhigh` | `medium` | `low` |
 | `deepseek-cli-acp` | - | - | - | - |
 | `gemini-cli` | — | — | — | — |
 | `gemini-cli-acp` | — | — | — | — |
@@ -1146,7 +1146,7 @@ binary here" column repeats `README.md`'s own agent table.
 | `local-llm-acp` | Nothing: a coding agent built into the product (ADR 0038), run in process against the local LLM of "The local LLM" below, with tools to read, write, replace in a file, list, search, run a command, search the web and fetch HTML, with repository tools confined to the run's working directory | Yes, optional (in the request); see "The local LLM" for the order | No mechanism | No mechanism | Yes, see the change `local-llm-codes-in-process` for the run that verified it. Asks before a command only when told to (below) |
 | `claude-cli-acp` | `claude --input-format stream-json --output-format stream-json` | Yes (`--model`) | Same as `claude-cli` | Same as `claude-cli` (`maxCostUsd`) | Progress only — no permission gate, see below |
 | `copilot-cli-acp` | `copilot --acp` | Yes (`--model`) | Same as `copilot-cli` | Same as `copilot-cli` (`maxAiCredits`) | Yes |
-| `codex-cli-acp` | externally installed `codex-acp` | No | No mechanism (deliberately empty — see below) | No mechanism (deliberately empty) | **No — never** |
+| `codex-cli-acp` | externally installed `codex-acp` (`@agentclientprotocol/codex-acp`) | Yes, an ACP session option checked against the models the session lists | `low`, `medium`, `high`, `xhigh`, `max`, an ACP session option | No mechanism | Yes: 2026-10-24, `codex-acp` 2.2.2 — see below |
 | `gemini-cli-acp` | `gemini --experimental-acp` | No | No mechanism (deliberately empty — see below) | No mechanism (deliberately empty) | **No — never** |
 | `deepseek-cli-acp` | `dsh --profile acp` (the DeepSeek CLI, `@deepseek-ai/dsh`) | No: the model is an ACP session option, DeepSeek-V4-Flash by default | No mechanism | No mechanism | Yes: an implement run on 2026-09-22 wrote its file and ticked its task in 22 s. **Needs Node 22.18+ on the 22 line, or 24.2+, first on the PATH**, see below |
 | `vscode-chat` | Dispatches the stage to VS Code's own Chat panel — spawns no CLI process at all | No | No mechanism | No mechanism | Not applicable — only valid under `autonomyLevel: "assisted"` |
@@ -1193,9 +1193,9 @@ Both web tools return JSON artifacts marked `trust: "untrusted"`. `search_web` u
 | `codex-cli`, `codex-cli-acp`, `gemini-cli`, `gemini-cli-acp`, `deepseek-cli-acp`, `vscode-chat` | Unknown: not checked here; such a CLI may keep proxy settings of its own |
 
 The column is `HARNESS_AGENT_CAPABILITIES[*].systemProxy`.
-**On the "run against the real binary here" column, plainly: `gemini`,
-and `codex` over ACP, have never been run by this project at all** — see `README.md`'s "Agent Selection" section for the full
-statement. If you configure either and it misbehaves, that is the most
+**On the "run against the real binary here" column, plainly: `gemini`
+has never been run by this project at all** — see `README.md`'s "Agent Selection" section for the full
+statement. If you configure it and it misbehaves, that is the most
 likely reason.
 
 ### ACP effort and budget capabilities
@@ -1254,10 +1254,21 @@ prompt it is given starts with a short instruction to follow the steps
 literally and in order, since it does best with instructions taken that
 way.
 
-`codex-cli-acp` and `gemini-cli-acp` carry a deliberately empty
-capabilities entry (`{}`) — their adapters render neither an effort flag
-nor a budget flag at all, by design, not by omission (see
-`agents/codex-acp.ts` and `agents/gemini-acp.ts`'s own header comments).
+**`codex-cli-acp` sets its sandbox, model and effort as ACP session
+options** (ADR 0052). `codex-acp` takes no arguments; its `session/new`
+lists the options it offers - `mode`, `model`, `reasoning_effort` - and
+each one the stage needs is set with `session/set_config_option` before
+the prompt. A stage that writes the change runs in `workspace-write`
+(writes inside its working directory without asking), every other command
+in `read-only`; `codex-acp`'s own default, `agent` ("Auto review"), is not
+used. A model or an effort the session does not list is refused before the
+prompt, naming what it does list (`OSW-AGT-223`, `OSW-AGT-224`), and no
+option is set. `ultra` (automatic task delegation) is offered by the
+session but not by this project.
+
+`gemini-cli-acp` carries a deliberately empty capabilities entry (`{}`) -
+its adapter renders neither an effort flag nor a budget flag at all, by
+design, not by omission (see `agents/gemini-acp.ts`'s own header comment).
 This is different from the `copilot-cli-acp`/`claude-cli-acp` defect
 above: here, an empty row is the documented, intended state, not a gap
 between two tables that drifted apart.

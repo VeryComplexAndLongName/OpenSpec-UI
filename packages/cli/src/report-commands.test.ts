@@ -44,7 +44,7 @@ describe("report commands", () => {
     expect(rows.map((row: { id: string; capabilities: unknown }) => [row.id, row.capabilities]))
       .toEqual(AGENT_REGISTRY.map((agent) => [agent.id, HARNESS_AGENT_CAPABILITIES[agent.id]]));
     expect(rows.find((row: { id: string }) => row.id === "local-llm")?.capabilities.editsFiles).toBe(false);
-    expect(rows.find((row: { id: string }) => row.id === "codex-cli-acp")?.capabilities.effort).toBeUndefined();
+    expect(rows.find((row: { id: string }) => row.id === "gemini-cli-acp")?.capabilities.effort).toBeUndefined();
   });
   it("explains a known message with template and remedy", async () => {
     const output = io();

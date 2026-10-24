@@ -1472,6 +1472,18 @@ export const MESSAGES = {
     why: "`codex exec` exits 0 after a turn its own event stream reports as failed - a model it cannot reach, an expired login, a refused request - so the stream's word is taken over the exit code (codex-cli-is-a-full-agent).",
     todo: "Put right what codex says - `codex login`, the model's name, the network - then run the stage again.",
   },
+  "OSW-AGT-223": {
+    level: "error",
+    text: "{agent} offers no session option \"{option}\"; it offers {offered}",
+    why: "The stage asked the agent for a setting its ACP session does not list, so the run was not started with it.",
+    todo: "Remove the setting from the stage, or update the agent to a version that offers it.",
+  },
+  "OSW-AGT-224": {
+    level: "error",
+    text: "{agent} takes the {option} values {values}, not \"{value}\"",
+    why: "The stage named a value the agent's ACP session does not list for that option; sent anyway, the agent could run with something else.",
+    todo: "Choose one of the values named, in the stage's configuration.",
+  },
 
   // TSK: tasks: ticks, Human-only, delegation.
   "OSW-TSK-001": {

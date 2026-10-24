@@ -1605,6 +1605,22 @@ Why: `codex exec` exits 0 after a turn its own event stream reports as failed - 
 
 What to do: Put right what codex says - `codex login`, the model's name, the network - then run the stage again.
 
+### OSW-AGT-223
+
+> error: {agent} offers no session option "{option}"; it offers {offered}
+
+Why: The stage asked the agent for a setting its ACP session does not list, so the run was not started with it.
+
+What to do: Remove the setting from the stage, or update the agent to a version that offers it.
+
+### OSW-AGT-224
+
+> error: {agent} takes the {option} values {values}, not "{value}"
+
+Why: The stage named a value the agent's ACP session does not list for that option; sent anyway, the agent could run with something else.
+
+What to do: Choose one of the values named, in the stage's configuration.
+
 ## TSK: tasks: ticks, Human-only, delegation
 
 ### OSW-TSK-001
