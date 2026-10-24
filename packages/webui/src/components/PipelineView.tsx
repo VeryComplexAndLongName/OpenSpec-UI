@@ -860,7 +860,7 @@ export function PipelineView({
                 <MinusIcon />
               </button>
               {/* The level is the control that resets it. */}
-              <button type="button" aria-label="Reset zoom" data-testid="pipeline-zoom-reset" disabled={zoom === DEFAULT_ZOOM} onClick={() => setZoom(DEFAULT_ZOOM)}>
+              <button type="button" aria-label={`Reset zoom ${Math.round(zoom * 100)}%`} data-testid="pipeline-zoom-reset" disabled={zoom === DEFAULT_ZOOM} onClick={() => setZoom(DEFAULT_ZOOM)}>
                 <span data-testid="pipeline-zoom-level"><span className="openspec-visually-hidden">Zoom </span>{`${Math.round(zoom * 100)}%`}</span>
               </button>
               <button type="button" aria-label="Zoom in" data-testid="pipeline-zoom-in" disabled={zoomIndex >= PIPELINE_ZOOM_STEPS.length - 1} onClick={() => setZoom(PIPELINE_ZOOM_STEPS[zoomIndex + 1] ?? zoom)}>
@@ -1533,10 +1533,11 @@ function TaskList({ id, rows, open, testId, onSelect }: {
                       type="button"
                       className="openspec-pipeline-task-open"
                       data-testid={`${testId}-row-${row.number ?? index}`}
-                      aria-label={`Open task ${row.number ?? ""} whole`}
                       onClick={() => onSelect(row)}
                     >
+                      <span className="openspec-visually-hidden">Open task </span>
                       {words}
+                      <span className="openspec-visually-hidden"> whole</span>
                     </button>
                   ) : words}
                   <span className={`openspec-pipeline-task-tag openspec-pipeline-task-tag--${tag.tone}`}>

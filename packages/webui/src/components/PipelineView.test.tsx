@@ -169,8 +169,9 @@ describe("PipelineView — a card opens to its tasks (a-card-opens-to-its-tasks 
     expect(screen.getByTestId("pipeline").style.getPropertyValue("--pipeline-zoom")).toBe("1.25");
     expect(screen.getByTestId("pipeline-zoom-level")).toHaveTextContent("Zoom 125%");
     expect(yOf("beta")).toBe(before);
-    fireEvent.click(screen.getByRole("button", { name: "Reset zoom" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reset zoom 125%" }));
     expect(screen.getByTestId("pipeline-zoom-level")).toHaveTextContent("Zoom 100%");
+    expect(screen.getByTestId("pipeline-zoom-reset")).toHaveAccessibleName("Reset zoom 100%");
   });
 
   it("opens every card with tasks at Open all, and closes them at Close all", async () => {
@@ -2002,7 +2003,9 @@ describe("PipelineView — a card works its own tasks", () => {
     const taskActions = actions();
     await openOwnCard({ taskActions: taskActions as never });
 
-    fireEvent.click(screen.getByTestId("pipeline-directory-0-node-fresh-tasks-row-1.2"));
+    const taskButton = screen.getByTestId("pipeline-directory-0-node-fresh-tasks-row-1.2");
+    expect(taskButton).toHaveAccessibleName(/Open task 1\.2.*see it.*whole/u);
+    fireEvent.click(taskButton);
     const panel = screen.getByTestId("task-panel");
     expect(within(panel).getByTestId("task-panel-body").textContent).toContain("An earlier remark.");
 
