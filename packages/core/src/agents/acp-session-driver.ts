@@ -70,12 +70,57 @@ export type AcpConnectTarget = Stream | AgentApp;
  * resolution reason as shared.ts's spawnAndStream. Throws synchronously on
  * a spawn failure (e.g. `ENOENT`), exactly like `crossSpawn` itself —
  * callers (`runProcess` below) are expected to catch it. */
+/** How much of an agent's stderr is kept to say beside a failure: its
+ * last lines, enough to hold a stack trace's head or a CLI's own error. */
+export const ACP_STDERR_TAIL_CHARS = 4000;
+
+/** What an ACP agent wrote to stderr: drained as it arrives, so a talkative
+ * agent never fills the pipe and stalls (an-acp-agent-is-heard-on-stderr),
+ * handed on in chunks, and its tail kept for a failure's reason. */
+export class AcpStderr {
+  private pending: string[] = [];
+  private kept = "";
+
+  constructor(stream: NodeJS.ReadableStream | undefined) {
+    if (stream === undefined) return;
+    stream.setEncoding("utf8");
+    stream.on("data", (chunk: string) => this.add(chunk));
+    // A pipe that errors says nothing more; it must not crash the run.
+    stream.on("error", () => undefined);
+  }
+
+  add(chunk: string): void {
+    if (chunk.length === 0) return;
+    this.pending.push(chunk);
+    this.kept = (this.kept + chunk).slice(-ACP_STDERR_TAIL_CHARS);
+  }
+
+  /** What arrived since the last call, in order. */
+  take(): string[] {
+    const taken = this.pending;
+    this.pending = [];
+    return taken;
+  }
+
+  /** Its last characters, trimmed; empty where it wrote nothing. */
+  tail(): string {
+    return this.kept.trim();
+  }
+}
+
+/** A failure's reason with what the agent last wrote to stderr after it,
+ * where it wrote anything: a connection that closed says nothing of why,
+ * and the agent usually did. */
+export function withStderrTail(reason: string, tail: string): string {
+  return tail.length === 0 ? reason : `${reason}\nThe agent's stderr ended with:\n${tail}`;
+}
+
 export function spawnAcpProcess(
   executable: string,
   args: string[],
   cwd: string,
   env?: Readonly<Record<string, string>>,
-): { target: Stream; child: ChildProcessWithoutNullStreams } {
+): { target: Stream; child: ChildProcessWithoutNullStreams; stderr: AcpStderr } {
   const spawnEnv = agentSpawnEnvironment(env);
   const child = crossSpawn(executable, args, {
     cwd,
@@ -83,15 +128,17 @@ export function spawnAcpProcess(
     ...(spawnEnv !== undefined ? { env: spawnEnv } : {}),
     ...(process.platform !== "win32" ? { detached: true } : {}),
   }) as ChildProcessWithoutNullStreams;
-  // ACP only speaks over stdin/stdout — stderr is not part of the ACP
-  // stream itself; this module does not forward it (an ACP-flavored
-  // adapter has no `stderr` event today, matching the fact that
-  // `agentUpdate`/`permissionRequest` are its only new event kinds).
+  // ACP speaks over stdin/stdout. stderr is not part of the protocol, and
+  // was left unread: a pipe nobody drains fills, and an agent writing its
+  // logs there stalls mid-run, with whatever it said of a failure lost.
+  // It is read from the start and handed on as the raw-text adapters
+  // hand theirs (an-acp-agent-is-heard-on-stderr).
+  const stderr = new AcpStderr(child.stderr);
   const target = ndJsonStream(
     Writable.toWeb(child.stdin) as unknown as WritableStream<Uint8Array>,
     Readable.toWeb(child.stdout) as unknown as ReadableStream<Uint8Array>,
   );
-  return { target, child };
+  return { target, child, stderr };
 }
 
 export interface AcpRunOptions {
@@ -396,7 +443,7 @@ export class AcpSessionDriver {
       return;
     }
 
-    let spawned: { target: Stream; child: ChildProcessWithoutNullStreams };
+    let spawned: { target: Stream; child: ChildProcessWithoutNullStreams; stderr: AcpStderr };
     try {
       spawned = spawnAcpProcess(executable, args, cwd, options.env);
     } catch (err) {
@@ -409,7 +456,12 @@ export class AcpSessionDriver {
       return;
     }
 
-    const { target, child } = spawned;
+    const { target, child, stderr } = spawned;
+    // What the agent wrote to stderr, before each event of the run and once
+    // more at its end, so it reads in the order it was written.
+    const stderrEvents = function* (): Generator<Event> {
+      for (const chunk of stderr.take()) yield { kind: "stderr", runId, timestamp: nowIso(), chunk };
+    };
 
     const spawnedPid = child.pid;
     if (spawnedPid !== undefined && ledger !== undefined) {
@@ -449,7 +501,14 @@ export class AcpSessionDriver {
     };
     signal.addEventListener("abort", onAbort, { once: true });
     try {
-      yield* this.run({ target, cwd, runId, commandKind, prompt, signal, deferAbortTerminalEvent: true });
+      for await (const event of this.run({ target, cwd, runId, commandKind, prompt, signal, deferAbortTerminalEvent: true })) {
+        yield* stderrEvents();
+        // A failure says what the agent last wrote to stderr: a closed
+        // connection or a refusal says nothing of why, and the agent
+        // usually did.
+        yield event.kind === "failed" ? { ...event, reason: withStderrTail(event.reason, stderr.tail()) } : event;
+      }
+      yield* stderrEvents();
 
       if (signal.aborted) {
         // `run()` deferred the terminal event to here. Wait for the
