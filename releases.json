@@ -1,45 +1,40 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-18T05:57:13.605Z",
+  "generated_at": "2026-10-24T03:49:12.669Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "ec4b1bc5915b7f7f670eb25bf3a4227aa6f1136e",
+  "commit": "e436f7601531ff8a276b28ac5b4dd2bb894f247e",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.106.2",
-      "released_at": "2026-10-18T05:57:13.605Z",
-      "tag": "openspec-ui-vscode@0.106.2",
+      "version": "0.106.3",
+      "released_at": "2026-10-24T03:49:12.669Z",
+      "tag": "openspec-ui-vscode@0.106.3",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.106.2"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.106.3"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.106.2/openspec-ui-vscode-0.106.2.vsix",
-          "size_bytes": 11046009
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.106.3/openspec-ui-vscode-0.106.3.vsix",
+          "size_bytes": 11113482
         }
       ],
-      "changes": [
-        {
-          "kind": "patch",
-          "summary": "A working directory on no branch, with a clean tree and no run recorded, is offered for removal under \"Left behind\" where the default branch already contains the commit it is at (a-detached-directory-is-offered-for-removal). Before, such a directory was never offered: it has no branch to be merged or gone, and it stood beside the checkout drawing cards for work that had landed. The sweep still keeps it; removing it is a press."
-        }
-      ]
+      "changes": []
     },
     {
       "id": "standalone-app",
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.62.2",
-      "released_at": "2026-10-18T05:57:13.605Z",
+      "version": "1.62.3",
+      "released_at": "2026-10-24T03:49:12.669Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -54,8 +49,8 @@
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": false,
-      "version": "0.149.2",
-      "released_at": "2026-10-18T05:57:13.605Z",
+      "version": "0.150.0",
+      "released_at": "2026-10-24T03:49:12.669Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -65,8 +60,16 @@
       "artifacts": [],
       "changes": [
         {
+          "kind": "minor",
+          "summary": "**Codex over ACP is a full agent** (codex-cli-acp-is-a-full-agent, ADR 0052). `codex-cli-acp` now runs a stage in a named sandbox - `workspace-write` for plan, implement, update and verify, `read-only` otherwise, as `codex-cli` does - and with the stage's model and effort (`low` to `max`), all set as ACP session options through `session/set_config_option` before the prompt. Every option is checked first against what the agent's session lists; a model or effort it does not offer fails the run in words before anything is set (`OSW-AGT-223`, `OSW-AGT-224`). It reports tokens and a context gauge. Separately, the ACP driver now reads cached input under ACP's own field names (`cachedReadTokens`, `cachedWriteTokens`), so an ACP agent's cached tokens are recorded at all. The bridge is `npm install -g @agentclientprotocol/codex-acp`."
+        },
+        {
+          "kind": "minor",
+          "summary": "**Codex CLI is a full agent** (codex-cli-is-a-full-agent, ADR 0051). Told no sandbox, `codex exec` ran read-only: an apply stage on `codex-cli` wrote nothing and was read as done. Codex now runs `codex exec --json --sandbox workspace-write` for plan, implement, update and verify, and `--sandbox read-only` for review and the rest; full access and the bypass flag are refused. A stage's `model` is passed with `--model`. The JSON stream is read: the agent's messages, the commands it runs and a failed one's exit code and output, the files it changed, the turn's token usage (cached input apart) - so a token ceiling can act on Codex - and a turn Codex reports failed fails the run (`OSW-AGT-222`), though `codex` exits 0. Its efforts follow codex's own model catalog: `low`, `medium`, `high`, `xhigh`, `max` - `minimal`, which no current model takes, goes - and before codex starts, a model it does not list, or an effort the model does not take, is refused in words (`OSW-AGT-011`, `OSW-AGT-012`)."
+        },
+        {
           "kind": "patch",
-          "summary": "A working directory on no branch, with a clean tree and no run recorded, is offered for removal under \"Left behind\" where the default branch already contains the commit it is at (a-detached-directory-is-offered-for-removal). Before, such a directory was never offered: it has no branch to be merged or gone, and it stood beside the checkout drawing cards for work that had landed. The sweep still keeps it; removing it is a press."
+          "summary": "**An ACP agent is heard on stderr** (an-acp-agent-is-heard-on-stderr). The ACP session driver - shared by `claude-cli-acp`, `copilot-cli-acp`, `deepseek-cli-acp`, `codex-cli-acp` and `local-llm-acp` - spawned each agent with stderr piped and never read it, so an agent writing its logs there could stall mid-run once the pipe filled, and a run that failed said only that the connection closed. stderr is now read from the moment the agent starts, handed on as `stderr` events as the raw-text adapters do, and the last of it (up to 4000 characters) ends a failed run's reason - \"not signed in\", a crash, whatever the agent said."
         }
       ]
     },
@@ -75,15 +78,20 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.94.2",
-      "released_at": "2026-10-18T05:57:13.605Z",
+      "version": "1.94.3",
+      "released_at": "2026-10-24T03:49:12.669Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/README.md"
       },
       "artifacts": [],
-      "changes": []
+      "changes": [
+        {
+          "kind": "patch",
+          "summary": "Include visible zoom percentages and task text in Pipeline button accessible names."
+        }
+      ]
     },
     {
       "id": "ci-cli",
@@ -91,7 +99,7 @@
       "package": "@openspec-ui/cli",
       "public": true,
       "version": "0.32.1",
-      "released_at": "2026-10-18T05:57:13.605Z",
+      "released_at": "2026-10-24T03:49:12.669Z",
       "prerelease": false,
       "summary": "Run, validate and check OpenSpec changes from a terminal or CI.",
       "links": {
