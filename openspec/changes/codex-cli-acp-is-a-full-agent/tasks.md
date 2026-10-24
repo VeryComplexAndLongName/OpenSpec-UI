@@ -48,6 +48,12 @@ From the live reading of `codex-acp` 2.2.2 on 2026-10-24
   the prompt: "codex-acp takes the model values gpt-6.1-sol, gpt-6-astra,
   gpt-6-sol, gpt-6-luna, gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna, not
   \"gpt-x\"" (2026-10-24).
-- [ ] 3.3 **Human-only**: on the extension built from this branch, a
+- [x] 3.3 **Human-only**: on the extension built from this branch, a
   change whose apply stage is set to `codex-cli-acp` runs, writes its
   tasks' work, and the run reports tokens.
+  2026-10-24: run at the operator's request through `openspec-ui-cli run
+  change` at d9c30cf2 (the same core chain the extension drives), not the
+  extension's panel: a fresh scratch repository with one task, apply on
+  `codex-cli-acp` with `gpt-6.1-sol` and the effort `medium`. Codex wrote
+  `hello.txt` (bytes `h`, `i`, LF) with no question, ticked 1.1, the run
+  reported 14,869 tokens, and the chain went on through verify to archive.
