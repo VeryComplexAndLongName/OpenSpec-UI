@@ -42,6 +42,12 @@ From the review of the Codex integration and four trial runs of `codex exec`
   merge gate with the worktree's absolute path as `--cwd`.
   2026-10-24: valid under `--strict`; the gate named only 3.1, 3.2 and 3.3
   as open.
-- [ ] 3.3 **Human-only**: on the extension built from this branch, a change
+- [x] 3.3 **Human-only**: on the extension built from this branch, a change
   whose apply stage is set to `codex-cli` runs, writes its tasks' work, and
   the run reports tokens.
+  2026-10-24: run at the operator's request through `openspec-ui-cli run
+  change` from this branch (the same core chain the extension drives), not
+  the extension's panel: a scratch repository with one task, apply on
+  `codex-cli` (codex-cli 0.164.0, `gpt-6.1-sol`). Codex wrote `hello.txt`
+  (bytes `h`, `i`, LF), ticked 1.1, the run reported 5,844 tokens, and the
+  chain went on through verify to archive.
