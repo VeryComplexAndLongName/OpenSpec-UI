@@ -5,12 +5,19 @@ import path from "node:path";
 import { isRunEntry } from "./audit-runs.js";
 import { isValidChangeName } from "./change-name.js";
 import { createGitWrapper, type GitWrapper } from "./git.js";
+import { say, type SaidMessage } from "./message-register.js";
 import { readRepositoryAuditEntries, repositoryWorkspaceRoots } from "./repository-audit.js";
 import { buildUsageReport } from "./usage-report.js";
 
 const ARCHIVE_PREFIX = /^\d{4}-\d{2}-\d{2}-/u;
 
-export class ChangeUsageRefusal extends Error {}
+export class ChangeUsageRefusal extends Error {
+  readonly code: SaidMessage["code"];
+  constructor(said: SaidMessage) {
+    super(said.text);
+    this.code = said.code;
+  }
+}
 
 async function directoryExists(directory: string): Promise<boolean> {
   try {
@@ -39,7 +46,7 @@ export async function readChangeUsageReport(options: {
   git?: Pick<GitWrapper, "worktreeList">;
 }) {
   if (!isValidChangeName(options.changeName) || options.changeName === "archive") {
-    throw new ChangeUsageRefusal(`Invalid change name: ${options.changeName}`);
+    throw new ChangeUsageRefusal(say("OSW-CLI-019", { change: options.changeName }));
   }
   const git = options.git ?? createGitWrapper({ cwd: options.workspaceRoot });
   const roots = await repositoryWorkspaceRoots({ git, workspaceRoot: options.workspaceRoot });
@@ -48,11 +55,11 @@ export async function readChangeUsageReport(options: {
   const changeName = exactArchive?.replace(ARCHIVE_PREFIX, "") ?? options.changeName;
   const matches = [...archived].filter((name) => name.replace(ARCHIVE_PREFIX, "") === changeName).sort();
   if (matches.length > 1) {
-    throw new ChangeUsageRefusal(`Ambiguous change ${changeName}: ${matches.join(", ")}. Historical active paths cannot distinguish reused names.`);
+    throw new ChangeUsageRefusal(say("OSW-CLI-021", { change: changeName, archives: matches.join(", ") }));
   }
   const archiveName = matches[0];
   const active = await Promise.all(roots.map((root) => directoryExists(path.join(root, "openspec", "changes", changeName))));
-  if (!archiveName && !active.some(Boolean)) throw new ChangeUsageRefusal(`Unknown change ${options.changeName}; no active or archived change exists.`);
+  if (!archiveName && !active.some(Boolean)) throw new ChangeUsageRefusal(say("OSW-CLI-020", { change: options.changeName }));
 
   const entries = await readRepositoryAuditEntries({ git, workspaceRoot: options.workspaceRoot });
   const belongs = (directory: string) => {

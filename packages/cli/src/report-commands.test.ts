@@ -307,6 +307,8 @@ describe("report commands", () => {
     expect(text.stdout.mock.calls[0]![0]).toContain("86656 cache read, 0 cache creation, 2 thought, USD not reported");
     expect(text.stdout.mock.calls[0]![0]).toContain("model reported-model:");
     expect(text.stdout.mock.calls[0]![0]).toContain("vendor current-model attribution; an exact model split is unavailable");
+    expect(text.stdout.mock.calls[0]![0]).toContain("info OSW-CLI-101:");
+    expect(text.stdout.mock.calls[0]![0]).toContain("info OSW-CLI-102:");
   });
 
   it("discloses partial USD coverage and preserves a genuinely reported zero", async () => {
@@ -329,6 +331,7 @@ describe("report commands", () => {
     expect(await showCostCommand({ ...config, changeName: "unknown" }, output)).toBe(1);
     expect(output.stdout).not.toHaveBeenCalled();
     expect(output.stderr.mock.calls[0]![0]).toContain("OSW-CLI-017");
+    expect(output.stderr.mock.calls[0]![0]).toContain("OSW-CLI-020");
   });
 
   it("reads retained run output and records pruned-output absence", async () => {

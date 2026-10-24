@@ -230,6 +230,36 @@ export const MESSAGES = {
     why: "Arguments, configuration or an underlying reader prevented the command from completing.",
     todo: "Correct the arguments or the reported configuration/tooling problem and retry.",
   },
+  "OSW-CLI-019": {
+    level: "error",
+    text: "Invalid change name: {change}",
+    why: "A usage report needs one change name, without path separators or the reserved archive directory name.",
+    todo: "Give the original change name or its unique dated archive name.",
+  },
+  "OSW-CLI-020": {
+    level: "error",
+    text: "Unknown change {change}; no active or archived change exists.",
+    why: "The retained repository checkout and worktrees do not identify this change.",
+    todo: "Check the name against active changes and openspec/changes/archive, then retry.",
+  },
+  "OSW-CLI-021": {
+    level: "error",
+    text: "Ambiguous change {change}: {archives}. Historical active paths cannot distinguish reused names.",
+    why: "More than one archived generation uses this change identity, while old audit paths carry no generation id.",
+    todo: "Inspect the individual runs with show run; do not merge ambiguous historical spend into one total.",
+  },
+  "OSW-CLI-101": {
+    level: "info",
+    text: "{name}: {details}",
+    why: "A usage report displays the figures this agent or model actually reported, with coverage and attribution limits.",
+    todo: "Treat missing USD and partial coverage as unknown spend; current-model attribution is not an exact model split.",
+  },
+  "OSW-CLI-102": {
+    level: "info",
+    text: "Recorded usage for {change}{archive}: {runs} runs, {unmeasuredRuns} unmeasured runs, {unmeasuredInvocations} unmeasured invocations",
+    why: "A usage report separates logical runs from the individual calls that reported no usage.",
+    todo: "Read the agent and model figures below; deleted or rotated audit logs cannot be reconstructed.",
+  },
 
   // RUN: runs, chains, stages, checkpoints, limits.
   "OSW-RUN-001": {

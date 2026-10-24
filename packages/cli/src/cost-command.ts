@@ -1,11 +1,11 @@
-import { ChangeUsageRefusal, readChangeUsageReport, type UsageTotal } from "@openspec-ui/core";
+import { ChangeUsageRefusal, formatMessage, readChangeUsageReport, say, withMessageCode, type UsageTotal } from "@openspec-ui/core";
 import { ReportRefusal, reportCommand, type ReportIo, type ReportOptions } from "./report-command.js";
 
 export async function readCostReport(options: ReportOptions) {
   try {
     return await readChangeUsageReport({ workspaceRoot: options.workspaceRoot, changeName: options.changeName! });
   } catch (error) {
-    if (error instanceof ChangeUsageRefusal) throw new ReportRefusal(error.message);
+    if (error instanceof ChangeUsageRefusal) throw new ReportRefusal(withMessageCode(error.message, error.code));
     throw error;
   }
 }
@@ -20,12 +20,16 @@ function describeTotal(name: string, total: UsageTotal): string {
   if (total.currentModelAttributionInvocationCount) {
     parts.push(`${total.currentModelAttributionInvocationCount} invocations use vendor current-model attribution; an exact model split is unavailable`);
   }
-  return `${name}: ${parts.join(", ")}`;
+  return formatMessage(say("OSW-CLI-101", { name, details: parts.join(", ") }));
 }
 
 export function showCostCommand(options: ReportOptions, io: ReportIo, read = readCostReport) {
   return reportCommand("show cost", options, io, () => read(options), (result) => [
-    `Recorded usage for ${result.changeName}${result.archiveName ? ` (archive ${result.archiveName})` : ""}: ${result.recordedRunCount} runs, ${result.unmeasuredRunCount} unmeasured runs, ${result.unmeasuredInvocationCount} unmeasured invocations`,
+    formatMessage(say("OSW-CLI-102", {
+      change: result.changeName, archive: result.archiveName ? ` (archive ${result.archiveName})` : "",
+      runs: result.recordedRunCount, unmeasuredRuns: result.unmeasuredRunCount,
+      unmeasuredInvocations: result.unmeasuredInvocationCount,
+    })),
     ...Object.entries(result.totalsByAgent).map(([name, total]) => describeTotal(name, total)),
     ...Object.entries(result.totalsByModel).map(([name, total]) => describeTotal(`model ${name}`, total)),
   ].join("\n"));

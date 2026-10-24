@@ -16,6 +16,8 @@
 - [x] 2.5 Update packages/cli/src/agents-command.ts to expose acceptsModel in JSON and text while preserving effort.
 - [x] 2.6 Document cost semantics, requested versus reported model, and archived reports in README.md.
 - [x] 2.7 Add a patch changeset for core and CLI through Changesets, without editing package versions directly.
+- [x] 2.8 Register usage-report lines and change-lookup refusal templates in packages/core/src/message-register.ts under ADR 0046.
+- [x] 2.9 Regenerate docs/messages.md with the new usage-report identifiers.
 
 ## 3. Targeted verification
 
@@ -29,6 +31,7 @@
 - [x] 3.8 Run TypeScript checks for affected core/CLI projects and ESLint only on changed source paths; scan only authored files for English and whitespace.
 - [x] 3.9 Validate usage-reports-keep-what-agents-report strictly and run the real CLI against a temporary archived usage fixture.
 - [x] 3.10 Run packages/webui/src/transport/contract.test.ts selected usageReported tests to confirm the optional payload reaches both client transports.
+- [x] 3.11 Update the identifier inventory and run packages/core/src/message-register.test.ts, preserving the unchanged unregistered-message ceiling of 330.
 
 ## Verification evidence
 
@@ -63,4 +66,14 @@
   vendor cost adjustments, all ten usage-report tests and lint on those
   updated source/test paths passed again.
 
-Full verification is pending CI. No complete suite was run locally.
+The first CI run failed only the message-register ratchet (331 versus its
+330 ceiling): the new describeTotal formatter emitted a sentence directly.
+Its output and the new usage-report refusals now use ADR 0046's register.
+All seven message-register tests passed with the unchanged 330 ceiling and
+the regenerated docs page; the 11 change-usage tests and three affected
+CLI cost tests also passed. Core/CLI TypeScript checks passed again and
+ESLint on the five affected source/test paths had no errors or warnings.
+English, source-text and whitespace checks passed for all eight correction
+files, bringing the authored scope to 31 files in total.
+Full verification is pending the corrected CI run. No complete suite was
+run locally.

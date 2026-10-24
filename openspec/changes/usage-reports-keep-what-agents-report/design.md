@@ -60,6 +60,10 @@ fields and an optional attribution marker inside the existing usageReported
 event. Old hosts and logs remain readable; host transports already pass
 that payload whole. A focused server/webui contract test must confirm it.
 
+Usage-report text and lookup refusals use the shared message register
+(ADR 0046); no unregistered-message ceiling is relaxed. The first CI run
+identified the missing formatter registration, covered by task 3.11.
+
 ## Non-Goals
 
 No execution or permission-policy change, UI redesign, history event
