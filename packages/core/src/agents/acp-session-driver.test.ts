@@ -265,6 +265,53 @@ describe("AcpSessionDriver", () => {
   });
 });
 
+describe("AcpSessionDriver — what an agent writes to stderr (an-acp-agent-is-heard-on-stderr)", () => {
+  it("hands the agent's stderr on as stderr events, and says its end beside a failure", async () => {
+    const child = new FakeChildProcess();
+    child.pid = 4343;
+    spawnMock.mockReturnValue(child);
+    const driver = new AcpSessionDriver();
+    const run = driver.runProcess({
+      executable: "codex-acp",
+      args: [],
+      cwd: "/tmp/work",
+      runId: "run-err",
+      commandKind: "implement",
+      prompt: "do it",
+      signal: new AbortController().signal,
+    });
+
+    expect((await run.next()).value).toMatchObject({ kind: "started", runId: "run-err" });
+    // The agent says why, on stderr, and closes the connection before
+    // answering anything.
+    child.stderr.write("Error: not signed in. Run `codex login`.\n");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    child.stdout.end();
+    const events: Event[] = [];
+    for await (const event of run) events.push(event);
+
+    expect(events.filter((event) => event.kind === "stderr").map((event) => (event as { chunk: string }).chunk).join(""))
+      .toBe("Error: not signed in. Run `codex login`.\n");
+    const failed = events.find((event) => event.kind === "failed") as { reason: string } | undefined;
+    expect(failed?.reason).toContain("The agent's stderr ended with:\nError: not signed in. Run `codex login`.");
+  });
+
+  it("keeps only the tail of a long stderr for the reason, and every chunk for the events", async () => {
+    const { AcpStderr, ACP_STDERR_TAIL_CHARS, withStderrTail } = await import("./acp-session-driver.js");
+    const stream = new PassThrough();
+    const stderr = new AcpStderr(stream);
+    stream.write("x".repeat(ACP_STDERR_TAIL_CHARS));
+    stream.write("the end\n");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(stderr.take().join("").length).toBe(ACP_STDERR_TAIL_CHARS + "the end\n".length);
+    expect(stderr.take()).toEqual([]);
+    expect(stderr.tail().length).toBeLessThanOrEqual(ACP_STDERR_TAIL_CHARS);
+    expect(stderr.tail().endsWith("the end")).toBe(true);
+    expect(withStderrTail("closed", "")).toBe("closed");
+  });
+});
+
 describe("AcpSessionDriver — reporting what the agent said it spent", () => {
   function usageEventsOf(events: Event[]): AgentUsage[] {
     return events.flatMap((event) => (event.kind === "usageReported" ? [event.usage] : []));
