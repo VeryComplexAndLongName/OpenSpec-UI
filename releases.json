@@ -1,40 +1,45 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-24T05:11:42.747Z",
+  "generated_at": "2026-10-24T11:25:20.664Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "f4d256d3e83955e73936808166927340bb743199",
+  "commit": "3e8047fbb403423b4151c16d2855588d0fd20715",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.106.4",
-      "released_at": "2026-10-24T05:11:42.747Z",
-      "tag": "openspec-ui-vscode@0.106.4",
+      "version": "0.106.5",
+      "released_at": "2026-10-24T11:25:20.664Z",
+      "tag": "openspec-ui-vscode@0.106.5",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.106.4"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.106.5"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.106.4/openspec-ui-vscode-0.106.4.vsix",
-          "size_bytes": 11124402
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.106.5/openspec-ui-vscode-0.106.5.vsix",
+          "size_bytes": 11124815
         }
       ],
-      "changes": []
+      "changes": [
+        {
+          "kind": "patch",
+          "summary": "- **Codex agents: native CLI and ACP.** Run Harness stages with a GPT model, reasoning effort and a stage-appropriate sandbox. Inspect output, file changes and token usage; ACP requires the separately installed `@agentclientprotocol/codex-acp` bridge. - Product release notes now explain delivered behavior, preserve wrapped summaries on the website and lead GitHub releases with authored highlights."
+        }
+      ]
     },
     {
       "id": "standalone-app",
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.62.4",
-      "released_at": "2026-10-24T05:11:42.747Z",
+      "version": "1.62.5",
+      "released_at": "2026-10-24T11:25:20.664Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -42,7 +47,12 @@
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/server/README.md"
       },
       "artifacts": [],
-      "changes": []
+      "changes": [
+        {
+          "kind": "patch",
+          "summary": "- **Codex agents: native CLI and ACP.** Run Harness stages with a GPT model, reasoning effort and a stage-appropriate sandbox. Inspect output, file changes and token usage; ACP requires the separately installed `@agentclientprotocol/codex-acp` bridge. - Product release notes now explain delivered behavior, preserve wrapped summaries on the website and lead GitHub releases with authored highlights."
+        }
+      ]
     },
     {
       "id": "core",
@@ -50,7 +60,7 @@
       "package": "@openspec-ui/core",
       "public": false,
       "version": "0.150.1",
-      "released_at": "2026-10-24T05:11:42.747Z",
+      "released_at": "2026-10-24T11:25:20.664Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -61,7 +71,7 @@
       "changes": [
         {
           "kind": "patch",
-          "summary": "Keep every agent invocation's recorded usage across chain stages and retries,"
+          "summary": "Keep every agent invocation's recorded usage across chain stages and retries, preserve cache/thought tokens and unknown USD cost with coverage, and retain requested models and Codex ACP's limited current-model attribution. Read archived change usage from retained repository logs and disclose model acceptance in CLI agent reports."
         }
       ]
     },
@@ -71,7 +81,7 @@
       "package": "@openspec-ui/webui",
       "public": false,
       "version": "1.94.4",
-      "released_at": "2026-10-24T05:11:42.747Z",
+      "released_at": "2026-10-24T11:25:20.664Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -85,8 +95,8 @@
       "name": "CLI",
       "package": "@openspec-ui/cli",
       "public": true,
-      "version": "0.32.2",
-      "released_at": "2026-10-24T05:11:42.747Z",
+      "version": "0.32.3",
+      "released_at": "2026-10-24T11:25:20.664Z",
       "prerelease": false,
       "summary": "Run, validate and check OpenSpec changes from a terminal or CI.",
       "links": {
@@ -98,7 +108,7 @@
       "changes": [
         {
           "kind": "patch",
-          "summary": "Keep every agent invocation's recorded usage across chain stages and retries,"
+          "summary": "- **Codex agents: native CLI and ACP.** Run Harness stages with a GPT model, reasoning effort and a stage-appropriate sandbox. Inspect output, file changes and token usage; ACP requires the separately installed `@agentclientprotocol/codex-acp` bridge. - Product release notes now explain delivered behavior, preserve wrapped summaries on the website and lead GitHub releases with authored highlights."
         }
       ]
     }
