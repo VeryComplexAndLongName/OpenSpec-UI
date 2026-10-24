@@ -372,6 +372,49 @@ describe("AcpSessionDriver — reporting what the agent said it spent", () => {
     expect(events.at(-1)?.kind).toBe("completed");
   });
 
+  it("retains Codex quota model figures with current-model attribution", async () => {
+    const mockAgent = agent({ name: "mock-agent" })
+      .onRequest(AGENT_METHODS.initialize, () => ({ protocolVersion: PROTOCOL_VERSION }))
+      .onRequest(AGENT_METHODS.session_new, () => ({ sessionId: "session-model" }))
+      .onRequest(AGENT_METHODS.session_prompt, async () => ({
+        stopReason: "end_turn",
+        usage: { inputTokens: 12, outputTokens: 3, totalTokens: 86671, cachedReadTokens: 86656, thoughtTokens: 2 },
+        _meta: { quota: { model_usage: [{ model: "reported-model", token_count: {
+          inputTokens: 12, outputTokens: 3, cachedInputTokens: 86656, cacheWriteInputTokens: 0, reasoningOutputTokens: 2,
+        } }] } },
+      }));
+    const events = await collect(new AcpSessionDriver().run({
+      target: mockAgent, cwd: "/tmp/work", runId: "model-run", commandKind: "implement", prompt: "do it",
+      sessionOptions: { agent: "codex-acp", set: [] },
+    }));
+    expect(usageEventsOf(events)).toEqual([{
+      inputTokens: 12, outputTokens: 3, cacheReadInputTokens: 86656, thoughtTokens: 2,
+      byModel: { "reported-model": { inputTokens: 12, outputTokens: 3, cacheReadInputTokens: 86656, cacheCreationInputTokens: 0, thoughtTokens: 2 } },
+      byModelAttribution: "current-model",
+    }]);
+    expect(events.at(-1)?.kind).toBe("completed");
+  });
+
+  it("drops malformed Codex model fields without losing valid overall usage", async () => {
+    const mockAgent = agent({ name: "mock-agent" })
+      .onRequest(AGENT_METHODS.initialize, () => ({ protocolVersion: PROTOCOL_VERSION }))
+      .onRequest(AGENT_METHODS.session_new, () => ({ sessionId: "session-model" }))
+      .onRequest(AGENT_METHODS.session_prompt, async () => ({
+        stopReason: "end_turn", usage: { inputTokens: 7, outputTokens: 2, totalTokens: 9 },
+        _meta: { quota: { model_usage: [null, {}, { model: "valid-model", token_count: {
+          inputTokens: "bad", outputTokens: 2, cachedInputTokens: -10,
+        } }, { model: "no-figures", token_count: null }] } },
+      }));
+    const events = await collect(new AcpSessionDriver().run({
+      target: mockAgent, cwd: "/tmp/work", runId: "model-run", commandKind: "implement", prompt: "do it",
+      sessionOptions: { agent: "codex-acp", set: [] },
+    }));
+    expect(usageEventsOf(events)).toEqual([{
+      inputTokens: 7, outputTokens: 2, byModel: { "valid-model": { outputTokens: 2 } }, byModelAttribution: "current-model",
+    }]);
+    expect(events.at(-1)?.kind).toBe("completed");
+  });
+
   it("captures a streamed usage_update's cost, and never its `used` as tokens spent", async () => {
     const mockAgent = agent({ name: "mock-agent" })
       .onRequest(AGENT_METHODS.initialize, () => ({ protocolVersion: PROTOCOL_VERSION }))

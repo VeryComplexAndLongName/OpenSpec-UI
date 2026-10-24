@@ -400,6 +400,12 @@ export type AuditOutcome = "blocked" | "started" | "completed" | "failed" | "can
 
 export interface AuditEntry {
   runId: string;
+  /** One runner call within a chain, shared by its start and terminal
+   * entries. Distinct for retries; absent on legacy records. */
+  invocationId?: string;
+  /** Requested model, independently of how the adapter passes it.
+   * Not evidence of the model the provider actually used. */
+  requestedModel?: string;
   agent: string;
   outcome: AuditOutcome;
   cwd: string;

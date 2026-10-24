@@ -587,6 +587,9 @@ HTTP server and no webview. It started as a merge gate with one command,
 | `owner`, `implementer`, `send-back` | Records an event in a change's history, signed with this machine's key. |
 | `worktree add`, `list`, `move`, `remove` | A working directory per change. |
 | `change-graph` | What each change follows. |
+| `show cost <change>` | Recorded usage for an active or archived change. |
+| `show run <runId>` | Retained audit entries and output for a run. |
+| `show agents` | Registered providers, model acceptance, and effort capabilities. |
 | `release-manifest` | The manifest the project site reads; used by CI. |
 
 Unless a command says otherwise below, the exit codes are shared: `0`
@@ -623,6 +626,45 @@ npm run start --workspace @openspec-ui/cli -- validate changes --cwd . --format 
   `openspec-validate` job) runs it against `openspec/changes/` on every
   pull request, as the real merge gate; `main`'s ruleset requires it on a
   branch that is up to date with `main`.
+
+### `show cost`, `show run`, and `show agents` — recorded facts
+
+`openspec-ui-cli show cost <change>` reads retained repository audit for an
+active or archived change. A unique dated archive name is accepted too.
+It does not require an active `tasks.md`. Unknown names and names reused
+across ambiguous archive generations are refused. Deleted or rotated logs
+cannot be reconstructed; a retained entry's old worktree path still counts.
+
+The report retains input, output, cache-read, cache-creation, and thought
+tokens separately. `recordedRunCount` counts logical run ids, which a chain
+shares across stages. Each total's `invocationCount` counts measured agent
+calls, including repeated stages; `runCount` counts distinct logical runs
+in that group. Calls with no usage are counted separately by
+`unmeasuredInvocationCount`; `unmeasuredRunCount` counts wholly unmeasured
+logical runs.
+
+Unknown USD is omitted from JSON and shown as `USD not reported` in text.
+A reported zero remains zero. `costReportedInvocationCount` gives coverage
+out of the group's measured `invocationCount`; a partially reported sum is
+only the reported spend. No prices or exchange rates are estimated. The
+existing token-ceiling definition remains input plus output only; see
+[`LIMITS.md`](LIMITS.md).
+
+Model totals come from provider-reported figures, independently of the
+`requestedModel` saved in each invocation's audit entries. Codex ACP 2.2.2
+attributes all prompt tokens to its current model, so those figures carry
+`byModelAttribution: "current-model"` in usage and
+`currentModelAttributionInvocationCount` in model totals. Text names this
+limitation: it is not an exact split when models switch. The breakdown is
+never added back into the overall totals. Old records are not assigned a
+model from today's configuration.
+
+`show run <runId>` includes the requested model and `invocationId` wherever
+recorded. `show history` remains the change's ownership and workflow history.
+`show agents` exposes `acceptsModel` in text and JSON, along with existing
+effort capabilities and model flags. These are adapter capabilities, not an
+authentication check or a promise that every model id is accepted; Codex
+ACP validates its requested settings against the live session's options.
 
 ### `doctor` — what would stop a run here
 

@@ -30,7 +30,7 @@ import {
   type ToolCallUpdate,
 } from "@agentclientprotocol/sdk";
 import os from "node:os";
-import type { AgentUsage } from "../agent-usage.js";
+import type { AgentUsage, AgentUsageByModel } from "../agent-usage.js";
 import { say } from "../message-register.js";
 import { commandLineHash, defaultProcessLedger, type ProcessLedger } from "../process-ledger.js";
 import { readProcessStartTime, type StartTimeReader } from "../process-start-time.js";
@@ -197,6 +197,7 @@ export interface RunAcpProcessOptions {
 export function buildAcpUsage(
   responseUsage: unknown,
   streamedCost: { amount: number; currency: string } | undefined,
+  codexQuotaMeta?: unknown,
 ): AgentUsage | undefined {
   const usage: AgentUsage = {};
   const reported = responseUsage as Record<string, unknown> | null | undefined;
@@ -220,7 +221,50 @@ export function buildAcpUsage(
     else usage.cost = streamedCost;
   }
 
+  const models = readCodexModelUsage(codexQuotaMeta);
+  if (models !== undefined) {
+    usage.byModel = models;
+    usage.byModelAttribution = "current-model";
+  }
   return Object.keys(usage).length > 0 ? usage : undefined;
+}
+
+function recordOf(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+
+/** Codex ACP 2.2.2's vendor extension, not a generic ACP schema. Its own
+ * FIXME attributes all prompt tokens to the current model. Optional
+ * metadata degrades per field and must never fail a run. */
+function readCodexModelUsage(meta: unknown): Record<string, AgentUsageByModel> | undefined {
+  const models = recordOf(recordOf(meta)?.quota)?.model_usage;
+  if (!Array.isArray(models)) return undefined;
+  const result = new Map<string, AgentUsageByModel>();
+  const fields = {
+    inputTokens: "inputTokens", outputTokens: "outputTokens",
+    cachedInputTokens: "cacheReadInputTokens", cacheWriteInputTokens: "cacheCreationInputTokens",
+    reasoningOutputTokens: "thoughtTokens",
+  } as const;
+  for (const entry of models) {
+    const row = recordOf(entry);
+    if (typeof row?.model !== "string" || row.model.trim().length === 0) continue;
+    const counts = recordOf(row.token_count);
+    if (!counts) continue;
+    const usage: AgentUsageByModel = {};
+    for (const [source, target] of Object.entries(fields)) {
+      const value = counts[source];
+      if (typeof value === "number" && Number.isFinite(value) && value >= 0) usage[target] = value;
+    }
+    if (Object.keys(usage).length === 0) continue;
+    const previous = result.get(row.model);
+    if (previous) {
+      for (const field of Object.values(fields)) {
+        const value = usage[field];
+        if (value !== undefined) previous[field] = (previous[field] ?? 0) + value;
+      }
+    } else result.set(row.model, usage);
+  }
+  return result.size > 0 ? Object.fromEntries(result) : undefined;
 }
 
 /** One session option to set: the agent's own id for it (`model`,
@@ -418,6 +462,7 @@ export class AcpSessionDriver {
         const usage = buildAcpUsage(
           (response as { usage?: unknown }).usage,
           streamedCost,
+          options.sessionOptions?.agent === "codex-acp" ? (response as { _meta?: unknown })._meta : undefined,
         );
         if (usage) push({ kind: "usageReported", runId, timestamp: nowIso(), usage });
         // A request still open when the turn has ended waits on nothing.
