@@ -577,3 +577,13 @@ to 10.9.0 in root metadata and CI.
 
 - **WHEN** GitHub or Gitea sets up Node for this repository
 - **THEN** it selects Node 24.21.0 and installs npm 10.9.0
+
+### Requirement: The virtualizer update keeps production dependencies patched
+
+The production dependency graph SHALL contain no undici release affected by GHSA-xjj6-f33q-929c.
+
+#### Scenario: Audit after the TanStack update
+
+- **WHEN** production dependencies from the updated lockfile are audited
+- **THEN** npm audit reports no high or critical advisories
+- **AND** the requested TanStack virtualizer version is retained
