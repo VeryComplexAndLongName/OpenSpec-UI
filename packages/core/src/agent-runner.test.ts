@@ -60,12 +60,14 @@ describe("createAgentRunner — what the record says (stage-spend-is-bounded-and
       context: { changeDir: `${workspaceRoot}/openspec/changes/x` },
       stage: "apply",
       effort: "high",
+      model: "requested-model",
     };
 
     for await (const _e of runner.run(command)) { /* drained */ }
 
     expect(auditLog.entries.every((entry) => entry.stage === "apply")).toBe(true);
     expect(auditLog.entries.every((entry) => entry.effort === "high")).toBe(true);
+    expect(auditLog.entries.every((entry) => entry.requestedModel === "requested-model")).toBe(true);
   });
 
   it("records no stage for a run that is part of no chain", async () => {
@@ -85,6 +87,22 @@ describe("createAgentRunner — what the record says (stage-spend-is-bounded-and
     for await (const _e of runner.run(command)) { /* drained */ }
 
     expect(auditLog.entries.every((entry) => entry.stage === undefined)).toBe(true);
+    expect(auditLog.entries.every((entry) => !("requestedModel" in entry))).toBe(true);
+  });
+
+  it("pairs invocation ids and creates a new identity for a repeated stage", async () => {
+    const { adapter } = makeFakeAdapter((invocation, command) => okEvents(command.runId));
+    const auditLog = new InMemoryAuditLog();
+    const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog });
+    const command: Command = { kind: "review", runId: "same-chain", cwd: workspaceRoot, context: { changeDir: `${workspaceRoot}/openspec/changes/x` }, stage: "review" };
+    for await (const _event of runner.run(command)) { /* drained */ }
+    for await (const _event of runner.run(command)) { /* drained */ }
+    expect(auditLog.entries).toHaveLength(4);
+    expect(auditLog.entries[0]?.invocationId).toEqual(expect.any(String));
+    expect(auditLog.entries[0]?.invocationId).toBe(auditLog.entries[1]?.invocationId);
+    expect(auditLog.entries[2]?.invocationId).toBe(auditLog.entries[3]?.invocationId);
+    expect(auditLog.entries[0]?.invocationId).not.toBe(auditLog.entries[2]?.invocationId);
+    expect(auditLog.entries.every((entry) => entry.runId === "same-chain")).toBe(true);
   });
 
   it("carries a cancellation reason onto the one entry the run writes, not a second entry", async () => {
@@ -497,9 +515,14 @@ describe("createAgentRunner — a failure's diagnosis", () => {
 
 describe("createAgentRunner — recording reported usage (usage-from-acp)", () => {
   it("writes the agent's reported usage into the terminal audit entry", async () => {
+    const usage = {
+      inputTokens: 10, outputTokens: 4, costUsd: 0.26, cacheReadInputTokens: 50, thoughtTokens: 2,
+      byModel: { "reported-model": { inputTokens: 10, outputTokens: 4, cacheReadInputTokens: 50, thoughtTokens: 2 } },
+      byModelAttribution: "current-model" as const,
+    };
     const { adapter } = makeFakeAdapter(async function* (invocation, command) {
       yield { kind: "started", runId: command.runId, timestamp: "t", command: "implement", cwd: workspaceRoot };
-      yield { kind: "usageReported", runId: command.runId, timestamp: "t", usage: { inputTokens: 10, outputTokens: 4, costUsd: 0.26 } };
+      yield { kind: "usageReported", runId: command.runId, timestamp: "t", usage };
       yield { kind: "completed", runId: command.runId, timestamp: "t", summary: "done" };
     });
     const auditLog = new InMemoryAuditLog();
@@ -513,7 +536,7 @@ describe("createAgentRunner — recording reported usage (usage-from-acp)", () =
     })) { /* drain */ }
 
     const terminal = auditLog.entries.find((entry) => entry.outcome === "completed");
-    expect(terminal?.usage).toEqual({ inputTokens: 10, outputTokens: 4, costUsd: 0.26 });
+    expect(terminal?.usage).toEqual(usage);
   });
 
   it("records no usage field at all when the agent reported none", async () => {

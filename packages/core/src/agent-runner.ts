@@ -18,6 +18,7 @@ import {
   prepareAgentContext,
 } from "./security.js";
 import type { AgentUsage } from "./agent-usage.js";
+import { randomUUID } from "node:crypto";
 import { readAcpStreamedText } from "./acp-streamed-text.js";
 import { readLastReview, type LastReview } from "./last-review.js";
 import { readReviewVerdict, type ReviewVerdict } from "./review-verdict.js";
@@ -215,6 +216,10 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
 
       // Every run the runner is asked for gets a log, one it refused
       // included: why nothing ran is what a person opening it wants to know.
+      const auditIdentity = {
+        invocationId: randomUUID(),
+        ...(command.model !== undefined ? { requestedModel: command.model } : {}),
+      };
       const logStart = {
         runId: command.runId,
         agent: adapter.name,
@@ -228,6 +233,7 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
       const cwdDecision = checkCwdSandbox(command.cwd, workspaceRoot, { allowExternalCwd });
       if (!cwdDecision.allowed) {
         auditLog.record({
+          ...auditIdentity,
           runId: command.runId,
           agent: adapter.name,
           outcome: "blocked",
@@ -245,6 +251,7 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
       const allowlistDecision = checkAllowlist(adapter.name, invocation, allowlist);
       if (!allowlistDecision.allowed) {
         auditLog.record({
+          ...auditIdentity,
           runId: command.runId,
           agent: adapter.name,
           outcome: "blocked",
@@ -270,6 +277,7 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
       });
 
       auditLog.record({
+        ...auditIdentity,
         runId: command.runId,
         agent: adapter.name,
         outcome: "started",
@@ -424,6 +432,7 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
           ...(lastSummary !== undefined ? { summary: lastSummary } : {}),
         });
         auditLog.record({
+          ...auditIdentity,
           runId: command.runId,
           agent: adapter.name,
           outcome: lastOutcome,

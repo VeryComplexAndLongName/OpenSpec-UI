@@ -61,7 +61,7 @@ import { DEFAULT_AGENT_ID } from "./agents/registry.js";
 import { checkAllowlist, type AllowlistConfig, type AuditEntry, type AuditLog } from "./security.js";
 import type { AgentUsage } from "./agent-usage.js";
 import { readTaskChecklist, TASK_CHECKBOX_LINE_RE, writeTaskCheckStates } from "./task-checklist.js";
-import { buildUsageReport, unitKey, type UsageTotal } from "./usage-report.js";
+import { buildUsageReport, mergeUsageTotals, unitKey, type UsageTotal } from "./usage-report.js";
 import { say, type SaidMessage } from "./message-register.js";
 
 /** The subsequence of `HarnessStage` a chain drives. Each entry's
@@ -662,18 +662,6 @@ function nextStageAfter(sequence: readonly ChainEntry[], index: number): ChainSt
  * so two different changes cannot collide here.
  *
  * Found by running two chains in two worktrees for real. */
-/** Two per-unit totals, added unit by unit. */
-function mergeCostByUnit(
-  left: Record<string, number>,
-  right: Record<string, number>,
-): Record<string, number> {
-  const merged: Record<string, number> = { ...left };
-  for (const [unit, amount] of Object.entries(right)) {
-    merged[unit] = (merged[unit] ?? 0) + amount;
-  }
-  return merged;
-}
-
 function totalForChange(
   totalsByChange: Record<string, UsageTotal>,
   changeDir: string,
@@ -683,17 +671,7 @@ function totalForChange(
 
   for (const [key, total] of Object.entries(totalsByChange)) {
     if (path.basename(key) !== changeName) continue;
-    found = found
-      ? {
-        runCount: found.runCount + total.runCount,
-        inputTokens: found.inputTokens + total.inputTokens,
-        outputTokens: found.outputTokens + total.outputTokens,
-        costUsd: found.costUsd + total.costUsd,
-        // Per unit, never across: a credit and a euro are not addends
-        // (a-run-budget-has-a-unit).
-        costByUnit: mergeCostByUnit(found.costByUnit, total.costByUnit),
-      }
-      : total;
+    found = found ? mergeUsageTotals(found, total) : total;
   }
   return found;
 }
@@ -1594,7 +1572,7 @@ export class HarnessChainRunner {
     const total = totalForChange(buildUsageReport(entries).totalsByChange, changeDir);
     if (!total) return undefined;
 
-    if (budget.maxCostUsd !== undefined && total.costUsd >= budget.maxCostUsd) {
+    if (budget.maxCostUsd !== undefined && total.costUsd !== undefined && total.costUsd >= budget.maxCostUsd) {
       return say("OSW-RUN-201", { spent: total.costUsd.toFixed(2), ceiling: budget.maxCostUsd.toFixed(2) });
     }
     if (budget.maxTokens !== undefined) {

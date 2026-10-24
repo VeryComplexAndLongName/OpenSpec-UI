@@ -3151,6 +3151,73 @@ describe("HarnessChainRunner — stageStarted (usage-visible-while-running)", ()
 });
 
 describe("HarnessChainRunner — a real run's reported usage stops the chain (usage-from-acp task 4.4)", () => {
+  it.each(["USD", "tokens"] as const)("counts multiple stages of one runId against the %s ceiling", async (unit) => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { propose: "claude-cli-acp", review: "claude-cli-acp", apply: "claude-cli-acp" },
+      budget: unit === "USD" ? { maxCostUsd: 1 } : { maxTokens: 30 },
+    });
+    mockStatus(false);
+    const adapter: AgentAdapter = {
+      name: "claude-cli-acp",
+      buildInvocation: () => ({ kind: "process", executable: "usage-cli", args: [] }),
+      async *execute(_invocation, command) {
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        yield { kind: "usageReported", runId: command.runId, timestamp: "t", usage: {
+          inputTokens: 10, outputTokens: 5, cacheReadInputTokens: 86656, thoughtTokens: 100,
+          ...(unit === "USD" ? { costUsd: 0.6 } : {}),
+        } };
+        yield { kind: "completed", runId: command.runId, timestamp: "t", summary: "Review verdict: ready" };
+      },
+    };
+    const auditLog = new InMemoryAuditLog();
+    const runner = createAgentRunner(adapter, {
+      workspaceRoot: root, auditLog,
+      allowlist: { "claude-cli-acp": [{ executable: "usage-cli", argsAllowed: () => true }] },
+    });
+    const command = baseCommand(root);
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner, listAuditEntries: () => auditLog.entries });
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+    const calls = auditLog.entries.filter((entry) => entry.usage !== undefined);
+    expect(calls).toHaveLength(2);
+    expect(new Set(calls.map((entry) => entry.runId)).size).toBe(1);
+    expect(new Set(calls.map((entry) => entry.invocationId)).size).toBe(2);
+    expect(events.filter((event) => event.kind === "stageStarted").map((event) => event.stage)).toEqual(["propose", "review"]);
+    expect(events.at(-1)).toMatchObject({ kind: "failed", reason: expect.stringContaining("budget") });
+  });
+
+  it("keeps token-only USD unknown while merging recorded worktree paths", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous", budget: { maxCostUsd: 1 },
+      stepAgents: { propose: "claude-cli", review: "claude-cli", apply: "claude-cli" },
+    });
+    mockStatus(false);
+    await writeTasks(root, 0, 1);
+    mockArchiveSucceeds();
+    const command = baseCommand(root);
+    const entry: AuditEntry = {
+      runId: "old-chain", agent: "codex-cli-acp", outcome: "completed", cwd: root, timestamp: "t",
+      changeDir: command.context.changeDir, usage: { inputTokens: 100 },
+    };
+    const { runner } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({
+      resolveRunner: () => runner,
+      listAuditEntries: () => [entry, { ...entry, runId: "other-chain", changeDir: path.join(root, "other-worktree", "openspec", "changes", "demo") }],
+    });
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+    expect(events.at(-1)).toMatchObject({ kind: "completed" });
+  });
+
   it("stops at the next stage boundary on usage an adapter reported, recorded by the real runner", async () => {
     const root = await temporaryRoot();
     await writeGlobalHarnessConfig(root, {

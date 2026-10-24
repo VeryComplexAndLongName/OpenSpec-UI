@@ -100,6 +100,11 @@ const ALL_EVENT_VARIANTS: Event[] = [
   { kind: "permissionRequest", runId: "run-1", timestamp: "t4b", requestId: "perm-1", description: "Write to x" },
   // a-change-is-run-from-its-card 1.3: non-terminal, carried like the rest.
   { kind: "stopRequested", runId: "run-1", timestamp: "t4c", reason: "wrong branch", by: "ada@example.com", outcome: "asked" },
+  { kind: "usageReported", runId: "run-1", timestamp: "t4d", usage: {
+    inputTokens: 12, outputTokens: 3, cacheReadInputTokens: 86656, thoughtTokens: 2,
+    byModel: { "reported-model": { inputTokens: 12, outputTokens: 3, cacheReadInputTokens: 86656, cacheCreationInputTokens: 0, thoughtTokens: 2 } },
+    byModelAttribution: "current-model",
+  } },
   { kind: "completed", runId: "run-1", timestamp: "t5", summary: "diff --git a/x b/x" },
   { kind: "failed", runId: "run-1", timestamp: "t6", reason: "boom" },
   { kind: "cancelled", runId: "run-1", timestamp: "t7" },

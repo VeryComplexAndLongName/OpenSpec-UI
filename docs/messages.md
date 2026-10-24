@@ -3110,6 +3110,46 @@ Why: Arguments, configuration or an underlying reader prevented the command from
 
 What to do: Correct the arguments or the reported configuration/tooling problem and retry.
 
+### OSW-CLI-019
+
+> error: Invalid change name: {change}
+
+Why: A usage report needs one change name, without path separators or the reserved archive directory name.
+
+What to do: Give the original change name or its unique dated archive name.
+
+### OSW-CLI-020
+
+> error: Unknown change {change}; no active or archived change exists.
+
+Why: The retained repository checkout and worktrees do not identify this change.
+
+What to do: Check the name against active changes and openspec/changes/archive, then retry.
+
+### OSW-CLI-021
+
+> error: Ambiguous change {change}: {archives}. Historical active paths cannot distinguish reused names.
+
+Why: More than one archived generation uses this change identity, while old audit paths carry no generation id.
+
+What to do: Inspect the individual runs with show run; do not merge ambiguous historical spend into one total.
+
+### OSW-CLI-101
+
+> info: {name}: {details}
+
+Why: A usage report displays the figures this agent or model actually reported, with coverage and attribution limits.
+
+What to do: Treat missing USD and partial coverage as unknown spend; current-model attribution is not an exact model split.
+
+### OSW-CLI-102
+
+> info: Recorded usage for {change}{archive}: {runs} runs, {unmeasuredRuns} unmeasured runs, {unmeasuredInvocations} unmeasured invocations
+
+Why: A usage report separates logical runs from the individual calls that reported no usage.
+
+What to do: Read the agent and model figures below; deleted or rotated audit logs cannot be reconstructed.
+
 ## PRC: spawned processes: orphaned, overdue, terminated
 
 ### OSW-PRC-001

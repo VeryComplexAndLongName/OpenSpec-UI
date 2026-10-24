@@ -104,6 +104,7 @@ export * from "./acp-context-gauge.js";
 export * from "./acp-streamed-text.js";
 export * from "./acp-update-line.js";
 export * from "./usage-report.js";
+export * from "./change-usage-report.js";
 export * from "./change-cost-report.js";
 export * from "./harness-config-findings.js";
 export * from "./harness-templates.js";
@@ -139,7 +140,7 @@ export { GeminiCliAdapter } from "./agents/gemini.js";
 export { LocalLlmAdapter, type LocalLlmAdapterOptions } from "./agents/local-llm.js";
 export { LocalLlmAcpAdapter, type LocalLlmAcpAdapterOptions } from "./agents/local-llm-acp.js";
 export * from "./local-llm-settings.js";
-export { AGENT_REGISTRY, type AgentDescriptor } from "./agents/registry.js";
+export { AGENT_REGISTRY, acceptsModel, type AgentDescriptor } from "./agents/registry.js";
 
 // ACP-flavored adapters (acp-agent-adapters) — see agents/acp-session-driver.ts.
 export { AcpSessionDriver } from "./agents/acp-session-driver.js";

@@ -11,6 +11,9 @@
 export interface AgentUsageByModel {
   inputTokens?: number;
   outputTokens?: number;
+  cacheCreationInputTokens?: number;
+  cacheReadInputTokens?: number;
+  thoughtTokens?: number;
   costUsd?: number;
 }
 
@@ -24,9 +27,11 @@ export interface AgentUsage {
    * vendor price change. */
   costUsd?: number;
   /** Per-model split, keyed by the vendor's own model id. Absent when the
-   * agent does not report a per-model breakdown, or when a run used only
-   * one model. */
+   * agent does not report model figures. It may contain a single model. */
   byModel?: Record<string, AgentUsageByModel>;
+  /** Codex ACP attributes all prompt tokens to its current model. This
+   * vendor limitation is not an exact split when models switch. */
+  byModelAttribution?: "current-model";
   /** Reasoning/thought tokens, where the agent separates them from output
    * (ACP's `Usage.thoughtTokens`). Not folded into `outputTokens`: an
    * agent that reports both would otherwise be double-counted. */

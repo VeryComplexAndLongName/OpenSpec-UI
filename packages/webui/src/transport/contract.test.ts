@@ -140,4 +140,20 @@ describe.each([
 
     expect(received).toEqual([scenario[0]]);
   });
+
+  it("preserves usageReported model figures and attribution through both host channels", () => {
+    const { transport, drive } = setUp();
+    const received: Event[] = [];
+    transport.subscribe((event) => received.push(event));
+    const event: Event = {
+      kind: "usageReported", runId: "chain", timestamp: "t", usage: {
+        inputTokens: 12, outputTokens: 3, cacheReadInputTokens: 86656, thoughtTokens: 2,
+        byModel: { "reported-model": { inputTokens: 12, outputTokens: 3, cacheReadInputTokens: 86656, cacheCreationInputTokens: 0, thoughtTokens: 2 } },
+        byModelAttribution: "current-model",
+      },
+    };
+    drive(event);
+    expect(received).toEqual([event]);
+    expect(received[0]?.kind === "usageReported" && received[0].usage).not.toHaveProperty("costUsd");
+  });
 });

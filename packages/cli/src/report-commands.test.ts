@@ -1,15 +1,15 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AGENT_REGISTRY, HARNESS_AGENT_CAPABILITIES, MESSAGES, createFileRunLogs } from "@openspec-ui/core";
+import { acceptsModel, AGENT_REGISTRY, HARNESS_AGENT_CAPABILITIES, MESSAGES, createFileRunLogs } from "@openspec-ui/core";
 import { showAgentsCommand } from "./agents-command.js";
 import { explainMessageCommand } from "./message-command.js";
 import { readChangesReport, showChangesCommand } from "./changes-command.js";
 import { reportCommand, ReportRefusal } from "./report-command.js";
-import { readCostReport } from "./cost-command.js";
+import { readCostReport, showCostCommand } from "./cost-command.js";
 import { readRunReport } from "./show-run-command.js";
 import { readHarnessReport } from "./harness-command.js";
 import { showTasksCommand } from "./task-command.js";
@@ -45,6 +45,15 @@ describe("report commands", () => {
       .toEqual(AGENT_REGISTRY.map((agent) => [agent.id, HARNESS_AGENT_CAPABILITIES[agent.id]]));
     expect(rows.find((row: { id: string }) => row.id === "local-llm")?.capabilities.editsFiles).toBe(false);
     expect(rows.find((row: { id: string }) => row.id === "gemini-cli-acp")?.capabilities.effort).toBeUndefined();
+    expect(rows.map((row: { acceptsModel: boolean }) => row.acceptsModel)).toEqual(AGENT_REGISTRY.map(acceptsModel));
+  });
+  it("shows model acceptance and effort in agent text", async () => {
+    const output = io();
+    expect(await showAgentsCommand({ ...options, format: "text" }, output)).toBe(0);
+    const text = output.stdout.mock.calls[0]![0];
+    expect(text).toContain('codex-cli-acp Codex CLI (ACP) provider=openai acceptsModel=true\n{"effort":["low","medium","high","xhigh","max"]');
+    expect(text).toContain("provider=openai acceptsModel=true modelFlag=--model");
+    expect(text).toContain("gemini-cli Gemini CLI provider=google acceptsModel=false");
   });
   it("explains a known message with template and remedy", async () => {
     const output = io();
@@ -275,6 +284,56 @@ describe("report commands", () => {
     expect(await readCostReport(config)).toMatchObject({ recordedRunCount: 0, unmeasuredRunCount: 0, totalsByAgent: {} });
   });
 
+  it("shows archived cost with complete token fields and current-model limitations in both formats", async () => {
+    const { root, changeDir, options: config } = await fixture();
+    const archive = path.join(root, "openspec", "changes", "archive");
+    await mkdir(archive);
+    await rename(changeDir, path.join(archive, "2026-10-24-demo"));
+    const figures = { inputTokens: 12, outputTokens: 3, cacheReadInputTokens: 86656, cacheCreationInputTokens: 0, thoughtTokens: 2 };
+    await writeFile(path.join(root, ".openspec-ui", "audit.jsonl"), JSON.stringify({
+      runId: "chain", invocationId: "one", agent: "codex-cli-acp", outcome: "completed", cwd: root,
+      timestamp: "2026-10-24T00:00:00Z", changeDir,
+      usage: { ...figures, byModel: { "reported-model": figures }, byModelAttribution: "current-model" },
+    }));
+    const json = io();
+    expect(await showCostCommand(config, json)).toBe(0);
+    const report = JSON.parse(json.stdout.mock.calls[0]![0]);
+    expect(report).toMatchObject({ changeName: "demo", archiveName: "2026-10-24-demo", recordedRunCount: 1 });
+    expect(report.totalsByAgent["codex-cli-acp"]).toMatchObject(figures);
+    expect(report.totalsByAgent["codex-cli-acp"]).not.toHaveProperty("costUsd");
+    expect(report.totalsByModel["reported-model"].currentModelAttributionInvocationCount).toBe(1);
+    const text = io();
+    expect(await showCostCommand({ ...config, changeName: "2026-10-24-demo", format: "text" }, text)).toBe(0);
+    expect(text.stdout.mock.calls[0]![0]).toContain("86656 cache read, 0 cache creation, 2 thought, USD not reported");
+    expect(text.stdout.mock.calls[0]![0]).toContain("model reported-model:");
+    expect(text.stdout.mock.calls[0]![0]).toContain("vendor current-model attribution; an exact model split is unavailable");
+    expect(text.stdout.mock.calls[0]![0]).toContain("info OSW-CLI-101:");
+    expect(text.stdout.mock.calls[0]![0]).toContain("info OSW-CLI-102:");
+  });
+
+  it("discloses partial USD coverage and preserves a genuinely reported zero", async () => {
+    const { root, changeDir, options: config } = await fixture();
+    const base = { runId: "chain", agent: "codex-cli-acp", outcome: "completed", cwd: root, timestamp: "2026-10-24T00:00:00Z", changeDir };
+    await writeFile(path.join(root, ".openspec-ui", "audit.jsonl"), [
+      { ...base, invocationId: "one", usage: { costUsd: 0 } },
+      { ...base, invocationId: "two", usage: { inputTokens: 10 } },
+    ].map((entry) => JSON.stringify(entry)).join("\n"));
+    const output = io();
+    expect(await showCostCommand({ ...config, format: "text" }, output)).toBe(0);
+    expect(output.stdout.mock.calls[0]![0]).toContain("USD 0 (reported for 1/2 measured invocations)");
+    const report = await readCostReport(config);
+    expect(report.totalsByAgent["codex-cli-acp"]).toMatchObject({ runCount: 1, invocationCount: 2, costUsd: 0, costReportedInvocationCount: 1 });
+  });
+
+  it("refuses unknown cost changes with OSW-CLI-017 and clean stdout", async () => {
+    const { options: config } = await fixture();
+    const output = io();
+    expect(await showCostCommand({ ...config, changeName: "unknown" }, output)).toBe(1);
+    expect(output.stdout).not.toHaveBeenCalled();
+    expect(output.stderr.mock.calls[0]![0]).toContain("OSW-CLI-017");
+    expect(output.stderr.mock.calls[0]![0]).toContain("OSW-CLI-020");
+  });
+
   it("reads retained run output and records pruned-output absence", async () => {
     const { root, options: config } = await fixture();
     const logs = createFileRunLogs(root);
@@ -298,11 +357,13 @@ describe("report commands", () => {
     }
     const audit = ["wanted-run", "other-run"].map((runId) => JSON.stringify({
       runId, agent: "claude-cli",
+      invocationId: `${runId}-call`, requestedModel: "requested-model",
       outcome: "completed", cwd: root, timestamp: "2026-10-10T00:00:00Z", changeDir
     }));
     await writeFile(path.join(root, ".openspec-ui", "audit.jsonl"), `${audit.join("\n")}\n`);
     const report = await readRunReport({ ...config, changeName: "wanted-run" });
     expect(report.entries.map((entry) => entry.runId)).toEqual(["wanted-run"]);
+    expect(report.entries[0]).toMatchObject({ invocationId: "wanted-run-call", requestedModel: "requested-model" });
     expect(JSON.stringify(report.logs)).toContain("wanted-run");
     expect(JSON.stringify(report.logs)).not.toContain("other-run");
   });

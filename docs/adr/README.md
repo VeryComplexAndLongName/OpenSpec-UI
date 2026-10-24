@@ -59,5 +59,6 @@ Alternatives / Consequences.
 | [0050](0050-process-ledger-identifies-spawned-processes.md) | A process ledger identifies spawned processes by OS snapshot | Proposed |
 | [0051](0051-codex-runs-in-a-named-sandbox.md) | Codex runs in a named sandbox, by what its stage does | Accepted |
 | [0052](0052-acp-session-options-are-checked-then-set.md) | An ACP agent's settings are session options, checked then set | Accepted |
+| [0053](0053-usage-is-accounted-per-invocation.md) | Usage is accounted per agent invocation | Accepted |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.
