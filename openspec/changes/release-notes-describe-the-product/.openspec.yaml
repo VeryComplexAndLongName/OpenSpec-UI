@@ -1,0 +1,6 @@
+schema: spec-driven
+created: 2026-10-24
+follows:
+  - codex-cli-is-a-full-agent
+  - codex-cli-acp-is-a-full-agent
+  - usage-reports-keep-what-agents-report

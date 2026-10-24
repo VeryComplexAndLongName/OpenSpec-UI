@@ -28,6 +28,20 @@ Required flow for every change:
 Reason: this keeps a full audit trail, supports safer rollback decisions, and
 preserves implementation history in a single structured process.
 
+### Changelog copy describes the product
+
+Follow config.yaml's release-note policy and
+[`.changeset/README.md`](../.changeset/README.md). A new proposal's
+`Changelog` section names the affected public deliveries and provides one
+to three concrete bullets for their changesets: what changed for users,
+where it applies, and essential requirements or limits. Keep one or two
+sentences per bullet and at most 80 words per changeset body.
+
+A shared capability belongs in the release notes of each product exposing
+it, even when only Core implements it. `Updated dependencies` is generated
+bookkeeping, not a substitute for authored product notes. Review the copy
+for accuracy and check its actual manifest/GitHub output before completion.
+
 ### Local checks cover the change; full verification runs in CI
 
 Every agent follows the verification policy in

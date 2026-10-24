@@ -4,6 +4,8 @@
 
 ### Patch Changes
 
+- **Codex agents: native CLI and ACP** (available since 1.62.3). Run Harness stages with a GPT model, reasoning effort and a stage-appropriate sandbox; inspect output, file changes and token usage. ACP requires the separately installed `@agentclientprotocol/codex-acp` bridge.
+- **Usage reports keep every agent call.** Stage and retry totals retain cache/thought tokens, missing USD stays unreported, and archived cost reports remain readable. Run audit distinguishes requested models from provider-reported model figures.
 - Updated dependencies [a9aef92]
   - @openspec-ui/core@0.150.1
 
@@ -11,6 +13,7 @@
 
 ### Patch Changes
 
+- **Codex agents: native CLI and ACP.** Run planning, review, implementation and verification with a GPT model, reasoning effort and a stage-appropriate sandbox. Inspect output, file changes and token usage; ACP requires the separately installed `@agentclientprotocol/codex-acp` bridge.
 - Updated dependencies [662bf5d]
 - Updated dependencies [1c70be4]
 - Updated dependencies [9234ad9]

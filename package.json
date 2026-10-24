@@ -31,7 +31,7 @@
     "test:openspec-config": "node --test scripts/check-openspec-config.test.mjs",
     "test:screenshots": "node --test scripts/check-screenshots.test.mjs",
     "test:changesets": "node --test scripts/check-changesets.test.mjs",
-    "test:publish-workflow": "node --test scripts/check-publish-workflow.test.mjs",
+    "test:publish-workflow": "node --test scripts/check-publish-workflow.test.mjs scripts/release-notes.test.mjs",
     "test:test-budgets": "node --test scripts/check-test-budgets.test.mjs",
     "graph:changes": "tsx packages/cli/src/cli.ts change-graph",
     "changeset": "changeset",

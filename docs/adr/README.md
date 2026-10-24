@@ -60,5 +60,6 @@ Alternatives / Consequences.
 | [0051](0051-codex-runs-in-a-named-sandbox.md) | Codex runs in a named sandbox, by what its stage does | Accepted |
 | [0052](0052-acp-session-options-are-checked-then-set.md) | An ACP agent's settings are session options, checked then set | Accepted |
 | [0053](0053-usage-is-accounted-per-invocation.md) | Usage is accounted per agent invocation | Accepted |
+| [0054](0054-release-notes-belong-to-the-product.md) | Release notes belong to the product a person uses | Accepted |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.
