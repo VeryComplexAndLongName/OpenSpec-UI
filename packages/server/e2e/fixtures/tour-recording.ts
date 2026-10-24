@@ -2,6 +2,8 @@ import { spawn } from "node:child_process";
 import { mkdir, readdir, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import gifenc from "gifenc";
 import { PNG } from "pngjs";
 
@@ -110,7 +112,8 @@ export async function writeWebm(photographs: Photograph[], file: string): Promis
   const child = spawn(ffmpeg, [
     "-y", "-loglevel", "error",
     "-f", "image2pipe", "-c:v", "mjpeg", "-framerate", String(LIMITS.framesPerSecond), "-i", "pipe:0",
-    "-c:v", "libvpx", "-b:v", "600k", "-crf", "30", "-pix_fmt", "yuv420p",
+    "-c:v", "libvpx-vp9", "-deadline", "realtime", "-cpu-used", "4",
+    "-b:v", "600k", "-crf", "30", "-pix_fmt", "yuv420p",
     file,
   ], { stdio: ["pipe", "ignore", "pipe"] });
   let errors = "";
@@ -119,13 +122,20 @@ export async function writeWebm(photographs: Photograph[], file: string): Promis
     child.on("error", reject);
     child.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg exited with code ${code}: ${errors}`))));
   });
-  for (const photograph of photographs) {
-    const copies = Math.max(1, Math.round((photograph.holdMs / 1000) * LIMITS.framesPerSecond));
-    for (let copy = 0; copy < copies; copy += 1) {
-      if (!child.stdin.write(photograph.jpeg)) await new Promise<void>((resolve) => child.stdin.once("drain", resolve));
+  async function* frames(): AsyncGenerator<Buffer> {
+    for (const photograph of photographs) {
+      const copies = Math.max(1, Math.round((photograph.holdMs / 1000) * LIMITS.framesPerSecond));
+      for (let copy = 0; copy < copies; copy += 1) yield photograph.jpeg;
     }
   }
-  child.stdin.end();
-  await finished;
+  try {
+    // Observe input errors while writing, and the exit while feeding input.
+    await Promise.all([pipeline(Readable.from(frames()), child.stdin), finished]);
+  } catch (error) {
+    child.kill();
+    // Prefer ffmpeg's diagnostic to the EPIPE caused by its early exit.
+    await finished;
+    throw error;
+  }
   return (await stat(file)).size;
 }

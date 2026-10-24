@@ -860,7 +860,7 @@ export function PipelineView({
                 <MinusIcon />
               </button>
               {/* The level is the control that resets it. */}
-              <button type="button" aria-label="Reset zoom" data-testid="pipeline-zoom-reset" disabled={zoom === DEFAULT_ZOOM} onClick={() => setZoom(DEFAULT_ZOOM)}>
+              <button type="button" aria-label={`Reset zoom ${Math.round(zoom * 100)}%`} data-testid="pipeline-zoom-reset" disabled={zoom === DEFAULT_ZOOM} onClick={() => setZoom(DEFAULT_ZOOM)}>
                 <span data-testid="pipeline-zoom-level"><span className="openspec-visually-hidden">Zoom </span>{`${Math.round(zoom * 100)}%`}</span>
               </button>
               <button type="button" aria-label="Zoom in" data-testid="pipeline-zoom-in" disabled={zoomIndex >= PIPELINE_ZOOM_STEPS.length - 1} onClick={() => setZoom(PIPELINE_ZOOM_STEPS[zoomIndex + 1] ?? zoom)}>
@@ -1520,7 +1520,7 @@ function TaskList({ id, rows, open, testId, onSelect }: {
               const classes = ["openspec-pipeline-task", inHand ? "openspec-pipeline-task--in-hand" : "", row.done ? "openspec-pipeline-task--done" : ""].filter(Boolean).join(" ");
               const words = (
                 <>
-                  <span className="openspec-pipeline-task-number">{row.number ?? ""}</span>
+                  <span className="openspec-pipeline-task-number">{row.number ?? ""}</span>{" "}
                   <span className="openspec-pipeline-task-text">{text}</span>
                 </>
               );
@@ -1533,7 +1533,7 @@ function TaskList({ id, rows, open, testId, onSelect }: {
                       type="button"
                       className="openspec-pipeline-task-open"
                       data-testid={`${testId}-row-${row.number ?? index}`}
-                      aria-label={`Open task ${row.number ?? ""} whole`}
+                      aria-label={`Open task ${row.number ?? ""} ${text} whole`}
                       onClick={() => onSelect(row)}
                     >
                       {words}
