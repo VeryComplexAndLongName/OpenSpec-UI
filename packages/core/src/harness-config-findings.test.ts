@@ -149,7 +149,7 @@ describe("findHarnessConfigLimits", () => {
 
   it("reports a stage with a silent agent and no timeout as unbounded", () => {
     const findings = findHarnessConfigLimits(config({
-      stepAgents: { apply: "codex-cli" },
+      stepAgents: { apply: "gemini-cli" },
       budget: { maxCostUsd: 10 },
     }));
 
@@ -160,7 +160,7 @@ describe("findHarnessConfigLimits", () => {
     // The whole point of the time ceiling: it needs no report, so it is
     // the one bound that applies to an agent that says nothing.
     const findings = findHarnessConfigLimits(config({
-      stepAgents: { apply: "codex-cli" },
+      stepAgents: { apply: "gemini-cli" },
       budget: { maxCostUsd: 10 },
       timeout: { maxStageSeconds: 600 },
     }));
