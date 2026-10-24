@@ -10,8 +10,8 @@ test("reports an encoder failure instead of an unhandled broken pipe", async ({ 
   try {
     const jpeg = await page.screenshot({ type: "jpeg" });
     const photographs = [{ png: Buffer.alloc(0), jpeg, holdMs: 1000 }];
-    // The bundled ffmpeg supports WebM output only. An unknown extension
-    // makes it exit while frames are still being supplied to its stdin.
+    // An unknown output extension makes ffmpeg exit while frames are
+    // still being supplied to its stdin.
     await expect(writeWebm(photographs, path.join(directory, "tour.unsupported")))
       .rejects.toThrow(/ffmpeg exited with code .*:/u);
   } finally {

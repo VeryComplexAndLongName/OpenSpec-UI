@@ -1520,7 +1520,7 @@ function TaskList({ id, rows, open, testId, onSelect }: {
               const classes = ["openspec-pipeline-task", inHand ? "openspec-pipeline-task--in-hand" : "", row.done ? "openspec-pipeline-task--done" : ""].filter(Boolean).join(" ");
               const words = (
                 <>
-                  <span className="openspec-pipeline-task-number">{row.number ?? ""}</span>
+                  <span className="openspec-pipeline-task-number">{row.number ?? ""}</span>{" "}
                   <span className="openspec-pipeline-task-text">{text}</span>
                 </>
               );
@@ -1533,11 +1533,10 @@ function TaskList({ id, rows, open, testId, onSelect }: {
                       type="button"
                       className="openspec-pipeline-task-open"
                       data-testid={`${testId}-row-${row.number ?? index}`}
+                      aria-label={`Open task ${row.number ?? ""} ${text} whole`}
                       onClick={() => onSelect(row)}
                     >
-                      <span className="openspec-visually-hidden">Open task </span>
                       {words}
-                      <span className="openspec-visually-hidden"> whole</span>
                     </button>
                   ) : words}
                   <span className={`openspec-pipeline-task-tag openspec-pipeline-task-tag--${tag.tone}`}>
