@@ -54,10 +54,10 @@ optional follow-up.
 
 ## Checks before committing
 
-`npm run typecheck && npm run lint && npm run test` (workspace-wide) — see
-`operations.apply.guidance` in `openspec/config.yaml` for the full list,
-including the required live smoke test for `server`/`extension` before a
-task may be considered complete.
+Run only targeted local checks for the change. Full verification runs only
+in CI. Follow the policy in [`openspec/config.yaml`](openspec/config.yaml)
+(`context`, `rules.tasks`, and `operations.apply.guidance`), including
+scoped static checks and relevant live smoke tests for changed host behavior.
 
 ## Runtime environment
 
