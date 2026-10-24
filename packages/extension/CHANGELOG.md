@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.106.3
+
+### Patch Changes
+
+- Updated dependencies [662bf5d]
+- Updated dependencies [1c70be4]
+- Updated dependencies [9234ad9]
+- Updated dependencies [625e5d5]
+  - @openspec-ui/core@0.150.0
+  - @openspec-ui/webui@1.94.3
+  - @openspec-ui/server@1.62.3
+
 ## 0.106.2
 
 ### Patch Changes
