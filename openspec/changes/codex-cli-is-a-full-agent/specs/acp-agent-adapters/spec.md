@@ -25,7 +25,13 @@ the sandbox: `workspace-write` for a command whose stage writes the change
 command. The allowlist SHALL refuse an invocation that names no sandbox,
 names `danger-full-access`, or bypasses approvals and the sandbox.
 
-The adapter SHALL pass a stage's `model` with `--model`. It SHALL tell the
+The adapter SHALL pass a stage's `model` with `--model`. Before codex
+starts, it SHALL read codex's model catalog (`codex debug models`) once a
+process and SHALL refuse a model the catalog does not list
+(`OSW-AGT-011`) and an effort the model does not take (`OSW-AGT-012`),
+naming what there is; where the catalog cannot be read, the choice SHALL
+be left to codex. `codex-cli` SHALL accept the efforts `low`, `medium`,
+`high`, `xhigh` and `max`. It SHALL tell the
 stream's agent messages, the commands the agent runs, a failed command's
 exit code with the end of its output, and the files it changed, as the
 run's text; SHALL report the turn's usage as tokens, with cached input
@@ -48,6 +54,20 @@ failed, though `codex` exits 0 (`OSW-AGT-222`).
 - **WHEN** an invocation of `codex` names `--sandbox danger-full-access`, or
   none
 - **THEN** the allowlist refuses it and nothing is run
+
+#### Scenario: A model codex does not have
+
+- **WHEN** a stage on `codex-cli` names the model `gpt-x`, and codex's
+  catalog (`codex debug models`) lists `gpt-6.1-sol` and `gpt-6-luna`
+- **THEN** the stage fails before codex starts, with "codex has no model
+  \"gpt-x\"; its models are gpt-6.1-sol, gpt-6-luna"
+
+#### Scenario: An effort the model does not take
+
+- **WHEN** a stage on `codex-cli` names `gpt-6-luna` and the effort
+  `ultra`, which that model's catalog entry does not list
+- **THEN** the stage fails before codex starts, naming the efforts the
+  model takes
 
 #### Scenario: A turn that failed
 

@@ -12,11 +12,15 @@
 //   messages, each command it ran and its exit code, the turn's usage, a
 //   failed turn - where plain text gave only the prose. They are told here
 //   as the prose a run log reads, and the usage is reported.
-// - The model, through `--model`.
+// - The model, through `--model`, and the effort that model takes: codex's
+//   own catalog (`codex debug models`) says which reasoning levels each
+//   model accepts, and a model or an effort it does not have is refused
+//   before codex is started, in words, rather than by codex mid-turn.
 
+import crossSpawn from "cross-spawn";
 import type { AdapterInvocation, AgentAdapter } from "../agent-runner.js";
 import type { AgentUsage } from "../agent-usage.js";
-import { say } from "../message-register.js";
+import { say, type SaidMessage } from "../message-register.js";
 import type { Command, CommandKind, Event } from "../protocol.js";
 import { commandInstruction, spawnAndStream } from "./shared.js";
 
@@ -125,8 +129,86 @@ export function readCodexLine(line: string): CodexLine | undefined {
   }
 }
 
+/** A model of codex's catalog and the reasoning levels it takes. */
+export interface CodexModel {
+  slug: string;
+  efforts: string[];
+}
+
+/** The models `codex debug models` lists, or `undefined` for output that is
+ * not its catalog. */
+export function readCodexCatalog(json: string): CodexModel[] | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return undefined;
+  }
+  if (!isRecord(parsed) || !Array.isArray(parsed.models)) return undefined;
+  const models = parsed.models.flatMap((model): CodexModel[] => {
+    if (!isRecord(model) || typeof model.slug !== "string") return [];
+    const levels = Array.isArray(model.supported_reasoning_levels) ? model.supported_reasoning_levels : [];
+    const efforts = levels.flatMap((level) => (isRecord(level) && typeof level.effort === "string" ? [level.effort] : []));
+    return [{ slug: model.slug, efforts }];
+  });
+  return models.length > 0 ? models : undefined;
+}
+
+/** How long reading the catalog may take; past it, nothing is checked. */
+const CATALOG_TIMEOUT_MS = 20_000;
+
+/** Runs `codex debug models` and reads its catalog; `undefined` where codex
+ * cannot say, which leaves the choice to codex itself. */
+export function runCodexDebugModels(): Promise<CodexModel[] | undefined> {
+  return new Promise((resolve) => {
+    let child;
+    try {
+      child = crossSpawn("codex", ["debug", "models"], { stdio: ["ignore", "pipe", "ignore"] });
+    } catch {
+      resolve(undefined);
+      return;
+    }
+    let out = "";
+    child.stdout?.on("data", (chunk: Buffer) => { out += chunk.toString("utf8"); });
+    const timer = setTimeout(() => { child.kill(); resolve(undefined); }, CATALOG_TIMEOUT_MS);
+    child.on("error", () => { clearTimeout(timer); resolve(undefined); });
+    child.on("close", () => { clearTimeout(timer); resolve(readCodexCatalog(out)); });
+  });
+}
+
+let catalogRead: Promise<CodexModel[] | undefined> | undefined;
+
+/** The catalog, read once a process: it changes when codex is updated, not
+ * between stages. */
+function codexCatalog(): Promise<CodexModel[] | undefined> {
+  catalogRead ??= runCodexDebugModels();
+  return catalogRead;
+}
+
+/** What is said against a stage's model and effort, by the catalog; nothing
+ * where both are codex's. Without a model, an effort no model takes is
+ * refused; one some model takes is left to codex. */
+export function checkCodexChoice(models: readonly CodexModel[], model: string | undefined, effort: string | undefined): SaidMessage | undefined {
+  if (model !== undefined) {
+    const found = models.find((candidate) => candidate.slug === model);
+    if (found === undefined) return say("OSW-AGT-011", { model, models: models.map((candidate) => candidate.slug).join(", ") });
+    if (effort !== undefined && found.efforts.length > 0 && !found.efforts.includes(effort)) {
+      return say("OSW-AGT-012", { model, effort, efforts: found.efforts.join(", ") });
+    }
+    return undefined;
+  }
+  if (effort === undefined) return undefined;
+  const taken = [...new Set(models.flatMap((candidate) => candidate.efforts))];
+  return taken.length > 0 && !taken.includes(effort)
+    ? say("OSW-AGT-012", { model: "any of codex's models", effort, efforts: taken.join(", ") })
+    : undefined;
+}
+
 export class CodexCliAdapter implements AgentAdapter {
   readonly name = "codex-cli";
+
+  /** `catalog` reads codex's model catalog; a test passes its own. */
+  constructor(private readonly catalog: () => Promise<readonly CodexModel[] | undefined> = codexCatalog) {}
 
   buildInvocation(command: Command): AdapterInvocation {
     const args = ["exec", "--skip-git-repo-check", "--json", "--sandbox", codexSandboxFor(command.kind)];
@@ -147,6 +229,16 @@ export class CodexCliAdapter implements AgentAdapter {
       throw new Error("CodexCliAdapter expects invocation.kind === 'process'");
     }
     const { runId } = command;
+    // A model or an effort codex does not have is refused before codex is
+    // started, in words (codex-cli-is-a-full-agent).
+    if (command.model !== undefined || command.effort !== undefined) {
+      const models = await this.catalog().catch(() => undefined);
+      const refused = models === undefined ? undefined : checkCodexChoice(models, command.model, command.effort);
+      if (refused !== undefined) {
+        yield { kind: "failed", runId, timestamp: new Date().toISOString(), reason: refused.text, code: refused.code };
+        return;
+      }
+    }
     let pending = "";
     let failure: string | undefined;
     const told = function* (lines: string[]): Generator<Event> {

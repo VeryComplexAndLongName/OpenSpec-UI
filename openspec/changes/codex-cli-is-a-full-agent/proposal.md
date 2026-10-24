@@ -26,9 +26,17 @@ found the raw `codex-cli` adapter could not do a stage's work:
   run (`OSW-AGT-222`). `codex-cli` now `reports: "tokens-only"`.
 - README, HARNESS.md and LIMITS.md say what was run and measured.
 
-Not in this change: effort levels by model (codex's model catalog is not
-read here; the four documented levels stay), and Codex over ACP or `codex
-app-server` - left for a change of their own.
+- Effort by model. `codex debug models` lists each model's reasoning
+  levels: no listed model takes `minimal`, and every one takes `xhigh` and
+  `max`. `codex-cli`'s levels become `low`, `medium`, `high`, `xhigh`,
+  `max` (`ultra`, described by codex as automatic task delegation, is not
+  offered). Before codex starts, the adapter reads the catalog once a
+  process and refuses a model codex does not list (`OSW-AGT-011`) or an
+  effort the model does not take (`OSW-AGT-012`), naming what there is; a
+  catalog that cannot be read leaves the choice to codex.
+
+Not in this change: Codex over ACP or `codex app-server` - left for a
+change of their own.
 
 ## Capabilities
 

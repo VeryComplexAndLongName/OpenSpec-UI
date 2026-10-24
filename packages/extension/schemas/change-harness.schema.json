@@ -708,10 +708,11 @@
                   },
                   "effort": {
                     "enum": [
-                      "minimal",
                       "low",
                       "medium",
-                      "high"
+                      "high",
+                      "xhigh",
+                      "max"
                     ],
                     "description": "The effort values codex-cli accepts."
                   },

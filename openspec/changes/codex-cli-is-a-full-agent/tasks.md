@@ -17,6 +17,14 @@ From the review of the Codex integration and four trial runs of `codex exec`
   `codex.test.ts` 9, `default-runners.test.ts` +1; with the register,
   registry and harness config, 253 pass (2026-10-24).
 
+- [x] 1.7 Effort by model: `codex-cli` takes `low`..`max` (the levels
+  every listed model takes; `ultra` not offered); the catalog is read once
+  a process and a model or effort it does not have is refused before codex
+  starts (`OSW-AGT-011`, `OSW-AGT-012`).
+  `codex.test.ts` 12; the template tests take `copilot-cli` as the agent
+  with another vocabulary; read live: 9 models, `minimal` refused for
+  `gpt-6.1-sol` (2026-10-24).
+
 ## 2. Documents
 
 - [x] 2.1 ADR 0051.

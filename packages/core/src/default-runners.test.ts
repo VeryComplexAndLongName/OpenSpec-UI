@@ -264,7 +264,7 @@ describe("buildDefaultAllowlist", () => {
       const allowlist = buildDefaultAllowlist();
       const decision = checkAllowlist(
         "codex-cli",
-        { kind: "process", executable: "codex", args: ["exec", "--skip-git-repo-check", "--json", "--sandbox", "workspace-write", "-c", 'model_reasoning_effort="max"'] },
+        { kind: "process", executable: "codex", args: ["exec", "--skip-git-repo-check", "--json", "--sandbox", "workspace-write", "-c", 'model_reasoning_effort="minimal"'] },
         allowlist,
       );
       expect(decision.allowed).toBe(false);

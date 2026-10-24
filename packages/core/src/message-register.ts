@@ -1304,6 +1304,18 @@ export const MESSAGES = {
     why: "A key id is already enrolled here under another public key.",
     todo: "Remove the old enrolment, or enrol the machine under a new key.",
   },
+  "OSW-AGT-011": {
+    level: "error",
+    text: "codex has no model \"{model}\"; its models are {models}",
+    why: "A stage names a model for codex-cli that codex's own catalog (`codex debug models`) does not list, so the stage is refused before codex starts (codex-cli-is-a-full-agent).",
+    todo: "Name one of the models listed in the stage's harness settings, or leave the model to codex's own configuration.",
+  },
+  "OSW-AGT-012": {
+    level: "error",
+    text: "{model} takes the reasoning efforts {efforts}, not \"{effort}\"",
+    why: "Each codex model takes its own reasoning levels, read from codex's catalog; the stage asks for one its model does not take (codex-cli-is-a-full-agent).",
+    todo: "Choose one of the efforts listed for the stage, or leave the effort to codex's default for the model.",
+  },
   "OSW-AGT-101": {
     level: "warning",
     text: "not verified",

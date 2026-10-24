@@ -7,7 +7,7 @@ vi.mock("./shared.js", async (importOriginal) => {
   return { ...actual, spawnAndStream: (...args: unknown[]) => spawnAndStreamMock(...args) };
 });
 
-const { CodexCliAdapter, codexSandboxFor, codexUsage, readCodexLine } = await import("./codex.js");
+const { CodexCliAdapter, checkCodexChoice, codexSandboxFor, codexUsage, readCodexCatalog, readCodexLine } = await import("./codex.js");
 
 const command: Command = {
   kind: "plan",
@@ -62,14 +62,12 @@ describe("CodexCliAdapter - the invocation (codex-cli-is-a-full-agent)", () => {
   });
 
   it("passes the model with --model, and the effort as its one config key", () => {
-    const adapter = new CodexCliAdapter();
     expect(argsOf({ ...command, model: "gpt-6.1-sol", effort: "medium" })).toEqual([
       ...BASE, "--sandbox", "workspace-write", "--model", "gpt-6.1-sol", "-c", 'model_reasoning_effort="medium"',
     ]);
   });
 
   it("renders nothing for a budget — no mechanism exists for codex", () => {
-    const adapter = new CodexCliAdapter();
     expect(argsOf({ ...command, budget: { maxCostUsd: 5 } })).toEqual([...BASE, "--sandbox", "workspace-write"]);
   });
 });
@@ -125,5 +123,56 @@ describe("CodexCliAdapter - the event stream", () => {
       runId: "run-3",
       stdin: expect.stringContaining("do it"),
     }));
+  });
+});
+
+// codex's catalog as `codex debug models` printed it on 2026-10-24, cut to
+// two models and the fields read.
+const CATALOG = JSON.stringify({
+  models: [
+    { slug: "gpt-6.1-sol", default_reasoning_level: "low", supported_reasoning_levels: ["low", "medium", "high", "xhigh", "max", "ultra"].map((effort) => ({ effort, description: "" })) },
+    { slug: "gpt-6-luna", default_reasoning_level: "medium", supported_reasoning_levels: ["low", "medium", "high", "xhigh", "max"].map((effort) => ({ effort, description: "" })) },
+  ],
+});
+
+describe("CodexCliAdapter - the model and the effort, by codex's catalog", () => {
+  const models = readCodexCatalog(CATALOG) ?? [];
+
+  it("reads each model's reasoning levels, and nothing from output that is not the catalog", () => {
+    expect(models).toEqual([
+      { slug: "gpt-6.1-sol", efforts: ["low", "medium", "high", "xhigh", "max", "ultra"] },
+      { slug: "gpt-6-luna", efforts: ["low", "medium", "high", "xhigh", "max"] },
+    ]);
+    expect(readCodexCatalog("not json")).toBeUndefined();
+    expect(readCodexCatalog(JSON.stringify({ models: [] }))).toBeUndefined();
+  });
+
+  it("refuses a model codex does not have, and an effort the model does not take, saying which there are", () => {
+    expect(checkCodexChoice(models, "gpt-6.1-sol", "max")).toBeUndefined();
+    expect(checkCodexChoice(models, "gpt-x", undefined)).toMatchObject({ code: "OSW-AGT-011", text: 'codex has no model "gpt-x"; its models are gpt-6.1-sol, gpt-6-luna' });
+    expect(checkCodexChoice(models, "gpt-6-luna", "ultra")).toMatchObject({ code: "OSW-AGT-012", text: 'gpt-6-luna takes the reasoning efforts low, medium, high, xhigh, max, not "ultra"' });
+    // Without a model, only an effort no model takes is refused.
+    expect(checkCodexChoice(models, undefined, "minimal")).toMatchObject({ code: "OSW-AGT-012" });
+    expect(checkCodexChoice(models, undefined, "ultra")).toBeUndefined();
+  });
+
+  it("fails the stage before codex starts, and starts it where the catalog cannot be read", async () => {
+    spawnAndStreamMock.mockReset();
+    const refusing = new CodexCliAdapter(async () => models);
+    const run = { ...command, model: "gpt-x" };
+    const events: Event[] = [];
+    for await (const event of refusing.execute(refusing.buildInvocation(run), run, "do it", new AbortController().signal)) events.push(event);
+
+    expect(events).toEqual([expect.objectContaining({ kind: "failed", code: "OSW-AGT-011" })]);
+    expect(spawnAndStreamMock).not.toHaveBeenCalled();
+
+    async function* fakeEvents(): AsyncGenerator<Event> {
+      yield { kind: "completed", runId: "run-3", timestamp: "t" };
+    }
+    spawnAndStreamMock.mockReturnValue(fakeEvents());
+    const blind = new CodexCliAdapter(async () => undefined);
+    const started: Event[] = [];
+    for await (const event of blind.execute(blind.buildInvocation(run), run, "do it", new AbortController().signal)) started.push(event);
+    expect(started.at(-1)?.kind).toBe("completed");
   });
 });

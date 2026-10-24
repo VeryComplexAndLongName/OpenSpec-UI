@@ -142,7 +142,7 @@ the per-change file over the global one (`mergeHarnessConfig`):
   With one exception: naming a **different agent** for a stage inherits
   nothing. A stage's model, effort, budget and custom agent belong to
   its agent — effort vocabularies differ between agents (`copilot`
-  accepts seven values, `claude` five, `codex` four, and five agents
+  accepts seven values, `claude` and `codex` five each, and five agents
   accept none), a budget is denominated in whichever unit its agent
   reports, and a custom agent is a definition one CLI reads — so
   carrying them across a change of agent would build a configuration
@@ -898,7 +898,7 @@ They are named by the effort they ask for, and each carries a *level*
 rather than a value: a position in the agent's own range, at the top,
 two thirds up, a third up, or at the bottom. The value is resolved when
 the configuration is applied, against the agent that stage will use —
-`max` for `claude-cli` and `high` for `codex-cli` are both "highest",
+`max` for `claude-cli` and `none` for `copilot-cli` are "highest" and "lowest",
 and five of the ten registered agents accept no effort at all, for which
 the surface says the configurations differ in their ceilings alone
 rather than showing a dial that does nothing.
@@ -913,7 +913,7 @@ carried here so a reader sees the value before choosing):
 | --- | --- | --- | --- | --- |
 | `claude-cli` | `max` | `xhigh` | `medium` | `low` |
 | `claude-cli-acp` | `max` | `xhigh` | `medium` | `low` |
-| `codex-cli` | `high` | `medium` | `low` | `minimal` |
+| `codex-cli` | `max` | `xhigh` | `medium` | `low` |
 | `copilot-cli` | `max` | `high` | `low` | `none` |
 | `copilot-cli-acp` | `max` | `high` | `low` | `none` |
 | `codex-cli-acp` | — | — | — | — |
@@ -925,8 +925,8 @@ carried here so a reader sees the value before choosing):
 | `vscode-chat` | — | — | — | — |
 
 Even thirds — 1, 2/3, 1/3, 0 — rather than the tidier-looking 1, 0.75,
-0.5, 0: over `codex-cli`'s four values those two put `high` and `medium`
-on the same one and left `low` unreachable. The mapping lives in
+0.5, 0: over the four values `codex-cli` once took, those two put `high`
+and `medium` on the same one and left `low` unreachable. The mapping lives in
 `packages/core/src/harness-effort-level.ts`, and
 `effortLevelCollisions` reports where two levels still resolve alike.
 
@@ -1140,7 +1140,7 @@ binary here" column repeats `README.md`'s own agent table.
 | --- | --- | --- | --- | --- | --- |
 | `claude-cli` | `claude` | Yes (`--model`) | `low`, `medium`, `high`, `xhigh`, `max` | `maxCostUsd` (`--max-budget-usd`, Claude Code v2.1.217+) | Yes — used continuously in development |
 | `copilot-cli` | `copilot` | Yes (`--model`) | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` | `maxAiCredits` (`--max-ai-credits`, minimum 30) | Yes |
-| `codex-cli` | `codex exec --json --sandbox …`: `workspace-write` for plan, implement, update and verify, `read-only` for review and the rest; never full access (ADR 0051) | Yes (`--model`) | `minimal`, `low`, `medium`, `high` (from OpenAI's documented config; `medium` live-verified) | No | Yes, 2026-10-24, `codex` 0.164.0: told nothing it ran read-only and wrote no file; with `workspace-write` it wrote in its directory and was refused in `C:\Prog` (it may also write the system's temporary directory, as Codex allows by default) |
+| `codex-cli` | `codex exec --json --sandbox …`: `workspace-write` for plan, implement, update and verify, `read-only` for review and the rest; never full access (ADR 0051) | Yes (`--model`), checked against `codex debug models` before codex starts | `low`, `medium`, `high`, `xhigh`, `max` - the levels every listed model of codex's catalog took on 2026-10-24; the model's own levels are checked before codex starts. `ultra` is not offered: codex describes it as automatic task delegation, not deeper reasoning | No | Yes, 2026-10-24, `codex` 0.164.0: told nothing it ran read-only and wrote no file; with `workspace-write` it wrote in its directory and was refused in `C:\Prog` (it may also write the system's temporary directory, as Codex allows by default) |
 | `gemini-cli` | `gemini` | No | No mechanism | No | **No — never** |
 | `local-llm` | HTTP to an OpenAI-compatible `/v1/chat/completions`, with a bearer key where one is set; where, which model and which key are set outside the harness file, see "The local LLM" below | Yes, optional (in the request); see "The local LLM" for the order | No mechanism | No | Yes, 2026-09-25: a Qwen server on the LAN answered a prompt with its key, and refused it without one. Answers in text and can search/fetch public HTML; it edits no file |
 | `local-llm-acp` | Nothing: a coding agent built into the product (ADR 0038), run in process against the local LLM of "The local LLM" below, with tools to read, write, replace in a file, list, search, run a command, search the web and fetch HTML, with repository tools confined to the run's working directory | Yes, optional (in the request); see "The local LLM" for the order | No mechanism | No mechanism | Yes, see the change `local-llm-codes-in-process` for the run that verified it. Asks before a command only when told to (below) |
