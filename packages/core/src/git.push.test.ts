@@ -1,4 +1,7 @@
+import { once } from "node:events";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { simpleGit } from "simple-git";
@@ -57,6 +60,39 @@ async function commitAll(repoRoot: string, message: string, isoDate: string): Pr
 }
 
 describe("prepareSingleRefPush", () => {
+  it("refuses an HTTP redirect even when the repository enables redirects for that URL", async () => {
+    const repo = await temporaryRoot("openspec-approved-http-push-");
+    const git = simpleGit(repo, await gitIsolationOptions());
+    await git.init();
+    await git.raw(["branch", "-M", "feature"]);
+    await writeFile(path.join(repo, "README.md"), "one\n", "utf8");
+    await commitAll(repo, "first", "2026-11-09T00:00:00Z");
+
+    const requested: string[] = [];
+    const server = createServer((request, response) => {
+      const url = request.url ?? "";
+      requested.push(url);
+      if (url.startsWith("/approved.git/")) {
+        response.writeHead(302, { location: url.replace("/approved.git/", "/other.git/") }).end();
+      } else {
+        response.writeHead(404).end();
+      }
+    });
+    server.listen(0, "127.0.0.1");
+    try {
+      await once(server, "listening");
+      const endpoint = `http://127.0.0.1:${(server.address() as AddressInfo).port}/approved.git`;
+      await git.addRemote("origin", endpoint);
+      await git.raw(["config", `http.${endpoint}.followRedirects`, "true"]);
+
+      const push = await prepareSingleRefPush(repo, "origin", "feature");
+      await expect(push.push()).rejects.toThrow();
+      expect(requested).toEqual(["/approved.git/info/refs?service=git-receive-pack"]);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  });
+
   it("updates only the pinned ref and refuses multiple push URLs or mirror mode", async () => {
     const repo = await temporaryRoot("openspec-approved-push-");
     const first = await temporaryRoot("openspec-approved-first-");
