@@ -60,7 +60,7 @@ export interface RunChangeDeps {
     resolveRunner: (agentId: string | undefined) => AgentRunner | undefined;
     listAuditEntries: () => ReturnType<FileAuditLog["readEntries"]>;
     auditLog: FileAuditLog;
-  }) => Pick<HarnessChainRunner, "run" | "confirmCheckpoint" | "cancel" | "requestStop" | "deliverMessage">;
+  }) => Pick<HarnessChainRunner, "run" | "confirmCheckpoint" | "resolvePermission" | "cancel" | "requestStop" | "deliverMessage">;
   /** Registers an interrupt handler and returns a function that removes
    * it. Injected because a unit test must not install a process-wide
    * signal handler. */
@@ -226,6 +226,23 @@ async function driveChain(
         const confirmed = await ask(`Continue to "${event.nextStage}"${nextAgent}?`);
         if (confirmed) chain.confirmCheckpoint(runId);
         else chain.cancel(runId);
+        continue;
+      }
+
+      if (event.kind === "permissionRequest" && event.pushApproval) {
+        const ask = deps.checkpoint.ask;
+        if (!ask) {
+          deps.stderr(formatMessage(say("OSW-RUN-213")));
+          chain.cancel(runId);
+          continue;
+        }
+        const allowed = await ask(event.description);
+        chain.resolvePermission({
+          ...command,
+          kind: "resolvePermission",
+          permissionRequestId: event.requestId,
+          permissionOutcome: allowed ? "allow" : "deny",
+        });
         continue;
       }
 

@@ -194,6 +194,21 @@ describe("readChangeHarnessConfig", () => {
     expect(override?.checkpoints).toEqual({ requireConfirmationBetweenSteps: false });
   });
 
+  it.each([true, false, undefined])("accepts per-change push approval %s", async (requirePushApproval) => {
+    const root = await temporaryRoot();
+    const gitStageAllowlist = { remotes: ["origin"], branches: ["feature/*"], requirePushApproval };
+    await writeChangeHarnessConfig(root, "demo", { gitStageAllowlist });
+    expect((await readChangeHarnessConfig(root, "demo"))?.gitStageAllowlist?.requirePushApproval).toBe(requirePushApproval);
+  });
+
+  it("rejects a non-boolean push approval policy", async () => {
+    const root = await temporaryRoot();
+    const gitStageAllowlist = { remotes: ["origin"], branches: ["feature/*"], requirePushApproval: "true" };
+    await writeChangeHarnessConfig(root, "demo", {});
+    await writeFile(path.join(root, "openspec", "changes", "demo", "harness.json"), JSON.stringify({ gitStageAllowlist }));
+    await expect(readChangeHarnessConfig(root, "demo")).rejects.toThrow(/requirePushApproval must be true or false/);
+  });
+
   it("accepts gitStageAllowlist at the per-change level", async () => {
     const root = await temporaryRoot();
     await writeChangeHarnessConfig(root, "some-change", {

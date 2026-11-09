@@ -113,12 +113,12 @@ async function writeTasks(root: string, unchecked: number, checked: number): Pro
   await writeFile(path.join(changeDir, "tasks.md"), lines.join("\n"), "utf8");
 }
 
-function mockArchiveSucceeds(onArchive?: () => void | Promise<void>): void {
+function mockArchiveSucceeds(onArchive?: () => void | Promise<void>, archivedAs?: string): void {
   spawnMock.mockImplementationOnce(() => {
     const child = new FakeChildProcess();
     queueMicrotask(async () => {
       await onArchive?.();
-      child.stdout.emit("data", Buffer.from("{}", "utf8"));
+      child.stdout.emit("data", Buffer.from(JSON.stringify(archivedAs ? { archive: { archivedAs } } : {}), "utf8"));
       child.emit("close", 0);
     });
     return child;
@@ -531,6 +531,85 @@ describe("HarnessChainRunner — autonomous", () => {
 });
 
 describe("HarnessChainRunner — git stage gating", () => {
+  it.each(["allow", "deny", "cancel", "stop", "endpoint drift", "commit drift", "policy drift", "blocked"] as const)(
+    "applies exact push approval in an autonomous chain (%s)",
+    async (scenario) => {
+      const root = await temporaryRoot();
+      const gitStageAllowlist = { remotes: [scenario === "blocked" ? "elsewhere" : "origin"], branches: ["main", "feature/*"], requirePushApproval: true };
+      await writeChangeHarnessConfig(root, "demo", {
+        autonomyLevel: "autonomous",
+        reviewGate: { mode: "agent-sufficient" },
+        gitStageAllowlist,
+      });
+      mockStatus(true);
+      await writeTasks(root, 0, 3);
+      const archivedAs = "2026-11-09-demo";
+      const archiveRoot = path.join(root, "openspec", "changes", "archive");
+      const archived = path.join(archiveRoot, archivedAs);
+      mockArchiveSucceeds(async () => {
+        await mkdir(archiveRoot, { recursive: true });
+        await rename(path.join(root, "openspec", "changes", "demo"), archived);
+      }, archivedAs);
+      const { runner } = makeCompletingRunner();
+      const gitStage = makeGitStageDeps();
+      const auditLog = new InMemoryAuditLog();
+      const push = vi.fn(async () => undefined);
+      let commit = "a".repeat(40);
+      let endpoint = "https://secret@example.com/repo.git";
+      const chain = new HarnessChainRunner({
+        resolveRunner: () => runner,
+        auditLog,
+        ...gitStage.deps,
+        prepareSingleRefPush: vi.fn(async () => ({
+          approval: { commit, remote: "origin", repository: "https://example.com/repo.git", destinationRef: "refs/heads/feature/demo" },
+          endpoint,
+          push,
+        })),
+      });
+      const command = baseCommand(root);
+      const events: Event[] = [];
+      for await (const event of chain.run(command)) {
+        events.push(event);
+        if (event.kind !== "permissionRequest") continue;
+        expect(event.description).toContain(commit);
+        expect(event.description).toContain("https://example.com/repo.git");
+        expect(event.description).toContain("refs/heads/feature/demo");
+        expect(push).not.toHaveBeenCalled();
+        expect(gitStage.calls.prCreate).toBe(0);
+        const resolve: Command = { ...command, kind: "resolvePermission", permissionRequestId: event.requestId, permissionOutcome: "allow" };
+        chain.resolvePermission({ ...resolve, permissionRequestId: "stale" });
+        expect(chain.resolvePermission({ ...resolve, runId: "another-run" })).toBe(false);
+        if (scenario === "cancel") chain.cancel(command.runId);
+        else if (scenario === "stop") chain.requestStop(command.runId, "operator stopped");
+        else {
+          if (scenario === "endpoint drift") endpoint += ".changed";
+          if (scenario === "commit drift") commit = "b".repeat(40);
+          if (scenario === "policy drift") {
+            await writeFile(path.join(archived, "harness.json"), JSON.stringify({
+              reviewGate: { mode: "agent-sufficient" },
+              gitStageAllowlist: { ...gitStageAllowlist, requirePushApproval: false },
+            }));
+          }
+          chain.resolvePermission({ ...resolve, permissionOutcome: scenario === "deny" ? "deny" : "allow" });
+        }
+        chain.resolvePermission({ ...resolve, permissionOutcome: "deny" });
+      }
+      const completed = scenario === "allow";
+      expect(events.at(-1)?.kind).toBe(completed ? "completed" : scenario === "cancel" || scenario === "stop" ? "cancelled" : "failed");
+      expect(events.filter((event) => event.kind === "permissionRequest")).toHaveLength(scenario === "blocked" ? 0 : 1);
+      expect(push).toHaveBeenCalledTimes(completed ? 1 : 0);
+      expect(gitStage.calls.gitPush).toBe(0);
+      expect(gitStage.calls.prCreate).toBe(completed ? 1 : 0);
+      const audit = auditLog.entries.filter((entry) => entry.agent === "git-stage");
+      expect(JSON.stringify(audit)).not.toContain("secret");
+      if (scenario !== "blocked") {
+        expect(audit).toContainEqual(expect.objectContaining({ outcome: "message", summary: expect.stringContaining("https://example.com/repo.git") }));
+        expect(audit).toContainEqual(expect.objectContaining({ outcome: "message", summary: expect.stringMatching(/: (allow|deny|withdrawn)$/) }));
+      }
+      if (scenario.endsWith("drift")) expect(audit).toContainEqual(expect.objectContaining({ outcome: "blocked", reason: expect.stringContaining("could no longer be verified") }));
+      if (completed) expect(audit).toContainEqual(expect.objectContaining({ outcome: "completed", summary: "pushed feature/demo" }));
+    },
+  );
   it("under human-required, stops after archive and never executes git actions", async () => {
     const root = await temporaryRoot();
     await writeGlobalHarnessConfig(root, {

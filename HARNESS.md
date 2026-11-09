@@ -1087,6 +1087,16 @@ any `git` or `gh` process starts — an action matching nothing in it is
 simple `*` wildcard. A global `openspec/agent-harness.json` may not set
 this key at all (see "Two configuration files" above).
 
+Set `"requirePushApproval": true` in the same allowlist to require an
+operator decision for the push in this Harness stage. The request shows the
+full commit ID, remote repository and destination ref. Approval applies to
+one attempt, including in autonomous chains, and expires if the commit,
+destination or policy changes. The terminal must be interactive to approve
+a push. Use the workbench permission controls when running from the editor
+or the standalone app. The setting covers the push made by the Harness
+`git` stage. Agent tools and other product Git commands have separate
+permission rules.
+
 ### The merge waits for checks, and refuses without them
 
 **The merge waits for the pull request's own checks and refuses one whose

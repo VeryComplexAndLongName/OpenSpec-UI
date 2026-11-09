@@ -15,7 +15,10 @@
 // client-side orchestrator would duplicate this logic across both delivery
 // targets and could not outlive a closed webview).
 
+import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { isDeepStrictEqual } from "node:util";
+import { readArchivedNames } from "./archived-changes-facts.js";
 import { runStartStage } from "./run-plan.js";
 import path from "node:path";
 import { describeContextShare, formatTokenCount, readAcpContextGauge } from "./acp-context-gauge.js";
@@ -26,12 +29,11 @@ import {
   buildGhPrCreateInvocation,
   buildGhPrMergeInvocation,
   buildGitPushInvocation,
-  createPullRequestGateway,
   type PullRequestGateway,
 } from "./gh-pr-gateway.js";
 import { pullRequestGatewayFor } from "./forge.js";
 import { commitWhatIsLeft } from "./change-commit.js";
-import { createGitWrapper, type GitWrapper } from "./git.js";
+import { createGitWrapper, prepareSingleRefPush, type GitWrapper, type PreparedSingleRefPush } from "./git.js";
 import {
   runDeclaredChecks,
   type DeclaredCheckOutcomeEntry,
@@ -121,6 +123,7 @@ export interface HarnessChainDeps {
   answerMessage?: (answer: ChainAnswer) => void | Promise<void>;
   /** Override hooks for tests. Production callers use defaults. */
   createGitWrapper?: (options: { cwd: string }) => GitWrapper;
+  prepareSingleRefPush?: typeof prepareSingleRefPush;
   createPullRequestGateway?: (options: { cwd: string }) => PullRequestGateway;
   /** Commits what the stages left in the tree before the push
    * (a-change-is-committed-where-it-is-made). Test seam. */
@@ -186,6 +189,8 @@ export function buildOperatorMessagesSection(messages: readonly ChainMessage[]):
 }
 
 interface ChainState {
+  archivedAs?: string;
+  pendingPushApproval?: { requestId: string; resolve: (outcome: "allow" | "deny" | "withdrawn") => void };
   /** Since when the stage in flight has been waiting for the operator's
    * answers, and how long it has waited in all: a wait for a person is not
    * the stage's time, so neither its timeout nor the chain's elapsed time
@@ -790,6 +795,15 @@ export class HarnessChainRunner {
   resolvePermission(command: Command): boolean {
     const state = this.active.get(command.runId);
     if (!state) return false;
+    const pending = state.pendingPushApproval;
+    if (pending) {
+      if (pending.requestId === command.permissionRequestId
+          && (command.permissionOutcome === "allow" || command.permissionOutcome === "deny")) {
+        state.pendingPushApproval = undefined;
+        pending.resolve(command.permissionOutcome);
+      }
+      return true;
+    }
     const runner = state.currentRunner;
     if (!runner) return true;
     void (async () => {
@@ -823,6 +837,8 @@ export class HarnessChainRunner {
     if (!state) return false;
 
     state.cancelRequested = true;
+    state.pendingPushApproval?.resolve("withdrawn");
+    state.pendingPushApproval = undefined;
     if (state.pendingCheckpoint) {
       const { resolve } = state.pendingCheckpoint;
       state.pendingCheckpoint = undefined;
@@ -926,6 +942,8 @@ export class HarnessChainRunner {
       ...(afterTask !== undefined ? { afterTask } : {}),
       announced: false,
     };
+    state.pendingPushApproval?.resolve("withdrawn");
+    state.pendingPushApproval = undefined;
     if (state.pendingCheckpoint) {
       const { resolve } = state.pendingCheckpoint;
       state.pendingCheckpoint = undefined;
@@ -1373,6 +1391,11 @@ export class HarnessChainRunner {
         continue;
       }
 
+      if (stage === "git" && outcome === "cancelled") {
+        yield* this.announceStop(command, state);
+        yield { kind: "cancelled", runId, timestamp: nowIso(), ...cancelledBy(state) };
+        return;
+      }
       if (outcome !== "completed") return;
 
       // A review that asks for changes has the plan updated before apply,
@@ -1734,7 +1757,7 @@ export class HarnessChainRunner {
     const { cwd, context, runId } = command;
 
     if (stage === "git") {
-      return yield* this.runGitStage(command, harnessConfig, hasNextStage);
+      return yield* this.runGitStage(command, harnessConfig, hasNextStage, state);
     }
 
     if (stage === "archive") {
@@ -1758,7 +1781,12 @@ export class HarnessChainRunner {
         return "failed";
       }
       try {
-        await archiveChange(changeNameFromDir(context.changeDir), { cwd });
+        const changeName = changeNameFromDir(context.changeDir);
+        const report = await archiveChange(changeName, { cwd });
+        const archivedAs = (report.archive as { archivedAs?: unknown } | undefined)?.archivedAs;
+        if (typeof archivedAs === "string" && readArchivedNames([archivedAs])[0]?.changeName === changeName) {
+          state.archivedAs = archivedAs;
+        }
       } catch (error) {
         yield failedEvent(runId, error instanceof Error ? error.message : String(error));
         return "failed";
@@ -2172,7 +2200,7 @@ export class HarnessChainRunner {
   private recordGitAction(
     command: Command,
     invocation: AdapterInvocation,
-    outcome: "blocked" | "started" | "completed" | "failed",
+    outcome: "blocked" | "started" | "completed" | "failed" | "message",
     details?: { reason?: string; summary?: string },
   ): void {
     this.deps.auditLog?.record({
@@ -2188,10 +2216,80 @@ export class HarnessChainRunner {
     });
   }
 
+  private async *approveGitPush(
+    command: Command,
+    harnessConfig: HarnessConfig,
+    state: ChainState,
+    git: GitWrapper,
+    branch: string,
+    invocation: AdapterInvocation,
+  ): AsyncGenerator<Event, PreparedSingleRefPush | "failed" | "cancelled"> {
+    const { cwd, context, runId } = command;
+    const prepare = this.deps.prepareSingleRefPush ?? prepareSingleRefPush;
+    const requestId = randomUUID();
+    const refuse = (why: string) => {
+      this.recordGitAction(command, invocation, "blocked", { reason: why, summary: requestId });
+      return failedEvent(runId, say("OSW-GIT-104", { why }));
+    };
+    let prepared: PreparedSingleRefPush;
+    try {
+      prepared = await prepare(cwd, DEFAULT_GIT_REMOTE, branch);
+    } catch {
+      yield refuse("Git could not bind the push to one commit and destination.");
+      return "failed";
+    }
+    if (state.cancelRequested || state.stopRequest) return "cancelled";
+
+    const { commit, remote, repository, destinationRef } = prepared.approval;
+    const description = `Push ${commit} to ${remote} (${repository}), ${destinationRef}?`;
+    const approval = new Promise<"allow" | "deny" | "withdrawn">((resolve) => {
+      state.pendingPushApproval = { requestId, resolve };
+    });
+    state.operatorWaitSince = Date.now();
+    let decision: "allow" | "deny" | "withdrawn" = "withdrawn";
+    try {
+      this.recordGitAction(command, invocation, "message", { summary: `${requestId}: ${description}` });
+      yield { kind: "permissionRequest", runId, requestId, timestamp: nowIso(), description, pushApproval: prepared.approval };
+      decision = await approval;
+    } finally {
+      state.operatorWaitMs += Date.now() - state.operatorWaitSince;
+      state.operatorWaitSince = undefined;
+      state.pendingPushApproval = undefined;
+      this.recordGitAction(command, invocation, "message", { summary: `${requestId}: ${decision}` });
+    }
+
+    yield { kind: "permissionSettled", runId, requestId, timestamp: nowIso(), outcome: decision };
+    if (state.cancelRequested || state.stopRequest || decision === "withdrawn") return "cancelled";
+    if (decision === "deny") {
+      yield refuse("The operator denied the push.");
+      return "failed";
+    }
+
+    try {
+      const current = await prepare(cwd, DEFAULT_GIT_REMOTE, branch);
+      const policy = state.archivedAs
+        ? await readChangeHarnessConfig(cwd, state.archivedAs, "archive")
+        : await readChangeHarnessConfig(cwd, changeNameFromDir(context.changeDir));
+      if (await git.currentBranch() === branch
+          && isDeepStrictEqual(policy?.gitStageAllowlist, harnessConfig.gitStageAllowlist)
+          && policy?.reviewGate?.mode === "agent-sufficient"
+          && checkAllowlist(GIT_STAGE_AGENT_NAME, invocation, this.buildGitStageAllowlist(harnessConfig)).allowed
+          && current.endpoint === prepared.endpoint
+          && isDeepStrictEqual(current.approval, prepared.approval)) {
+        return current;
+      }
+    } catch {
+      // Git and configuration errors can contain the raw endpoint or file contents.
+    }
+    yield refuse("The approved commit, destination or policy could no longer be verified.");
+    return "failed";
+  }
+
   private async *runGitStage(
     command: Command,
     harnessConfig: HarnessConfig,
     hasNextStage: boolean,
+    state: ChainState,
   ): AsyncGenerator<Event, "completed" | "failed" | "cancelled"> {
     const allowlistRules = harnessConfig.gitStageAllowlist;
     if (!allowlistRules) {
@@ -2241,12 +2339,22 @@ export class HarnessChainRunner {
       yield failedEvent(command.runId, `git stage failed at push: ${pushDecision.reason ?? "blocked by allowlist"}`);
       return "failed";
     }
+    let approved: PreparedSingleRefPush | undefined;
+    if (allowlistRules.requirePushApproval) {
+      const result = yield* this.approveGitPush(command, harnessConfig, state, git, branch, pushInvocation);
+      if (typeof result === "string") return result;
+      if (state.cancelRequested || state.stopRequest) return "cancelled";
+      approved = result;
+    }
     this.recordGitAction(command, pushInvocation, "started");
     try {
-      await git.push(DEFAULT_GIT_REMOTE, branch);
+      if (approved) await approved.push();
+      else await git.push(DEFAULT_GIT_REMOTE, branch);
       this.recordGitAction(command, pushInvocation, "completed", { summary: `pushed ${branch}` });
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
+      const reason = approved
+        ? "Git rejected the approved push or could not reach the destination."
+        : error instanceof Error ? error.message : String(error);
       this.recordGitAction(command, pushInvocation, "failed", { reason });
       yield failedEvent(command.runId, `git stage failed at push: ${reason}`);
       return "failed";

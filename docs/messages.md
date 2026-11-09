@@ -213,6 +213,14 @@ Why: The run's events ended with neither completed, failed nor cancelled.
 
 What to do: Read the run's output above; report it if nothing there explains it.
 
+### OSW-RUN-213
+
+> error: The Harness push requires approval. Run in a terminal that can prompt, or start it in the workbench.
+
+Why: This terminal cannot ask the operator to approve the push.
+
+What to do: Retry in an interactive terminal or in the workbench.
+
 ## QST: questions to the operator
 
 ### OSW-QST-001
@@ -1298,6 +1306,14 @@ What to do: Fix the underlying cause, or add a further fallback.
 Why: The stage moved to a fallback and this names the ones skipped on the way, so a person can see why.
 
 What to do: Nothing, unless the passed-over agents were the ones you wanted.
+
+### OSW-HRN-128
+
+> error: gitStageAllowlist.requirePushApproval must be true or false.
+
+Why: A change must opt in to operator approval with a boolean value.
+
+What to do: Set the value to true or false in the change's harness.json.
 
 ## AGT: agents and adapters: missing, signed out, failed
 
@@ -2405,6 +2421,14 @@ What to do: Put right what the server says - access, credentials, a branch rule 
 Why: The git stage commits what the stages left before it pushes, and git refused that commit.
 
 What to do: Put right what git says in the change's worktree, then run the chain again from git.
+
+### OSW-GIT-104
+
+> error: The Harness push was not attempted. {why}
+
+Why: A configured push approval must match the action the Harness can execute.
+
+What to do: Review the change's Git policy and destination before retrying.
 
 ### OSW-GIT-201
 

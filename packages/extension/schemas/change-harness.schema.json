@@ -175,6 +175,10 @@
             "type": "string",
             "minLength": 1
           }
+        },
+        "requirePushApproval": {
+          "type": "boolean",
+          "description": "Wait for operator approval before the Harness pushes the change branch."
         }
       }
     },

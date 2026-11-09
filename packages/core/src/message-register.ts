@@ -95,6 +95,12 @@ export const MESSAGES = {
     why: "The server, or the credentials git uses for it, refused the branch. A commit already made stays.",
     todo: "Put right what the server says - access, credentials, a branch rule - then choose Commit Change again.",
   },
+  "OSW-GIT-104": {
+    level: "error",
+    text: "The Harness push was not attempted. {why}",
+    why: "A configured push approval must match the action the Harness can execute.",
+    todo: "Review the change's Git policy and destination before retrying.",
+  },
   "OSW-GIT-103": {
     level: "error",
     text: "git stage failed at commit: {why}",
@@ -387,6 +393,12 @@ export const MESSAGES = {
     text: "interrupted again — exiting without waiting for the agent to stop",
     why: "A second Ctrl-C leaves at once.",
     todo: "Check with `openspec-ui-cli show status` that the agent's process has gone.",
+  },
+  "OSW-RUN-213": {
+    level: "error",
+    text: "The Harness push requires approval. Run in a terminal that can prompt, or start it in the workbench.",
+    why: "This terminal cannot ask the operator to approve the push.",
+    todo: "Retry in an interactive terminal or in the workbench.",
   },
   "OSW-RUN-212": {
     level: "error",
@@ -1271,6 +1283,13 @@ export const MESSAGES = {
     text: "{cause} (passed over: {refusals})",
     why: "The stage moved to a fallback and this names the ones skipped on the way, so a person can see why.",
     todo: "Nothing, unless the passed-over agents were the ones you wanted.",
+  },
+
+  "OSW-HRN-128": {
+    level: "error",
+    text: "gitStageAllowlist.requirePushApproval must be true or false.",
+    why: "A change must opt in to operator approval with a boolean value.",
+    todo: "Set the value to true or false in the change's harness.json.",
   },
 
   // AGT: agents and adapters: missing, signed out, failed.

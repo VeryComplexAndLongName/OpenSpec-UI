@@ -1,7 +1,10 @@
 // Thin git wrapper — only what the UI actually needs (status, diff, commit,
 // branch), not the full git API (see tasks.md 5.2). Built on top of `simple-git`.
 
-import { stat } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { realpath, stat } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import type { PushApproval } from "./protocol.js";
 import path from "node:path";
 import type { SimpleGit } from "simple-git";
 import { openGit } from "./git-client.js";
@@ -219,6 +222,75 @@ export interface GitWrapper {
    * that was clean before it, so nothing uncommitted can be lost
    * (ADR 0034). */
   restoreTo(commit: string): Promise<void>;
+}
+
+export interface PreparedSingleRefPush {
+  approval: PushApproval;
+  /** For comparison only. The endpoint may contain credentials. */
+  endpoint: string;
+  push(): Promise<void>;
+}
+
+/** Pin the refspec and endpoint separately from the mutable named remote. */
+export async function prepareSingleRefPush(
+  cwd: string,
+  remote: string,
+  branch: string,
+): Promise<PreparedSingleRefPush> {
+  const git = openGit(cwd);
+  const destinationRef = `refs/heads/${branch}`;
+  await git.raw(["check-ref-format", destinationRef]);
+  const commit = (await git.raw(["rev-parse", "--verify", "HEAD^{commit}"])).trim();
+  const branchCommit = (await git.raw(["rev-parse", "--verify", destinationRef])).trim();
+  const mirror = (await git.raw(["config", "--type=bool", "--default=false", "--get", `remote.${remote}.mirror`])).trim();
+  const urls = (await git.raw(["remote", "get-url", "--push", "--all", remote])).replace(/\r?\n$/u, "").split(/\r?\n/u);
+  const url = urls[0];
+  if (commit !== branchCommit || mirror !== "false" || urls.length !== 1 || !url || url.trim() !== url || /[\p{Cc}]/u.test(url)) {
+    throw new Error("The current branch does not have a single non-mirror push destination.");
+  }
+
+  const { endpoint, repository } = await singlePushDestination(cwd, url);
+  // Git rewrites a URL once. Use a fresh alias whose exact rewrite
+  // yields the approved endpoint, even if that endpoint itself matches
+  // an ambient insteadOf rule. Explicit pushurl bypasses pushInsteadOf.
+  const pinned = `openspec-approved-${randomUUID()}`;
+  const alias = `${pinned}-endpoint`;
+  const config = [
+    "-c", `remote.${pinned}.url=${alias}`,
+    "-c", `remote.${pinned}.pushurl=${alias}`,
+    "-c", `url.${endpoint}.insteadOf=${alias}`,
+    "-c", "http.followRedirects=false",
+    "-c", "push.pushOption=",
+  ];
+  const pinnedGit = openGit(cwd, { allowUnsafeUrlRewrite: true });
+  const resolved = (await pinnedGit.raw([...config, "ls-remote", "--get-url", pinned])).replace(/\r?\n$/u, "");
+  if (resolved !== endpoint) throw new Error("The push endpoint is rewritten by Git.");
+
+  return {
+    approval: { commit, remote, repository, destinationRef },
+    endpoint,
+    async push() {
+      await pinnedGit.raw([...config, "push", "--no-follow-tags", "--recurse-submodules=no",
+        "--", pinned, `${commit}:${destinationRef}`]);
+    },
+  };
+}
+
+async function singlePushDestination(cwd: string, endpoint: string): Promise<{ endpoint: string; repository: string }> {
+  if (endpoint.includes("://")) {
+    const url = new URL(endpoint);
+    if (["http:", "https:", "ssh:", "git:"].includes(url.protocol) && url.host && !url.search && !url.hash) {
+      return { endpoint, repository: `${url.protocol}//${url.host}${url.pathname}` };
+    }
+    if (url.protocol !== "file:" || url.search || url.hash) throw new Error("Unsupported Git push endpoint.");
+    endpoint = fileURLToPath(url);
+  } else if (!path.isAbsolute(endpoint) && /^[^/:]+(?:@[^/:]+)?:[^:]/u.test(endpoint)) {
+    return { endpoint, repository: endpoint.replace(/^[^@/:]+@/u, "") };
+  } else if (endpoint.includes("::")) {
+    throw new Error("Unsupported Git push helper.");
+  }
+  const absolute = await realpath(path.resolve(cwd, endpoint));
+  return { endpoint: absolute, repository: absolute };
 }
 
 export function createGitWrapper(options: GitWrapperOptions): GitWrapper {

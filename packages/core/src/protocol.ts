@@ -33,10 +33,7 @@ export type CommandKind =
   /** Answers a `permissionRequest` event by id with an `"allow"`/`"deny"`
    * outcome — see `permissionRequestId`/`permissionOutcome` below and
    * `acp-session-driver.ts`'s `resolvePermission`. Only meaningful for a
-   * run started against an ACP-flavored adapter that actually emitted a
-   * `permissionRequest`; a target that never emitted one treats it as a
-   * no-op (see acp-agent-adapters spec.md's "Permission request
-   * answered" scenario). */
+   * run with an outstanding adapter or Harness permission request. */
   | "resolvePermission"
   /** Asks a run to stop where its work is sound — at a checkpoint at once,
    * inside a stage at the next task boundary — rather than killing it as
@@ -419,16 +416,23 @@ export interface AgentUpdateEvent extends BaseEvent {
   update: Record<string, unknown>;
 }
 
-/** An ACP-flavored adapter's underlying agent asked for permission before
- * a sensitive action — see `EventKind`'s `"permissionRequest"` member. */
+/** Exact scope of the Git push the Harness is asking to perform. */
+export interface PushApproval {
+  commit: string;
+  remote: string;
+  repository: string;
+  destinationRef: string;
+}
+
+/** An agent or the Harness asked for permission before a sensitive action. */
 export interface PermissionRequestEvent extends BaseEvent {
   kind: "permissionRequest";
   /** Names this request for a later `"resolvePermission"` command's
    * `permissionRequestId`. */
   requestId: string;
-  /** Human-readable description of the action being requested (from the
-   * ACP `session/request_permission` payload's tool-call title). */
+  /** Human-readable description, including the full scope of a Harness push. */
   description: string;
+  pushApproval?: PushApproval;
 }
 
 /** A `permissionRequest` nobody needs to answer any more, said in the run's
@@ -440,8 +444,8 @@ export interface PermissionSettledEvent extends BaseEvent {
   kind: "permissionSettled";
   /** The settled request's `requestId`. */
   requestId: string;
-  /** Answered with `allow` or `deny`, or `withdrawn` by the agent - it
-   * cancelled the request, or its turn ended with it open. */
+  /** Answered with `allow` or `deny`, or `withdrawn` when the owner of
+   * the request stops waiting. */
   outcome: "allow" | "deny" | "withdrawn";
 }
 

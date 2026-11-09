@@ -260,6 +260,7 @@ function topLevel(scope: HarnessSchemaScope): Record<string, Schema> {
       properties: {
         remotes: { type: "array", minItems: 1, items: { type: "string", minLength: 1 } },
         branches: { type: "array", minItems: 1, items: { type: "string", minLength: 1 } },
+        requirePushApproval: { type: "boolean", description: "Wait for operator approval before the Harness pushes the change branch." },
       },
     }, "A workspace default must never grant push."),
     taskAgents: perChangeOnly(scope, {

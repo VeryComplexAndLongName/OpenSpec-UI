@@ -64,6 +64,21 @@ describe("sendPipelineRunControl", () => {
     expect(chainRunner.asAgentRunner).not.toHaveBeenCalled();
   });
 
+  it("routes a held Harness push approval to the owning chain", () => {
+    const requestId = "push-1";
+    const { deps, chainRunner, resolveRunner } = setUp({
+      runs: [{ ...chainRun, waiting: true, permissionRequestId: requestId }],
+    });
+    sendPipelineRunControl(
+      { changeName: "alpha", runId: "r1", kind: "resolvePermission", permissionRequestId: requestId, permissionOutcome: "allow" },
+      deps,
+    );
+    expect(chainRunner.resolvePermission).toHaveBeenCalledWith(expect.objectContaining({
+      runId: "r1", permissionRequestId: requestId, permissionOutcome: "allow",
+    }));
+    expect(resolveRunner).not.toHaveBeenCalled();
+  });
+
   it("sends a chain's stop through the chain's agent runner, with its reason", async () => {
     const { deps, chainRunner, received } = setUp();
 
