@@ -1,35 +1,39 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-24T11:25:20.664Z",
+  "generated_at": "2026-11-09T07:09:12.220Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "3e8047fbb403423b4151c16d2855588d0fd20715",
+  "commit": "5f818e4ab6c35b65db141cb1b18033e0a36a5673",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.106.5",
-      "released_at": "2026-10-24T11:25:20.664Z",
-      "tag": "openspec-ui-vscode@0.106.5",
+      "version": "0.107.0",
+      "released_at": "2026-11-09T07:09:12.220Z",
+      "tag": "openspec-ui-vscode@0.107.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.106.5"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.107.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.106.5/openspec-ui-vscode-0.106.5.vsix",
-          "size_bytes": 11124815
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.107.0/openspec-ui-vscode-0.107.0.vsix",
+          "size_bytes": 11133495
         }
       ],
       "changes": [
         {
+          "kind": "minor",
+          "summary": "- Require approval for a change's Harness Git push from its `harness.json`. The approval shows the commit and destination and applies only to that push. An unattended CLI run stops before pushing when approval is required."
+        },
+        {
           "kind": "patch",
-          "summary": "- **Codex agents: native CLI and ACP.** Run Harness stages with a GPT model, reasoning effort and a stage-appropriate sandbox. Inspect output, file changes and token usage; ACP requires the separately installed `@agentclientprotocol/codex-acp` bridge. - Product release notes now explain delivered behavior, preserve wrapped summaries on the website and lead GitHub releases with authored highlights."
+          "summary": "- An approved Harness push over HTTP or HTTPS stops when the repository redirects to another URL."
         }
       ]
     },
@@ -38,8 +42,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.62.5",
-      "released_at": "2026-10-24T11:25:20.664Z",
+      "version": "1.63.0",
+      "released_at": "2026-11-09T07:09:12.220Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -49,8 +53,12 @@
       "artifacts": [],
       "changes": [
         {
+          "kind": "minor",
+          "summary": "- Require approval for a change's Harness Git push from its `harness.json`. The approval shows the commit and destination and applies only to that push. An unattended CLI run stops before pushing when approval is required."
+        },
+        {
           "kind": "patch",
-          "summary": "- **Codex agents: native CLI and ACP.** Run Harness stages with a GPT model, reasoning effort and a stage-appropriate sandbox. Inspect output, file changes and token usage; ACP requires the separately installed `@agentclientprotocol/codex-acp` bridge. - Product release notes now explain delivered behavior, preserve wrapped summaries on the website and lead GitHub releases with authored highlights."
+          "summary": "- An approved Harness push over HTTP or HTTPS stops when the repository redirects to another URL."
         }
       ]
     },
@@ -60,7 +68,7 @@
       "package": "@openspec-ui/core",
       "public": false,
       "version": "0.150.1",
-      "released_at": "2026-10-24T11:25:20.664Z",
+      "released_at": "2026-11-09T07:09:12.220Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -81,7 +89,7 @@
       "package": "@openspec-ui/webui",
       "public": false,
       "version": "1.94.4",
-      "released_at": "2026-10-24T11:25:20.664Z",
+      "released_at": "2026-11-09T07:09:12.220Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -95,8 +103,8 @@
       "name": "CLI",
       "package": "@openspec-ui/cli",
       "public": true,
-      "version": "0.32.3",
-      "released_at": "2026-10-24T11:25:20.664Z",
+      "version": "0.33.0",
+      "released_at": "2026-11-09T07:09:12.220Z",
       "prerelease": false,
       "summary": "Run, validate and check OpenSpec changes from a terminal or CI.",
       "links": {
@@ -107,8 +115,12 @@
       "artifacts": [],
       "changes": [
         {
+          "kind": "minor",
+          "summary": "- Require approval for a change's Harness Git push from its `harness.json`. The approval shows the commit and destination and applies only to that push. An unattended CLI run stops before pushing when approval is required."
+        },
+        {
           "kind": "patch",
-          "summary": "- **Codex agents: native CLI and ACP.** Run Harness stages with a GPT model, reasoning effort and a stage-appropriate sandbox. Inspect output, file changes and token usage; ACP requires the separately installed `@agentclientprotocol/codex-acp` bridge. - Product release notes now explain delivered behavior, preserve wrapped summaries on the website and lead GitHub releases with authored highlights."
+          "summary": "- An approved Harness push over HTTP or HTTPS stops when the repository redirects to another URL."
         }
       ]
     }
