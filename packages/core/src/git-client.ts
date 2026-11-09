@@ -28,12 +28,12 @@ export const GIT_CONNECTION_ENVIRONMENT: readonly string[] = [
 
 /** A simple-git instance for `cwd`, with the connection variables above let
  * through. Throws, as `simpleGit` does, when `cwd` is not a directory. */
-export function openGit(cwd: string): SimpleGit {
+export function openGit(cwd: string, options: { allowUnsafeUrlRewrite?: boolean } = {}): SimpleGit {
   return simpleGit({
     baseDir: cwd,
     allowEnvironment: GIT_CONNECTION_ENVIRONMENT,
     // An askpass helper and an SSH command run a program by design; letting
     // the person's own through is what keeps their remote reachable.
-    unsafe: { allowUnsafeAskPass: true, allowUnsafeSshCommand: true },
+    unsafe: { allowUnsafeAskPass: true, allowUnsafeSshCommand: true, ...options },
   });
 }

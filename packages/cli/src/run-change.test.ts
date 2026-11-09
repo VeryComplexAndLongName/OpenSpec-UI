@@ -50,10 +50,12 @@ function scriptedChain(events: Event[], hooks: { beforeEvents?: () => void } = {
    * (a-run-elsewhere-can-be-asked-to-stop). */
   const stopsRequested: Array<{ runId: string; reason: string; by?: string; messageId?: string }> = [];
   const delivered: Array<{ runId: string; messageId: string; kind: string; words: string }> = [];
+  const resolvePermission = vi.fn<(command: Command) => boolean>(() => true);
   return {
     confirmed,
     cancelled,
     stopsRequested,
+    resolvePermission,
     create: () => ({
       async *run(command: Command) {
         hooks.beforeEvents?.();
@@ -63,6 +65,7 @@ function scriptedChain(events: Event[], hooks: { beforeEvents?: () => void } = {
         confirmed.push(runId);
         return true;
       },
+      resolvePermission,
       cancel(runId: string) {
         cancelled.push(runId);
         return true;
@@ -103,6 +106,39 @@ function deps(
 }
 
 describe("runChange", () => {
+  it.each(["allow", "deny", "headless"] as const)("handles a pending Harness push in the terminal (%s)", async (decision) => {
+    const root = await temporaryRoot();
+    await makeChange(root, "a-change", UNATTENDED);
+    const io = collectingIo();
+    const description = "Push abc to origin (https://example.com/repo), refs/heads/feature?";
+    const chain = scriptedChain([
+      {
+        kind: "permissionRequest", runId: "", timestamp: at, requestId: "push-1", description,
+        pushApproval: { commit: "abc", remote: "origin", repository: "https://example.com/repo", destinationRef: "refs/heads/feature" },
+      },
+      decision === "allow"
+        ? { kind: "completed", runId: "", timestamp: at }
+        : { kind: "cancelled", runId: "", timestamp: at },
+    ]);
+    const ask = vi.fn(async () => decision === "allow");
+    const code = await runChange(
+      { workspaceRoot: root, changeName: "a-change", format: "text" },
+      deps(io, chain, decision === "headless" ? {} : { ask }),
+    );
+
+    expect(code).toBe(decision === "allow" ? 0 : 1);
+    if (decision === "headless") {
+      expect(chain.cancelled).toHaveLength(1);
+      expect(chain.resolvePermission).not.toHaveBeenCalled();
+      expect(io.err.join("")).toContain("OSW-RUN-213");
+    } else {
+      expect(ask).toHaveBeenCalledWith(description);
+      expect(chain.resolvePermission).toHaveBeenCalledWith(expect.objectContaining({
+        kind: "resolvePermission", runId: expect.any(String), permissionRequestId: "push-1", permissionOutcome: decision,
+      }));
+    }
+  });
+
   it("exits 0 when the chain completes", async () => {
     const root = await temporaryRoot();
     await makeChange(root, "a-change", UNATTENDED);

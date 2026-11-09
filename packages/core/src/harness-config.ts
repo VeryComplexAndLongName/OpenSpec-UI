@@ -254,6 +254,7 @@ export interface HarnessTimeout {
 export interface HarnessGitStageAllowlist {
   remotes: string[];
   branches: string[];
+  requirePushApproval?: boolean;
 }
 
 export interface HarnessConfig {
@@ -417,7 +418,7 @@ function assertValidMaxCost(maxCost: unknown): void {
 }
 
 const STEP_BUDGET_KEYS = ["maxCostUsd", "maxAiCredits"] as const;
-const GIT_STAGE_ALLOWLIST_KEYS = ["remotes", "branches"] as const;
+const GIT_STAGE_ALLOWLIST_KEYS = ["remotes", "branches", "requirePushApproval"] as const;
 /** The only keys `assertValidHarnessConfigInput` accepts at the top level
  * of a harness configuration file — the single place that set is written
  * (task 1.2), so a key added to `HarnessConfig` without being added here
@@ -1096,6 +1097,9 @@ function assertValidGitStageAllowlist(
   }
   if (!Array.isArray(branches) || branches.length === 0 || branches.some((item) => typeof item !== "string" || item.length === 0)) {
     throw new InvalidHarnessConfigError(say("OSW-HRN-083"));
+  }
+  if (record.requirePushApproval !== undefined && typeof record.requirePushApproval !== "boolean") {
+    throw new InvalidHarnessConfigError(say("OSW-HRN-128"));
   }
 }
 

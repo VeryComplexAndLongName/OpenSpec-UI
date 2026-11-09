@@ -806,6 +806,19 @@ describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)
     expect(onRunControl).toHaveBeenCalledWith({ changeName: "alpha", runId: "r1", kind: "resolvePermission", permissionRequestId: "p1", permissionOutcome: "deny" });
   });
 
+  it("shows the pending Harness push and sends approval for that request", async () => {
+    const description = `Push ${"a".repeat(40)} to origin (https://example.com/repo), refs/heads/alpha?`;
+    const { onRunControl } = renderCard({
+      record: { waiting: { kind: "permission", description } },
+      held: [heldRun({ waiting: true, permissionRequestId: "push-1" })],
+    });
+    expect(await screen.findByTestId("pipeline-waiting-permission-alpha")).toHaveTextContent(description);
+    fireEvent.click(await screen.findByRole("button", { name: `Allow Permission alpha: ${description}` }));
+    expect(onRunControl).toHaveBeenCalledWith({
+      changeName: "alpha", runId: "r1", kind: "resolvePermission", permissionRequestId: "push-1", permissionOutcome: "allow",
+    });
+  });
+
   // Live on 2026-10-08: an agent asked for four at once, and the card offered
   // only the latest; once that was answered it offered nothing.
   it("offers the oldest of several open permission requests, and says how many there are", async () => {

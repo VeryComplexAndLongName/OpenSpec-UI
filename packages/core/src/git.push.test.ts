@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { simpleGit } from "simple-git";
 import { afterAll, describe, expect, it, vi } from "vitest";
-import { createGitWrapper } from "./git.js";
+import { createGitWrapper, prepareSingleRefPush } from "./git.js";
 import { gitIsolationOptions } from "./test-support/git-isolation.js";
 
 // This file used to carry no timeout deliberately, and the reason still
@@ -55,6 +55,50 @@ async function commitAll(repoRoot: string, message: string, isoDate: string): Pr
   await git.add(".");
   await git.commit(message);
 }
+
+describe("prepareSingleRefPush", () => {
+  it("updates only the pinned ref and refuses multiple push URLs or mirror mode", async () => {
+    const repo = await temporaryRoot("openspec-approved-push-");
+    const first = await temporaryRoot("openspec-approved-first-");
+    const second = await temporaryRoot("openspec-approved-second-");
+    const isolated = await gitIsolationOptions();
+    const local = simpleGit(repo, { ...isolated, unsafe: { ...isolated.unsafe, allowUnsafeUrlRewrite: true } });
+    const firstRemote = simpleGit(first, isolated);
+    const secondRemote = simpleGit(second, isolated);
+    await firstRemote.init(true);
+    await secondRemote.init(true);
+    await local.init();
+    await local.raw(["branch", "-M", "feature"]);
+    await local.addRemote("origin", first);
+    await writeFile(path.join(repo, "README.md"), "one\n", "utf8");
+    await commitAll(repo, "first", "2026-11-09T00:00:00Z");
+    await local.raw(["-c", "user.name=Test", "-c", "user.email=test@example.com", "tag", "-a", "extra", "-m", "extra"]);
+    await local.raw(["config", "push.followTags", "true"]);
+    await local.raw(["config", "push.recurseSubmodules", "only"]);
+    await local.raw(["config", "push.pushOption", "must-not-send"]);
+
+    const push = await prepareSingleRefPush(repo, "origin", "feature");
+    expect(push.approval).toMatchObject({
+      commit: (await local.raw(["rev-parse", "HEAD"])).trim(),
+      destinationRef: "refs/heads/feature",
+      remote: "origin",
+    });
+    await local.raw(["remote", "set-url", "origin", second]);
+    await local.raw(["config", `url.${second}.insteadOf`, push.endpoint]);
+    await writeFile(path.join(repo, "README.md"), "two\n", "utf8");
+    await commitAll(repo, "second", "2026-11-09T00:01:00Z");
+    await push.push();
+    expect((await firstRemote.raw(["show-ref"])).trim()).toBe(`${push.approval.commit} refs/heads/feature`);
+    expect(await secondRemote.raw(["for-each-ref"])).toBe("");
+
+    await local.raw(["config", "--add", "remote.origin.pushurl", first]);
+    await local.raw(["config", "--add", "remote.origin.pushurl", second]);
+    await expect(prepareSingleRefPush(repo, "origin", "feature")).rejects.toThrow(/single non-mirror/);
+    await local.raw(["config", "--unset-all", "remote.origin.pushurl"]);
+    await local.raw(["config", "remote.origin.mirror", "true"]);
+    await expect(prepareSingleRefPush(repo, "origin", "feature")).rejects.toThrow(/single non-mirror/);
+  });
+});
 
 describe("createGitWrapper.push", () => {
   it("pushes a branch that has no upstream yet", async () => {

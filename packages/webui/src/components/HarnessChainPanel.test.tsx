@@ -233,6 +233,26 @@ describe("HarnessChainPanel", () => {
     expect(screen.queryByTestId("permission-request")).not.toBeInTheDocument();
   });
 
+  it("shows the full push scope before resolving the Harness permission request", () => {
+    const { transport, send, emit } = createFakeTransport();
+    render(<HarnessChainPanel transport={transport} cwd={cwd} changeDir={changeDir} generateRunId={() => "chain-1"} />);
+    fireEvent.click(screen.getByTestId("start-chain-button"));
+    emit({ kind: "started", runId: "chain-1", timestamp: "t1", command: "chain", cwd });
+    const pushApproval = { commit: "a".repeat(40), remote: "origin", repository: "https://example.com/repo", destinationRef: "refs/heads/feature" };
+    emit({
+      kind: "permissionRequest", runId: "chain-1", timestamp: "t2", requestId: "push-1", pushApproval,
+      description: `Push ${pushApproval.commit} to origin (${pushApproval.repository}), ${pushApproval.destinationRef}?`,
+    });
+    const prompt = screen.getByTestId("permission-request");
+    expect(prompt).toHaveTextContent(pushApproval.commit);
+    expect(prompt).toHaveTextContent(pushApproval.repository);
+    expect(prompt).toHaveTextContent(pushApproval.destinationRef);
+    fireEvent.click(screen.getByTestId("allow-permission-button"));
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "resolvePermission", runId: "chain-1", permissionRequestId: "push-1", permissionOutcome: "allow",
+    }));
+  });
+
   it("shows the reason when a chain is cancelled by a time ceiling", () => {
     const { transport, emit } = createFakeTransport();
     render(<HarnessChainPanel transport={transport} cwd={cwd} changeDir={changeDir} generateRunId={() => "chain-1"} />);

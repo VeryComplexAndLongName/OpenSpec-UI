@@ -1,6 +1,6 @@
 # 0055: The Harness Authorizes a Specific Push
 
-Status: Proposed
+Status: Accepted
 
 Date: 2026-11-09
 
