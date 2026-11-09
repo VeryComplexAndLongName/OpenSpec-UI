@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.107.0
+
+### Minor Changes
+
+- e141d76: - Require approval for a change's Harness Git push from its `harness.json`. The approval shows the commit and destination and applies only to that push. An unattended CLI run stops before pushing when approval is required.
+
+### Patch Changes
+
+- 6f6583c: - An approved Harness push over HTTP or HTTPS stops when the repository redirects to another URL.
+- Updated dependencies [6f6583c]
+- Updated dependencies [e141d76]
+  - @openspec-ui/server@1.63.0
+
 ## 0.106.5
 
 ### Patch Changes
