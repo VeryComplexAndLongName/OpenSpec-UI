@@ -263,6 +263,12 @@ export async function prepareSingleRefPush(
     "-c", "push.pushOption=",
   ];
   const pinnedGit = openGit(cwd, { allowUnsafeUrlRewrite: true });
+  if (/^https?:\/\//iu.test(endpoint)) {
+    // URL-specific Git settings take precedence over the generic setting.
+    config.push("-c", `http.${endpoint}.followRedirects=false`);
+    const redirects = await pinnedGit.raw([...config, "config", "--get-urlmatch", "http.followRedirects", endpoint]);
+    if (redirects.trim() !== "false") throw new Error("Git could not disable redirects for the push endpoint.");
+  }
   const resolved = (await pinnedGit.raw([...config, "ls-remote", "--get-url", pinned])).replace(/\r?\n$/u, "");
   if (resolved !== endpoint) throw new Error("The push endpoint is rewritten by Git.");
 

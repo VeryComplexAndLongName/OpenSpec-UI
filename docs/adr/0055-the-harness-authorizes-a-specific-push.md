@@ -17,7 +17,9 @@ A change can opt into operator approval for the push in its Harness
 The approval is consumed once, for the source commit and destination
 repository and ref shown to the operator. The runtime rechecks policy
 and the action before execution. It refuses a changed or unbound
-destination and asks again on a new attempt. Questions about the change
+destination and asks again on a new attempt. For HTTP and HTTPS, the
+operation disables redirects at the exact endpoint and verifies the
+effective Git setting before it runs. Questions about the change
 remain part of its decision record under ADR 0042.
 
 Reuse the existing permission event and resolution command with typed
