@@ -60,9 +60,8 @@ finishes, and stop and say why rather than improvise if a step cannot be done
 as written.
 
 What it does not do yet: choose a model. DeepSeek's model is an Agent Client
-Protocol session option (`session/set_config_option`), and nothing in this
-project's shared driver sends session options. Whichever model `dsh` defaults
-to is the one that runs. Fixing the Node a host starts agents with is also out
+Protocol session option (`session/set_config_option`). The DeepSeek adapter
+leaves it unset, so `dsh` runs its default model. Fixing the Node a host starts agents with is also out
 of reach from here: the product cannot choose what is on someone's `PATH`; it
 can only say which one it met.
 
