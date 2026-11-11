@@ -48,9 +48,9 @@ either - cheaper per token, still a model built for judgement rather than
 throughput; which of the two is worth its price on your own changes is
 something to measure, not assume. `apply` carries no `model`, no `effort` and
 no `budget` at all, and that is not an oversight: `deepseek-cli-acp` accepts
-none of the three. Its model is a session option this project's driver never
-sends, so DeepSeek's own default runs; nothing here can raise or lower how
-hard it thinks.
+none of the three. The DeepSeek adapter leaves its model session option unset,
+so DeepSeek's own default runs. The stage uses the agent's default reasoning
+effort too.
 
 ## What the harness can prove, and what it flatly cannot see
 
