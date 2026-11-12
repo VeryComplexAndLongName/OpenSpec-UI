@@ -92,30 +92,27 @@ explanation.
 
 ### Requirement: The browser suite does not depend on apt sources it never reads
 
-Installing the browser suite's system dependencies SHALL NOT fail
-because of an apt source this repository installs nothing from.
-
-The runner image carries third-party sources; `--with-deps` reads all of
-them through `apt-get update`, so a bad publish anywhere on the image
-fails an install that has nothing to do with it. Observed three times
-across half an hour on 2026-09-09, all from Google's Chrome repository,
-which this job never installs a package from.
-
-The system dependencies themselves SHALL still be installed. The source
-is what is removed, never the check that the libraries Chromium needs
-are present.
+The standalone browser and accessibility check SHALL run in an official Playwright container matching the installed test version. The image SHALL supply Chromium and its operating system dependencies. The job SHALL run the full browser and accessibility suite.
 
 #### Scenario: A third-party repository failing to publish
 
-- **WHEN** an apt source on the runner image serves an index that does
-  not match its hashes
-- **THEN** the browser install still succeeds, because that source is
-  not read
+- **WHEN** an apt source on the runner image serves an index that does not match its hashes
+- **THEN** the browser job can start because it does not read the runner's apt sources
 
 #### Scenario: The dependencies Chromium needs
 
-- **WHEN** the browser is installed in CI
-- **THEN** its system dependencies are installed with it
+- **WHEN** CI starts the browser job
+- **THEN** the container already includes Chromium and the operating system dependencies it needs
+
+#### Scenario: Ubuntu package mirrors are unavailable
+
+- **WHEN** GitHub Actions runs the standalone browser check and an Ubuntu apt mirror is unavailable
+- **THEN** the job uses Chromium and its operating system dependencies from the Playwright image without contacting apt mirrors
+
+#### Scenario: The locked Playwright version changes
+
+- **WHEN** a pull request updates the Playwright test version installed from the lockfile
+- **THEN** the browser job selects the official image for that installed version
 
 ### Requirement: A change can be run from a terminal
 
