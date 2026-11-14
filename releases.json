@@ -1,39 +1,43 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-11-09T07:09:12.220Z",
+  "generated_at": "2026-11-14T15:12:32.136Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "5f818e4ab6c35b65db141cb1b18033e0a36a5673",
+  "commit": "f837772b96674c167026f4d670ccfda2ddd9f02b",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.107.0",
-      "released_at": "2026-11-09T07:09:12.220Z",
-      "tag": "openspec-ui-vscode@0.107.0",
+      "version": "0.108.0",
+      "released_at": "2026-11-14T15:12:32.136Z",
+      "tag": "openspec-ui-vscode@0.108.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.107.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.108.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.107.0/openspec-ui-vscode-0.107.0.vsix",
-          "size_bytes": 11133495
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.108.0/openspec-ui-vscode-0.108.0.vsix",
+          "size_bytes": 11163499
         }
       ],
       "changes": [
         {
           "kind": "minor",
-          "summary": "- Require approval for a change's Harness Git push from its `harness.json`. The approval shows the commit and destination and applies only to that push. An unattended CLI run stops before pushing when approval is required."
+          "summary": "- Open **Send Feedback** to start a GitHub issue draft. After a failed run, preview and copy a short diagnostic report with the Workbench version, platform and error category."
         },
         {
-          "kind": "patch",
-          "summary": "- An approved Harness push over HTTP or HTTPS stops when the repository redirects to another URL."
+          "kind": "minor",
+          "summary": "- Open PR Review from a change's Pipeline card to see its committed diff against the PR target and its recorded verification results. Use **Copy PR summary** to paste the comparison and check results into a pull request."
+        },
+        {
+          "kind": "minor",
+          "summary": "- Use **Diagnose Workspace** from the Workspace view to see prerequisites that need attention and the next steps."
         }
       ]
     },
@@ -42,8 +46,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.63.0",
-      "released_at": "2026-11-09T07:09:12.220Z",
+      "version": "1.64.0",
+      "released_at": "2026-11-14T15:12:32.136Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -54,11 +58,11 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "- Require approval for a change's Harness Git push from its `harness.json`. The approval shows the commit and destination and applies only to that push. An unattended CLI run stops before pushing when approval is required."
+          "summary": "- Open **Send Feedback** to start a GitHub issue draft. After a failed run, preview and copy a short diagnostic report with the Workbench version, platform and error category."
         },
         {
-          "kind": "patch",
-          "summary": "- An approved Harness push over HTTP or HTTPS stops when the repository redirects to another URL."
+          "kind": "minor",
+          "summary": "- Open PR Review from a change's Pipeline card to see its committed diff against the PR target and its recorded verification results. Use **Copy PR summary** to paste the comparison and check results into a pull request."
         }
       ]
     },
@@ -68,7 +72,7 @@
       "package": "@openspec-ui/core",
       "public": false,
       "version": "0.150.1",
-      "released_at": "2026-11-09T07:09:12.220Z",
+      "released_at": "2026-11-14T15:12:32.136Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -89,7 +93,7 @@
       "package": "@openspec-ui/webui",
       "public": false,
       "version": "1.94.4",
-      "released_at": "2026-11-09T07:09:12.220Z",
+      "released_at": "2026-11-14T15:12:32.136Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -104,7 +108,7 @@
       "package": "@openspec-ui/cli",
       "public": true,
       "version": "0.33.0",
-      "released_at": "2026-11-09T07:09:12.220Z",
+      "released_at": "2026-11-14T15:12:32.136Z",
       "prerelease": false,
       "summary": "Run, validate and check OpenSpec changes from a terminal or CI.",
       "links": {
