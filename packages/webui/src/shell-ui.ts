@@ -4638,6 +4638,18 @@ export const shellThemeCss = `
     .openspec-pipeline-node-detail { height: auto; min-height: 1.5rem; }
     .openspec-pipeline-node-name { white-space: normal; }
 
+    .openspec-pipeline-node-actions-row {
+      height: auto;
+      min-height: ${Z(PIPELINE_CARD_REM.actionsRow)};
+      flex-wrap: wrap;
+    }
+
+    .openspec-pipeline-node-actions-group {
+      min-width: 0;
+      max-width: 100%;
+      flex-wrap: wrap;
+    }
+
     /* Room to run on: every line is drawn, wrapped, and none is left
        beyond the card or counted. */
     .openspec-pipeline-node-detail--beyond {
