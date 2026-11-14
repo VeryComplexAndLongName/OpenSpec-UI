@@ -8,6 +8,7 @@ import { glob } from "glob";
 
 export async function run(): Promise<void> {
   const mocha = new Mocha({ ui: "tdd", color: false, timeout: 120_000 });
+  if (process.env.OPENSPEC_UI_INTEGRATION_GREP) mocha.grep(process.env.OPENSPEC_UI_INTEGRATION_GREP);
   const testsRoot = path.resolve(__dirname);
 
   const files = await glob("**/*.test.js", { cwd: testsRoot });

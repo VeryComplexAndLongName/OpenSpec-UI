@@ -453,6 +453,8 @@ export interface AuditEntry {
    * verify-records-what-it-found. */
   checksRan?: number;
   checksFailed?: number;
+  /** Commit observed at both clean mechanical-check boundaries. */
+  checkedCommit?: string;
   /** The agent whose work the checks covered — the agent the chain
    * resolved for its `apply` stage — on an entry that carries
    * `checksRan`.

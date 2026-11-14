@@ -5,7 +5,7 @@
 // a token the person keeps in their environment - `GITLAB_TOKEN`,
 // `GITEA_TOKEN` - which is read when asked and never written anywhere.
 
-import { parseCheckStatus, pullRequestTimes, type BranchPullRequest, type MergeMethod, type BranchPullRequestState, type Forge, type PullRequestCheckStatus, type PullRequestRef, type PullRequestsByBranch } from "./gh-pr-gateway.js";
+import { parseCheckStatus, pullRequestTimes, recordOpenPullRequestTarget, type BranchPullRequest, type MergeMethod, type BranchPullRequestState, type Forge, type OpenPullRequestTarget, type PullRequestCheckStatus, type PullRequestRef, type PullRequestsByBranch } from "./gh-pr-gateway.js";
 import { say, type MessageCode, type SaidMessage } from "./message-register.js";
 
 export type FetchLike = (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => Promise<{
@@ -87,6 +87,17 @@ function keep(byBranch: Map<string, BranchPullRequest>, branch: string, found: B
   if (seen === undefined || (seen.state === "CLOSED" && found.state !== "CLOSED")) byBranch.set(branch, found);
 }
 
+interface PullRef {
+  ref?: unknown;
+  sha?: unknown;
+  repo?: { id?: unknown };
+}
+
+function samePullRepository(head: PullRef | undefined, base: PullRef | undefined): boolean {
+  const id = head?.repo?.id;
+  return typeof id === "number" && id === base?.repo?.id;
+}
+
 const PAGES = 4;
 
 /** The branch a Gitea pull request came from. Once a merge deletes the
@@ -108,6 +119,7 @@ export function createGiteaForge(options: HttpForgeOptions): Forge {
     async pullRequestsByBranch(): Promise<PullRequestsByBranch> {
       if (!options.token) return tokenNotSet(options.tokenName);
       const byBranch = new Map<string, BranchPullRequest>();
+      const openTargets = new Map<string, OpenPullRequestTarget[]>();
       try {
         for (let page = 1; page <= PAGES; page += 1) {
           let items: Array<Record<string, unknown>>;
@@ -128,6 +140,11 @@ export function createGiteaForge(options: HttpForgeOptions): Forge {
             const ref = giteaHeadBranch(item.head);
             if (typeof number !== "number" || ref === undefined) continue;
             const state: BranchPullRequestState = item.merged === true ? "MERGED" : item.state === "open" ? "OPEN" : "CLOSED";
+            const head = item.head as PullRef | undefined;
+            const base = item.base as PullRef | undefined;
+            if (state === "OPEN" && samePullRepository(head, base)) {
+              recordOpenPullRequestTarget(openTargets, ref, number, base?.ref, base?.sha, head?.sha);
+            }
             keep(byBranch, ref, { number, state, ...pullRequestTimes(item.created_at, item.merged_at) });
           }
           if (items.length < 50) break;
@@ -135,7 +152,7 @@ export function createGiteaForge(options: HttpForgeOptions): Forge {
       } catch (error) {
         return { available: false, ...why(error) };
       }
-      return { available: true, byBranch };
+      return { available: true, byBranch, ...(openTargets.size > 0 ? { openTargets } : {}) };
     },
     async openPullRequest(request): Promise<PullRequestRef> {
       if (!options.token) throw new ForgeRefusal(say("OSW-NET-001", { token: options.tokenName }));
@@ -177,6 +194,7 @@ export function createGitLabForge(options: HttpForgeOptions): Forge {
     async pullRequestsByBranch(): Promise<PullRequestsByBranch> {
       if (!options.token) return tokenNotSet(options.tokenName);
       const byBranch = new Map<string, BranchPullRequest>();
+      const openTargets = new Map<string, OpenPullRequestTarget[]>();
       try {
         for (let page = 1; page <= PAGES; page += 1) {
           const items = await call(options, headers(), "GET", `${api}/merge_requests?state=all&order_by=created_at&sort=desc&per_page=50&page=${page}`) as Array<Record<string, unknown>>;
@@ -186,6 +204,9 @@ export function createGitLabForge(options: HttpForgeOptions): Forge {
             const ref = item.source_branch;
             if (typeof number !== "number" || typeof ref !== "string") continue;
             const state: BranchPullRequestState = item.state === "merged" ? "MERGED" : item.state === "opened" ? "OPEN" : "CLOSED";
+            if (state === "OPEN" && typeof item.source_project_id === "number" && item.source_project_id === item.target_project_id) {
+              recordOpenPullRequestTarget(openTargets, ref, number, item.target_branch, undefined, item.sha);
+            }
             keep(byBranch, ref, { number, state, ...pullRequestTimes(item.created_at, item.merged_at) });
           }
           if (items.length < 50) break;
@@ -193,7 +214,7 @@ export function createGitLabForge(options: HttpForgeOptions): Forge {
       } catch (error) {
         return { available: false, ...why(error) };
       }
-      return { available: true, byBranch };
+      return { available: true, byBranch, ...(openTargets.size > 0 ? { openTargets } : {}) };
     },
     async openPullRequest(request): Promise<PullRequestRef> {
       if (!options.token) throw new ForgeRefusal(say("OSW-NET-001", { token: options.tokenName }));
@@ -282,15 +303,21 @@ export function createGitHubApiForge(options: HttpForgeOptions & { apiBase?: str
     async pullRequestsByBranch(): Promise<PullRequestsByBranch> {
       if (!options.token) return tokenNotSet(options.tokenName);
       const byBranch = new Map<string, BranchPullRequest>();
+      const openTargets = new Map<string, OpenPullRequestTarget[]>();
       try {
         for (let page = 1; page <= PAGES; page += 1) {
           const items = await call(options, headers(), "GET", `${api}/pulls?state=all&sort=created&direction=desc&per_page=50&page=${page}`) as Array<Record<string, unknown>>;
           if (!Array.isArray(items) || items.length === 0) break;
           for (const item of items) {
             const number = item.number;
-            const ref = (item.head as { ref?: unknown } | undefined)?.ref;
+            const head = item.head as PullRef | undefined;
+            const base = item.base as PullRef | undefined;
+            const ref = head?.ref;
             if (typeof number !== "number" || typeof ref !== "string") continue;
             const state: BranchPullRequestState = item.merged_at ? "MERGED" : item.state === "open" ? "OPEN" : "CLOSED";
+            if (state === "OPEN" && samePullRepository(head, base)) {
+              recordOpenPullRequestTarget(openTargets, ref, number, base?.ref, base?.sha, head?.sha);
+            }
             keep(byBranch, ref, { number, state, ...pullRequestTimes(item.created_at, item.merged_at) });
           }
           if (items.length < 50) break;
@@ -298,7 +325,7 @@ export function createGitHubApiForge(options: HttpForgeOptions & { apiBase?: str
       } catch (error) {
         return { available: false, ...why(error) };
       }
-      return { available: true, byBranch };
+      return { available: true, byBranch, ...(openTargets.size > 0 ? { openTargets } : {}) };
     },
     async openPullRequest(request): Promise<PullRequestRef> {
       if (!options.token) throw new ForgeRefusal(say("OSW-NET-001", { token: options.tokenName }));

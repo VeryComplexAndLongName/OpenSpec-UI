@@ -244,6 +244,27 @@ async function expectNoBlockingViolations(page: Page): Promise<void> {
   expect(blockingViolations, JSON.stringify(blockingViolations, null, 2)).toEqual([]);
 }
 
+test("opens a worktree PR review and copies the displayed summary", async ({ page, context }) => {
+  test.setTimeout(90_000);
+  await writeFile(path.join(ownDirectory, "implementation.txt"), "Worktree implementation\n");
+  await git(ownDirectory, ["add", "implementation.txt"]);
+  await git(ownDirectory, ["commit", "-qm", "Worktree implementation"]);
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto(`${baseUrl}/#token=${encodeURIComponent(server.accessToken)}`);
+  await page.getByLabel("Workspace root (cwd)").fill(workspaceRoot);
+  await page.getByRole("tab", { name: "Pipeline" }).click();
+  await page.getByTestId("pipeline-action-showPrReview-pipeline-unrelated").click();
+  const dialog = page.getByTestId("change-action-dialog");
+  await expect(dialog.getByText("Default-branch preview", { exact: false })).toBeVisible({ timeout: 30_000 });
+  await expect(dialog.getByLabel("Committed diff")).toContainText("+Worktree implementation");
+  await dialog.getByRole("button", { name: "Copy PR summary" }).click();
+  await expect(dialog.getByRole("status")).toHaveText("PR summary copied.");
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copied).toContain("implementation.txt");
+  expect(copied).toContain("no result recorded");
+  expect(copied).not.toContain("+Worktree implementation");
+});
+
 test("draws the declared order, and passes axe", async ({ page }) => {
   test.setTimeout(60000);
   const pageErrors: Error[] = [];

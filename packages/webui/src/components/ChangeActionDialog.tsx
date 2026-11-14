@@ -7,7 +7,7 @@
 // This file draws and asks; what each action does is the server's and core's.
 
 import { useEffect, useState } from "react";
-import { changeAction, type ChangeActionAnswer, type ChangeActionId, type ChangeActionInput } from "@openspec-ui/core/browser";
+import { changeAction, say, type ChangeActionAnswer, type ChangeActionId, type ChangeActionInput } from "@openspec-ui/core/browser";
 import { renderMarkdown } from "../markdown.js";
 import { ChangeHarnessSettingsView } from "./ChangeHarnessSettingsView.js";
 import type { HarnessSettingsApi } from "./harness-settings-parts.js";
@@ -38,6 +38,16 @@ export function ChangeActionDialog({ target, perform, harnessApi, onClose }: {
   const action = changeAction(target.action);
   const title = `${(action?.title ?? target.action).replace(/\.\.\.$/u, "")} ${target.changeName}`;
   const [step, setStep] = useState<Step>(() => (ASKS_FOR_INPUT.has(target.action) || target.action === "configureChangeHarness" ? { kind: "asking" } : { kind: "busy" }));
+  const [copyStatus, setCopyStatus] = useState("");
+
+  async function copySummary(summary: string) {
+    try {
+      await navigator.clipboard.writeText(summary);
+      setCopyStatus(say("OSW-CHG-008").text);
+    } catch {
+      setCopyStatus(say("OSW-CHG-009").text);
+    }
+  }
 
   const send = (input?: ChangeActionInput) => {
     setStep({ kind: "busy" });
@@ -48,6 +58,7 @@ export function ChangeActionDialog({ target, perform, harnessApi, onClose }: {
   };
 
   useEffect(() => {
+    setCopyStatus("");
     if (!ASKS_FOR_INPUT.has(target.action) && target.action !== "configureChangeHarness") send();
     // Sent once, for the action the dialog was opened on.
   }, [target.action, target.changeName]);
@@ -67,6 +78,8 @@ export function ChangeActionDialog({ target, perform, harnessApi, onClose }: {
         target.action === "sendMessage" ? <MessageForm onSend={(message) => send({ message })} /> : <StopForm onSend={(stop) => send({ stop })} />
       ) : step.answer.kind === "report" ? (
         <div className="openspec-md-preview" data-testid="change-action-report">{renderMarkdown(step.answer.markdown)}</div>
+      ) : step.answer.kind === "pr-review" ? (
+        <PrReview review={step.answer.report} onCopy={copySummary} copyStatus={copyStatus} />
       ) : step.answer.kind === "done" ? (
         <p data-testid="change-action-done">{step.answer.message}</p>
       ) : (
@@ -74,6 +87,23 @@ export function ChangeActionDialog({ target, perform, harnessApi, onClose }: {
       )}
       <button className="button" type="button" data-testid="change-action-close" onClick={onClose}>Close</button>
     </section>
+  );
+}
+
+function PrReview({ review, onCopy, copyStatus }: {
+  review: Extract<ChangeActionAnswer, { kind: "pr-review" }>["report"];
+  onCopy: (summary: string) => Promise<void>;
+  copyStatus: string;
+}): JSX.Element {
+  return (
+    <>
+      <button className="button primary" type="button" onClick={() => void onCopy(review.summary)}>Copy PR summary</button>
+      <span role="status">{copyStatus}</span>
+      <div className="openspec-md-preview">{renderMarkdown(review.summary)}</div>
+      {review.diff !== null && (review.diff.length > 0 ? <details className="openspec-md-preview" open><summary>Committed diff</summary>
+        <pre aria-label="Committed diff"><code>{review.diff}</code></pre>
+      </details> : <p>{review.truncated ? "The patch exceeds the display limit." : "No committed changes in this comparison."}</p>)}
+    </>
   );
 }
 

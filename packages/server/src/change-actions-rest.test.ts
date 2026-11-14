@@ -35,6 +35,17 @@ async function withServer(test: (post: (body: unknown) => Promise<Response>, wor
 }
 
 describe("a change's actions, for the standalone app's cards", () => {
+  it("returns the PR review and preserves unavailable comparison and evidence", async () => {
+    await withServer(async (post, workspace) => {
+      const response = await post({ cwd: workspace, changeName: "demo", action: "showPrReview" });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({
+        kind: "pr-review",
+        report: { title: "PR Review for demo", diff: null, summary: expect.stringContaining("Mechanical checks: no result recorded") },
+      });
+    });
+  });
+
   it("adds a relation the person picked, after naming the ones there are to pick", async () => {
     await withServer(async (post, workspace) => {
       const offered = await post({ cwd: workspace, changeName: "demo", action: "addRelation" });

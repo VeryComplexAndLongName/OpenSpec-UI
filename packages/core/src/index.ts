@@ -37,6 +37,8 @@ export * from "./change-editor-store.js";
 export * from "./openspec.js";
 export * from "./git.js";
 export * from "./gh-pr-gateway.js";
+export { prReviewMarkdown, readPrReview } from "./pr-review.js";
+export type { PrReviewReport } from "./pr-review.js";
 export * from "./forge.js";
 export * from "./forge-remote.js";
 export * from "./http-forges.js";

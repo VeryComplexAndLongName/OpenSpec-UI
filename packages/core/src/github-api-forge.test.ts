@@ -32,7 +32,7 @@ function github(routes: Array<[string, string, number, unknown]>) {
 describe("GitHub through its API", () => {
   it("lists pull requests by branch, merged by their merge date, with when each opened and merged", async () => {
     const { forge } = github([["GET", `${REPO}/pulls?`, 200, [
-      { number: 3, state: "open", merged_at: null, created_at: "2026-09-21T09:00:00Z", head: { ref: "feature" } },
+      { number: 3, state: "open", merged_at: null, created_at: "2026-09-21T09:00:00Z", head: { ref: "feature", sha: "head", repo: { id: 8 } }, base: { ref: "release", sha: "base", repo: { id: 8 } } },
       { number: 2, state: "closed", merged_at: "2026-09-22T00:00:00Z", head: { ref: "done" } },
       { number: 1, state: "closed", merged_at: null, head: { ref: "dropped" } },
     ]]]);
@@ -44,6 +44,7 @@ describe("GitHub through its API", () => {
       ["done", { number: 2, state: "MERGED", mergedAt: "2026-09-22T00:00:00Z" }],
       ["dropped", { number: 1, state: "CLOSED" }],
     ]);
+    expect(read.available && read.openTargets?.get("feature")).toEqual([{ number: 3, baseBranch: "release", baseCommit: "base", headCommit: "head" }]);
   });
 
   it("merges by the method it is given, and never asks GitHub for an automatic merge", async () => {

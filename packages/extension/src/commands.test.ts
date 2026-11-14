@@ -312,6 +312,7 @@ describe("registerCommands", () => {
         "openspec-ui.showSpecs",
         "openspec-ui.openDashboard",
         "openspec-ui.showDiff",
+        "openspec-ui.showPrReview",
         "openspec-ui.rollbackChange",
         "openspec-ui.addRelation",
         "openspec-ui.removeRelation",

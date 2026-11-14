@@ -77,7 +77,7 @@ export const ACTION_NOUNS: readonly string[] = [
   "Change", "Change Harness", "Workspace Harness", "Change Copy", "Plan", "Run", "Item", "Task", "Tasks",
   "Question", "Questions", "Permission", "Message", "Relation", "Relations", "Diff", "Timeline",
   "Comparison", "Cost", "Ancestry", "Details", "Status", "Readiness", "Advice", "History", "Stages",
-  "Graph", "Worktree", "Worktrees", "Leftover", "Template", "Specs", "Report", "Rules", "Instructions",
+  "Graph", "Worktree", "Worktrees", "Leftover", "Template", "Specs", "Report", "Rules", "Instructions", "PR Review", "PR summary",
   "Scoped Instructions", "Dependabot", "LLM Key", "Key", "Team", "People", "Owner", "Implementer",
   "Presence", "Lock", "Lease", "Checks", "Manifest", "Workspace", "Pipeline", "Dashboard", "Views",
   "Archive", "Archive Filter", "Specs Filter", "Graph Filter", "Process", "Implementation", "Typecheck",

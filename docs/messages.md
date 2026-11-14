@@ -35,6 +35,62 @@ Why: The action cannot run now, for the reason given (ADR 0044).
 
 What to do: Do what the reason says, then choose the action again.
 
+### OSW-CHG-004
+
+> info: No committed HEAD is available.
+
+Why: PR Review compares commits and could not resolve the working directory's HEAD.
+
+What to do: Open the change's working directory and make sure it has a commit.
+
+### OSW-CHG-005
+
+> info: The target {target} is unavailable locally.
+
+Why: The PR target was identified, but its commit is not in this checkout.
+
+What to do: Fetch the repository's history and open PR Review again.
+
+### OSW-CHG-006
+
+> info: No common ancestor with {target} is available locally.
+
+Why: PR Review could not find the merge base for the reviewed commits.
+
+What to do: Fetch enough history to reach their common ancestor.
+
+### OSW-CHG-007
+
+> info: No default branch is available locally.
+
+Why: There is no known PR target and PR Review cannot identify a local default branch.
+
+What to do: Fetch the remote default branch or open a pull request for the change.
+
+### OSW-CHG-008
+
+> info: PR summary copied.
+
+Why: The host copied the open review's Markdown summary.
+
+What to do: Paste it into your pull request.
+
+### OSW-CHG-009
+
+> error: Could not copy the PR summary.
+
+Why: The host refused the write to the clipboard.
+
+What to do: Allow clipboard access or select the summary and copy it.
+
+### OSW-CHG-010
+
+> error: Could not open PR Review for {name}. {reason}
+
+Why: Workbench could not read or open the selected change's PR review.
+
+What to do: Check the working directory and open PR Review again.
+
 ## RUN: runs, chains, stages, checkpoints, limits
 
 ### OSW-RUN-001
