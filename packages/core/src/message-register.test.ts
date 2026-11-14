@@ -428,6 +428,13 @@ const GIVEN = [
   "OSW-NET-203",
   "OSW-NET-204",
   "OSW-NET-205",
+  "OSW-CHG-004",
+  "OSW-CHG-005",
+  "OSW-CHG-006",
+  "OSW-CHG-007",
+  "OSW-CHG-008",
+  "OSW-CHG-009",
+  "OSW-CHG-010",
 ];
 
 /** Messages said in place rather than from the register, counted by

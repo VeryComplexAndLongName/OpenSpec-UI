@@ -7,7 +7,7 @@
 // This file draws and asks; what each action does is the server's and core's.
 
 import { useEffect, useState } from "react";
-import { changeAction, type ChangeActionAnswer, type ChangeActionId, type ChangeActionInput } from "@openspec-ui/core/browser";
+import { changeAction, say, type ChangeActionAnswer, type ChangeActionId, type ChangeActionInput } from "@openspec-ui/core/browser";
 import { renderMarkdown } from "../markdown.js";
 import { ChangeHarnessSettingsView } from "./ChangeHarnessSettingsView.js";
 import type { HarnessSettingsApi } from "./harness-settings-parts.js";
@@ -43,9 +43,9 @@ export function ChangeActionDialog({ target, perform, harnessApi, onClose }: {
   async function copySummary(summary: string) {
     try {
       await navigator.clipboard.writeText(summary);
-      setCopyStatus("PR summary copied.");
+      setCopyStatus(say("OSW-CHG-008").text);
     } catch {
-      setCopyStatus("Could not copy the PR summary.");
+      setCopyStatus(say("OSW-CHG-009").text);
     }
   }
 

@@ -24,6 +24,7 @@ import {
   readTaskChecklist,
   readChangeHarnessConfig,
   readPrReview,
+  prReviewMarkdown,
   buildRunPlan,
   describeChangeState,
   readChangeStandings,
@@ -1111,14 +1112,6 @@ async function openMarkdownDocument(title: string, markdown: string): Promise<vo
   const doc = await vscode.workspace.openTextDocument({ language: "markdown", content: markdown });
   await vscode.window.showTextDocument(doc, { preview: false });
   void vscode.window.showInformationMessage(`OpenSpec Workbench: opened ${title}.`);
-}
-
-function prReviewDiffMarkdown(diff: string | null, truncated: boolean): string {
-  if (diff === null) return "";
-  if (diff.length === 0) return truncated
-    ? "\n\nThe patch exceeds the display limit." : "\n\nNo committed changes in this comparison.";
-  // Unified diff lines begin with a prefix, including lines with fences.
-  return `\n\n### Committed diff\n\n~~~diff\n${diff}\n~~~\n`;
 }
 
 async function pickChange(workspaceRoot: string): Promise<{ name: string; changeDir: string } | undefined> {
@@ -2842,16 +2835,22 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       try {
         const review = await readPrReview(workedIn(item, workspaceRoot).root, item.changeName);
         const doc = await vscode.workspace.openTextDocument({
-          language: "markdown", content: review.summary + prReviewDiffMarkdown(review.diff, review.truncated),
+          language: "markdown", content: prReviewMarkdown(review),
         });
         await vscode.window.showTextDocument(doc, { preview: false });
         const copy = "Copy PR summary";
         if (await vscode.window.showInformationMessage(review.title, copy) === copy) {
-          await vscode.env.clipboard.writeText(review.summary);
-          void vscode.window.showInformationMessage("PR summary copied.");
+          try {
+            await vscode.env.clipboard.writeText(review.summary);
+            void vscode.window.showInformationMessage(say("OSW-CHG-008").text);
+          } catch {
+            void vscode.window.showErrorMessage(say("OSW-CHG-009").text);
+          }
         }
       } catch (error) {
-        void vscode.window.showErrorMessage(`OpenSpec Workbench: ${error instanceof Error ? error.message : String(error)}`);
+        void vscode.window.showErrorMessage(say("OSW-CHG-010", {
+          name: item.changeName, reason: error instanceof Error ? error.message : String(error),
+        }).text);
       }
     }),
     vscode.commands.registerCommand("openspec-ui.showDiff", async (invokedItem?: ChangeTreeItem) => {

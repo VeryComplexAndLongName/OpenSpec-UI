@@ -68,6 +68,48 @@ export const MESSAGES = {
     why: "The action cannot run now, for the reason given (ADR 0044).",
     todo: "Do what the reason says, then choose the action again.",
   },
+  "OSW-CHG-004": {
+    level: "info",
+    text: "No committed HEAD is available.",
+    why: "PR Review compares commits and could not resolve the working directory's HEAD.",
+    todo: "Open the change's working directory and make sure it has a commit.",
+  },
+  "OSW-CHG-005": {
+    level: "info",
+    text: "The target {target} is unavailable locally.",
+    why: "The PR target was identified, but its commit is not in this checkout.",
+    todo: "Fetch the repository's history and open PR Review again.",
+  },
+  "OSW-CHG-006": {
+    level: "info",
+    text: "No common ancestor with {target} is available locally.",
+    why: "PR Review could not find the merge base for the reviewed commits.",
+    todo: "Fetch enough history to reach their common ancestor.",
+  },
+  "OSW-CHG-007": {
+    level: "info",
+    text: "No default branch is available locally.",
+    why: "There is no known PR target and PR Review cannot identify a local default branch.",
+    todo: "Fetch the remote default branch or open a pull request for the change.",
+  },
+  "OSW-CHG-008": {
+    level: "info",
+    text: "PR summary copied.",
+    why: "The host copied the open review's Markdown summary.",
+    todo: "Paste it into your pull request.",
+  },
+  "OSW-CHG-009": {
+    level: "error",
+    text: "Could not copy the PR summary.",
+    why: "The host refused the write to the clipboard.",
+    todo: "Allow clipboard access or select the summary and copy it.",
+  },
+  "OSW-CHG-010": {
+    level: "error",
+    text: "Could not open PR Review for {name}. {reason}",
+    why: "Workbench could not read or open the selected change's PR review.",
+    todo: "Check the working directory and open PR Review again.",
+  },
 
   // GIT: git, branches, worktrees, push, pull requests
   // (a-change-is-committed-where-it-is-made).

@@ -7,6 +7,7 @@ import { forgeFor } from "./forge.js";
 import type { PullRequestsByBranch } from "./gh-pr-gateway.js";
 import { openGit } from "./git-client.js";
 import { createGitWrapper } from "./git.js";
+import { say } from "./message-register.js";
 import { readRepositoryAuditEntries } from "./repository-audit.js";
 import type { AuditEntry } from "./security.js";
 import { discoverOpenSpecWorkspace } from "./workbench.js";
@@ -28,6 +29,14 @@ export interface PrReviewReport {
   summary: string;
   diff: string | null;
   truncated: boolean;
+}
+
+export function prReviewMarkdown({ summary, diff, truncated }: PrReviewReport): string {
+  if (diff === null) return summary;
+  if (diff.length === 0) return summary + (truncated
+    ? "\n\nThe patch exceeds the display limit." : "\n\nNo committed changes in this comparison.");
+  // Unified diff lines begin with a prefix, including lines with fences.
+  return `${summary}\n\n### Committed diff\n\n~~~diff\n${diff}\n~~~\n`;
 }
 
 /** The checkout identity at a mechanical-check boundary, if it equals its
@@ -68,9 +77,9 @@ function shortRef(ref: string): string {
 async function compare(git: SimpleGit, head: string, ref: string, baseCommit: string | undefined): Promise<PrComparison | { kind: "unavailable"; reason: string }> {
   const target = shortRef(ref);
   const base = baseCommit !== undefined && !COMMIT.test(baseCommit) ? undefined : await resolveCommit(git, baseCommit ?? ref);
-  if (base === undefined) return { kind: "unavailable", reason: `The target ${literal(target)} is unavailable locally.` };
+  if (base === undefined) return { kind: "unavailable", reason: say("OSW-CHG-005", { target: literal(target) }).text };
   const mergeBase = (await git.raw(["merge-base", base, head]).catch(() => "")).trim();
-  if (!COMMIT.test(mergeBase)) return { kind: "unavailable", reason: `No common ancestor with ${literal(target)} is available locally.` };
+  if (!COMMIT.test(mergeBase)) return { kind: "unavailable", reason: say("OSW-CHG-006", { target: literal(target) }).text };
 
   const args = ["diff", "--no-ext-diff", "--no-textconv", "--no-color"];
   const [names, patch] = await Promise.all([
@@ -145,7 +154,7 @@ export async function readPrReview(root: string, changeName: string, sources: {
   const git = openGit(root);
   const head = await resolveCommit(git, "HEAD");
   const heading = [`## PR review for ${literal(changeName)}`, "", "### Comparison", ""];
-  let comparison: Awaited<ReturnType<typeof compare>> = { kind: "unavailable", reason: "No committed HEAD is available." };
+  let comparison: Awaited<ReturnType<typeof compare>> = { kind: "unavailable", reason: say("OSW-CHG-004").text };
   if (head !== undefined) {
     const [branchRef, dirty, remotes] = await Promise.all([
       git.raw(["symbolic-ref", "--quiet", "--short", "HEAD"]).catch(() => ""),
@@ -173,7 +182,7 @@ export async function readPrReview(root: string, changeName: string, sources: {
         : read?.available ? "No open PR target was identified for this branch." : "The open PR target could not be read.";
       heading.push(`- ${why}`);
       const ref = await defaultPreviewRef(git);
-      comparison = ref === undefined ? { kind: "unavailable", reason: "No default branch is available locally." }
+      comparison = ref === undefined ? { kind: "unavailable", reason: say("OSW-CHG-007").text }
         : await compare(git, head, ref, undefined);
       if (ref !== undefined) heading.push(`- Default-branch preview against ${literal(shortRef(ref))}.`);
     }

@@ -31,6 +31,7 @@
 - Core Vitest passed for `pr-review.test.ts`, `action-vocabulary.test.ts`, `change-actions.test.ts`, `gh-pr-list.test.ts`, `http-forges.test.ts` and `github-api-forge.test.ts`. The selected `verify records what its checks found` and `buildVerifyQuality` tests passed, including the audit writer stamping a clean commit.
 - Server `change-actions-rest.test.ts` and extension `commands.test.ts` and `webview/pipeline-panel.test.ts` passed. The affected Core, Web UI, server and extension TypeScript projects passed. ESLint passed on the changed TypeScript paths.
 - Web UI `codicons.test.ts` and `PipelineView.actions.test.tsx` passed.
+- `message-register.test.ts` passed after registering the new notices and regenerating `docs/messages.md`.
 - Standalone Playwright `pipeline.spec.ts -g 'opens a worktree PR review'` passed. The local server served the change worktree's patch and the browser clipboard contained the corresponding Markdown summary.
 - VS Code 1.146.0 Extension Development Host passed `opens PR Review and copies its summary` with `OPENSPEC_UI_INTEGRATION_GREP`. It opened the report and wrote the summary through the editor clipboard.
 - `node --test scripts/release-notes.test.mjs`, `node scripts/check-changesets.mjs` and `openspec validate review-change-before-pr --strict` passed.
