@@ -9,6 +9,7 @@ import path from "node:path";
 import { WebSocketServer } from "ws";
 import {
   getCoreVersion,
+  detectExecutable,
   agentsByRunRoot,
   resolveRunner,
   FileAuditLog,
@@ -234,6 +235,13 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     if (req.method === "GET" && req.url === "/api/versions") {
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ core: getCoreVersion(), server: getServerVersion() }));
+      return;
+    }
+    if (req.method === "GET" && req.url === "/api/feedback-facts") {
+      void detectExecutable("openspec").catch(() => ({ detected: false as const })).then((openspec) => {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ workbench: getServerVersion(), platform: process.platform, openspec: "version" in openspec ? openspec.version : undefined }));
+      });
       return;
     }
     if (req.method === "POST" && req.url === "/api/overview") {

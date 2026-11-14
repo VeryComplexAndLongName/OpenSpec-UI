@@ -15,6 +15,8 @@ import { AiPanel } from "./components/AiPanel.js";
 import { HarnessChainPanel } from "./components/HarnessChainPanel.js";
 import { RunDialog } from "./components/RunDialog.js";
 import { OwlLogo } from "./components/OwlLogo.js";
+import { FeedbackFactsContext, FeedbackLink } from "./components/SendFeedback.js";
+import type { FeedbackFacts } from "@openspec-ui/core/browser";
 import { RUN_START_COMMAND, type CommandKind, type RunPathId } from "@openspec-ui/core/browser";
 import { buildDefaultChangeDir, shellThemeCss, vscodeThemeCss } from "./shell-ui.js";
 import { metroCss } from "./metro-css.generated.js";
@@ -50,7 +52,8 @@ function writeStoredValue(key: string, value: string): void {
 
 declare function acquireVsCodeApi(): VsCodeApiLike;
 
-function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) {
+function ExtensionApp({ initialContext, feedbackFacts }: { initialContext: DashboardContext; feedbackFacts: FeedbackFacts }) {
+  const [openSpecVersion, setOpenSpecVersion] = useState<string>();
   const [cwd, setCwd] = useState(initialContext.cwd);
   const [changeDir, setChangeDir] = useState(initialContext.changeDir);
   const [detectedAgents, setDetectedAgents] = useState(initialContext.detectedAgents);
@@ -104,6 +107,12 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent<unknown>) => {
+      if (typeof event.data === "object" && event.data !== null && "type" in event.data
+        && event.data.type === "openspec-ui/feedback-version" && "version" in event.data
+        && typeof event.data.version === "string") {
+        setOpenSpecVersion(event.data.version);
+        return;
+      }
       if (!isDashboardContextMessage(event.data)) return;
       setCwd(event.data.context.cwd);
       setChangeDir(event.data.context.changeDir);
@@ -178,6 +187,7 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
   const editorDark = useEditorDarkTheme();
 
   return (
+    <FeedbackFactsContext.Provider value={{ ...feedbackFacts, ...(openSpecVersion === undefined ? {} : { openspec: openSpecVersion }) }}>
     <div className={metroRootClassName("openspec-extension-app", editorDark)}>
       <style>{`${metroCss}\n${metroIconsCss}\n${shellThemeCss}\n${vscodeThemeCss}`}</style>
       <header className="openspec-shell-headline">
@@ -186,6 +196,7 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
           <h1>OpenSpec Workbench</h1>
           <p>VS Code webview runner for OpenSpec commands.</p>
         </div>
+        <FeedbackLink />
       </header>
       {/* The same containers the tab uses, so the editor and the shell
           differ in colour and in nothing else
@@ -253,6 +264,7 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
         <p>Enter cwd and change directory to enable the AI panel.</p>
       )}
     </div>
+    </FeedbackFactsContext.Provider>
   );
 }
 
@@ -261,4 +273,9 @@ if (!container) {
   throw new Error("extension-entry: #root element not found");
 }
 const initialContext = resolveInitialDashboardContext(container, (key) => readStoredValue(STORAGE_KEYS[key]));
-createRoot(container).render(<ExtensionApp initialContext={initialContext} />);
+const { feedbackVersion, feedbackPlatform } = container.dataset;
+const feedbackFacts: FeedbackFacts = {
+  ...(feedbackVersion === undefined ? {} : { workbench: feedbackVersion }),
+  ...(feedbackPlatform === undefined ? {} : { platform: feedbackPlatform }),
+};
+createRoot(container).render(<ExtensionApp initialContext={initialContext} feedbackFacts={feedbackFacts} />);

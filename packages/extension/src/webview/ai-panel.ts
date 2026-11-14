@@ -5,6 +5,7 @@
 
 import * as vscode from "vscode";
 import {
+  detectExecutable,
   normalizeStepAgent,
   stepAgentFor,
   resolveHarnessConfig,
@@ -186,6 +187,7 @@ const STAGE_FOR_COMMAND_KIND: Partial<Record<Command["kind"], HarnessStage>> = {
 
 export interface AiPanelDeps {
   extensionUri: vscode.Uri;
+  extensionVersion?: string;
   runController: RunController;
   /** `cwd` is where the run runs: a change's own worktree has its own
    * agents (a-change-runs-in-its-own-worktree). */
@@ -618,6 +620,11 @@ export class AiPanel {
     if (this.deps.getLocalServerUrl()) return;
     const panel = this.panel;
     if (!panel) return;
+    void detectExecutable("openspec").then(({ version }) => {
+      if (this.panel === panel && version !== undefined) {
+        void panel.webview.postMessage({ type: "openspec-ui/feedback-version", version });
+      }
+    }).catch(() => undefined);
     void detectAgentsHere().then((detectedAgents) => {
       if (!this.panelContext) return;
       this.panelContext = { ...this.panelContext, detectedAgents };
@@ -659,6 +666,7 @@ export class AiPanel {
     const csp = `default-src 'none'; script-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; img-src data:; ${ICON_FONT_SOURCE}`;
     const cwd = escapeHtmlAttribute(panelContext?.cwd ?? "");
     const changeDir = escapeHtmlAttribute(panelContext?.changeDir ?? "");
+    const feedbackVersion = escapeHtmlAttribute(this.deps.extensionVersion ?? "");
     // Unlike detectedAgents/stepAgents (delivered as a follow-up message
     // once resolved), startChain must be known on the FIRST render — it
     // decides which component mounts — so it is baked into the initial
@@ -686,7 +694,7 @@ export class AiPanel {
     <title>OpenSpec Workbench</title>
   </head>
   <body>
-    <div id="root" data-workspace-root="${cwd}" data-change-directory="${changeDir}" data-start-chain="${startChain}" data-run-change="${runChange}" data-command-kind="${commandKind}" data-run-plan="${runPlan}"></div>
+    <div id="root" data-workspace-root="${cwd}" data-change-directory="${changeDir}" data-start-chain="${startChain}" data-run-change="${runChange}" data-command-kind="${commandKind}" data-run-plan="${runPlan}" data-feedback-version="${feedbackVersion}" data-feedback-platform="${process.platform}"></div>
     <script src="${scriptUri.toString()}"></script>
   </body>
 </html>`;

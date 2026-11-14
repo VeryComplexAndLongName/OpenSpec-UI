@@ -107,6 +107,7 @@ export {
 } from "./scheduled-runs.js";
 // Pure over entries the host reads for it, like the run figures beside it.
 export { buildVerifyQuality, describeVerifyQuality, ENOUGH_VERIFIES } from "./verify-quality.js";
+export { formatFeedbackDiagnostics, WORKBENCH_ISSUE_DRAFT, type FeedbackFacts } from "./user-feedback.js";
 // From the leaf module, not from the collector beside it: that one reads
 // task files, and a value re-exported from it puts `node:fs` in this
 // bundle.

@@ -28,6 +28,7 @@ import { MessageCode } from "./MessageCode.js";
 import type { Transport } from "../transport/types.js";
 import { AGENT_COMMANDS } from "../notify-run-completion.js";
 import { FailureDiagnosisNote } from "./FailureDiagnosisNote.js";
+import { SendFeedback } from "./SendFeedback.js";
 import { renderMarkdown } from "../markdown.js";
 
 // The four stages an agent runs come last, in the order a chain runs them,
@@ -1467,7 +1468,10 @@ export function AiPanel({
       <p className="openspec-run-status" data-testid="run-status-label">
         {statusLabel}
       </p>
-      {!isRunning && latestEvent?.kind === "failed" ? <FailureDiagnosisNote diagnosis={latestEvent.diagnosis} /> : null}
+      {!isRunning && latestEvent?.kind === "failed" ? <>
+        <FailureDiagnosisNote diagnosis={latestEvent.diagnosis} />
+        <SendFeedback cause={latestEvent.diagnosis?.cause} />
+      </> : null}
       {selectionHint ? <p className="openspec-shell-note">{selectionHint}</p> : null}
       {!isRunning && latestEvent?.kind === "completed" && latestEvent.summary !== undefined && latestEvent.summary.trim().length > 0 ? (
         // The result, once, as the Markdown it is (the-board-and-the-run-read-right).
