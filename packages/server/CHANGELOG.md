@@ -1,5 +1,12 @@
 # @openspec-ui/server
 
+## 1.64.0
+
+### Minor Changes
+
+- 1ba85cf: - Open **Send Feedback** to start a GitHub issue draft. After a failed run, preview and copy a short diagnostic report with the Workbench version, platform and error category.
+- 3a4f6ca: - Open PR Review from a change's Pipeline card to see its committed diff against the PR target and its recorded verification results. Use **Copy PR summary** to paste the comparison and check results into a pull request.
+
 ## 1.63.0
 
 ### Minor Changes
