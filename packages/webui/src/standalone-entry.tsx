@@ -140,6 +140,8 @@ import {
 import type { CatalogTemplate, ChangeReadinessReport, CommandKind, Event, HarnessBudget, HarnessStepAgents, HarnessTemplate, HumanOnlyInboxState, RunPathId, WorkspaceRunStats } from "@openspec-ui/core/browser";
 import { CHANGE_ACTIONS, type ChangeActionAnswer } from "@openspec-ui/core/browser";
 import { ChangeActionDialog, type ChangeActionTarget, type PerformChangeAction } from "./components/ChangeActionDialog.js";
+import { FeedbackFactsContext } from "./components/SendFeedback.js";
+import type { FeedbackFacts } from "@openspec-ui/core/browser";
 import { ModalLayer } from "./components/ModalLayer.js";
 import type { ChangeActionsHost } from "./components/CardActions.js";
 import { toChangeState, toChangeSummary } from "./overview-mapping.js";
@@ -510,6 +512,7 @@ function StandaloneApp() {
   // agentic-harness/design.md). Still a real, useful repo-wide default.
   const [stepAgents, setStepAgents] = useState<HarnessStepAgents | undefined>(undefined);
   const [versions, setVersions] = useState<WorkbenchVersions | null>(null);
+  const [feedbackFacts, setFeedbackFacts] = useState<FeedbackFacts>({});
   // What the three views that keep their loading inside are reading
   // (a-screen-says-what-it-is-doing). React keeps a state setter stable, so
   // each is passed as the view's callback directly.
@@ -798,6 +801,14 @@ function StandaloneApp() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void apiFetch("/api/feedback-facts", { method: "GET", signal: controller.signal }).then(async (response) => {
+      if (response.ok) setFeedbackFacts(await response.json() as FeedbackFacts);
+    }).catch(() => undefined);
+    return () => controller.abort();
   }, []);
 
   useEffect(() => {
@@ -1996,6 +2007,7 @@ function StandaloneApp() {
   ];
 
   return (
+    <FeedbackFactsContext.Provider value={feedbackFacts}>
     <div className={theme === "dark" ? "openspec-standalone-app openspec-metro dark-side" : "openspec-standalone-app openspec-metro"}>
       <style>{`${metroCss}\n${metroIconsCss}\n${shellThemeCss}`}</style>
 
@@ -3018,6 +3030,7 @@ function StandaloneApp() {
         </footer>
       ) : null}
     </div>
+    </FeedbackFactsContext.Provider>
   );
 }
 

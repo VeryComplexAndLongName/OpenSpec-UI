@@ -25,6 +25,7 @@ import {
   eventLogClass, renderEventBody,
 } from "./AiPanel.js";
 import { FailureDiagnosisNote } from "./FailureDiagnosisNote.js";
+import { SendFeedback } from "./SendFeedback.js";
 import { UsageSummaryView } from "./UsageSummaryView.js";
 
 export interface HarnessChainPanelProps {
@@ -169,7 +170,10 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
       <p className="openspec-run-status" data-testid="chain-status-label">
         {statusLabel}
       </p>
-      {!isRunning && latestEvent?.kind === "failed" ? <FailureDiagnosisNote diagnosis={latestEvent.diagnosis} /> : null}
+      {!isRunning && latestEvent?.kind === "failed" ? <>
+        <FailureDiagnosisNote diagnosis={latestEvent.diagnosis} />
+        <SendFeedback cause={latestEvent.diagnosis?.cause} />
+      </> : null}
       {pendingCheckpoint ? (
         <div className="openspec-shell-note" data-testid="checkpoint-confirmation">
           <p>

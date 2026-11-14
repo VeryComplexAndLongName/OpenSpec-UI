@@ -82,6 +82,22 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     );
   });
 
+  test("opens Workspace diagnosis with local findings", async () => {
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    assert.ok(root);
+    const manifest = path.join(root, "package.json");
+    await writeFile(manifest, JSON.stringify({ engines: { node: ">=99" } }), "utf8");
+    try {
+      await vscode.commands.executeCommand("openspec-ui.diagnoseWorkspace");
+      const report = vscode.window.activeTextEditor?.document.getText() ?? "";
+      assert.match(report, /Workspace diagnosis/u);
+      assert.match(report, /this workspace pins >=99/u);
+      assert.match(report, /Use the runtime pinned in package.json/u);
+    } finally {
+      await rm(manifest, { force: true });
+    }
+  });
+
   test("runs a real `status` command and observes a terminal event stream", async function () {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     assert.ok(workspaceFolder, "no workspace folder open for the integration test");

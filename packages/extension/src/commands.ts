@@ -25,6 +25,8 @@ import {
   readChangeHarnessConfig,
   readPrReview,
   prReviewMarkdown,
+  readEnvironmentReport,
+  WORKBENCH_ISSUE_DRAFT,
   buildRunPlan,
   describeChangeState,
   readChangeStandings,
@@ -1302,6 +1304,19 @@ function warnArchivedRelation(change: string): void {
 
 export function registerCommands(context: vscode.ExtensionContext, deps: CommandsDeps): void {
   const timelinePanel = new TimelineWebviewPanel({ extensionUri: context.extensionUri });
+  context.subscriptions.push(
+    vscode.commands.registerCommand("openspec-ui.sendFeedback", () => vscode.env.openExternal(vscode.Uri.parse(WORKBENCH_ISSUE_DRAFT))),
+    vscode.commands.registerCommand("openspec-ui.diagnoseWorkspace", async () => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      const { findings } = await readEnvironmentReport({ workspaceRoot });
+      const lines = findings.flatMap(({ severity, statement, remedy }) => [
+        `- **${severity === "stops-a-run" ? "Blocks agent runs" : "Worth knowing"}** — ${statement}`,
+        ...(remedy === undefined ? [] : [`  ${remedy}`]),
+      ]);
+      await openMarkdownDocument("workspace diagnosis", ["# Workspace diagnosis", "", ...(lines.length ? lines : ["No issues were found by the workspace checks."])].join("\n"));
+    }),
+  );
   context.subscriptions.push(
     // A leftover the sweep will not clear by itself, removed because
     // somebody pressed for it. Asked first, and named in the question:

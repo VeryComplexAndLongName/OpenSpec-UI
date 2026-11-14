@@ -49,6 +49,18 @@
         "icon": "$(rocket)"
       },
       {
+        "command": "openspec-ui.diagnoseWorkspace",
+        "title": "Diagnose Workspace",
+        "category": "OpenSpec Workbench",
+        "icon": "$(search-fuzzy)"
+      },
+      {
+        "command": "openspec-ui.sendFeedback",
+        "title": "Send Feedback",
+        "category": "OpenSpec Workbench",
+        "icon": "$(feedback)"
+      },
+      {
         "command": "openspec-ui.writeRules",
         "title": "Write Rules",
         "category": "OpenSpec Workbench",

@@ -291,6 +291,8 @@ describe("registerCommands", () => {
     const registered = [...vscodeMock._registeredCommands.keys()];
     expect(registered).toEqual(
       expect.arrayContaining([
+        "openspec-ui.sendFeedback",
+        "openspec-ui.diagnoseWorkspace",
         "openspec-ui.showStatus",
         "openspec-ui.initializeWorkspace",
         "openspec-ui.generateInstructions",

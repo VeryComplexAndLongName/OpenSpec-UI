@@ -69,6 +69,43 @@ test.describe("standalone lifecycle: execution", () => {
     }
   });
 
+  test("previews and copies diagnostics after a failed run", async ({ page, context }) => {
+    test.setTimeout(60_000);
+    workspaceRoot = await createLifecycleWorkspace(CHANGE_NAME);
+    const fallback = createFakeAgentRunner({ changeName: CHANGE_NAME });
+    const server = createServer({
+      workspaceRoot, host: "127.0.0.1", port: 0,
+      runners: new Map([["claude-cli", {
+        async *run(command) {
+          if (command.kind !== "implement") yield* fallback.run(command);
+          else yield { kind: "failed", runId: command.runId, timestamp: new Date().toISOString(), reason: "private command output", diagnosis: { cause: "not-signed-in", repeatHelps: "no" } };
+        },
+      }]]),
+    });
+    const address = await server.listen();
+    const socket = await interceptWebSocket(page);
+    try {
+      await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+      await page.goto(`http://127.0.0.1:${address.port}/#token=${encodeURIComponent(server.accessToken)}`);
+      await page.getByLabel("Workspace root (cwd)").fill(workspaceRoot);
+      await loadAndSelectChange(page, CHANGE_NAME);
+      await page.getByTestId("command-picker").selectOption("implement");
+      await page.getByTestId("run-button").click();
+      await page.getByText("Preview diagnostics", { exact: true }).click({ timeout: 20_000 });
+      const preview = page.getByLabel("Diagnostic preview");
+      await expect(preview).toContainText(`Platform: ${process.platform}`);
+      await expect(preview).toContainText("Failure category: not-signed-in");
+      await page.getByRole("button", { name: "Copy diagnostics" }).click();
+      await expect(page.getByText("Diagnostics copied.")).toBeVisible();
+      const copied = (await page.evaluate(() => navigator.clipboard.readText())).replaceAll("\r\n", "\n");
+      expect(copied).toBe(await preview.textContent());
+      expect(copied).not.toContain("private command output");
+    } finally {
+      await socket.current?.close();
+      await server.close();
+    }
+  });
+
   test("a dropped connection during a run does not crash the page", async ({ page }) => {
     test.setTimeout(60000);
     workspaceRoot = await createLifecycleWorkspace(CHANGE_NAME);

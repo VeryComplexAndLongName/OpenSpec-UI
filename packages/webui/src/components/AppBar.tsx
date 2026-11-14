@@ -6,6 +6,7 @@
 import type { ShellTheme } from "../standalone-theme.js";
 import { OwlLogo } from "./OwlLogo.js";
 import { ThemeToggle } from "./ThemeToggle.js";
+import { FeedbackLink } from "./SendFeedback.js";
 
 export function AppBar({ workspacePath, theme, onToggleTheme }: { workspacePath: string; theme: ShellTheme; onToggleTheme: () => void }) {
   return (
@@ -19,6 +20,7 @@ export function AppBar({ workspacePath, theme, onToggleTheme }: { workspacePath:
           ? <span className="openspec-app-bar-path" data-testid="app-bar-workspace" title={workspacePath}>{workspacePath}</span>
           : null}
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+        <FeedbackLink />
       </div>
     </header>
   );

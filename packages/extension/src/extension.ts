@@ -892,6 +892,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
 
   const aiPanel = new AiPanel({
     extensionUri: context.extensionUri,
+    extensionVersion: String(context.extension.packageJSON.version),
     runController,
     resolveRunner: (agentId, cwd) => runnerAt(agentId, cwd),
     chainRunner,
