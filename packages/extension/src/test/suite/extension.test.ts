@@ -28,11 +28,33 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
       "openspec-ui.openDashboard",
       "openspec-ui.refreshViews",
       "openspec-ui.showDiff",
+      "openspec-ui.showPrReview",
       "openspec-ui.copyTasks",
       "openspec-ui.editTemplate",
       "openspec-ui.insertTemplate",
     ]) {
       assert.ok(commands.includes(id), `command ${id} was not registered`);
+    }
+  });
+
+  test("opens PR Review and copies its summary", async () => {
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    assert.ok(root);
+    const oldClipboard = await vscode.env.clipboard.readText();
+    const show = vscode.window.showInformationMessage;
+    vscode.window.showInformationMessage = (async (_message: string, ...items: unknown[]) =>
+      items.find((item) => item === "Copy PR summary")) as typeof show;
+    try {
+      await vscode.commands.executeCommand("openspec-ui.showPrReview", {
+        changeName: "demo", changeDir: path.join(root, "openspec", "changes", "demo"),
+      });
+      assert.match(vscode.window.activeTextEditor?.document.getText() ?? "", /PR review for .*demo/u);
+      const copied = await vscode.env.clipboard.readText();
+      assert.match(copied, /Comparison unavailable/u);
+      assert.match(copied, /Mechanical checks: no result recorded/u);
+    } finally {
+      vscode.window.showInformationMessage = show;
+      await vscode.env.clipboard.writeText(oldClipboard);
     }
   });
 

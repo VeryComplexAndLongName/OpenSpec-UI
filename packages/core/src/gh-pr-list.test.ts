@@ -38,9 +38,23 @@ describe("listPullRequestsByBranch (a-change-says-where-it-stands 2.2)", () => {
 
     const read = await listPullRequestsByBranch({ cwd: "/repo", exec: async () => ({ stdout: recorded, stderr: "" }) });
 
-    expect(buildGhPrListInvocation().args).toContain("number,state,headRefName,createdAt,mergedAt");
+    expect(buildGhPrListInvocation().args).toContain("number,state,headRefName,createdAt,mergedAt,baseRefName,baseRefOid,headRefOid,isCrossRepository");
     expect(read.available && read.byBranch.get("alpha")).toEqual({ number: 9, state: "MERGED", createdAt: "2026-09-21T09:00:00Z", mergedAt: "2026-09-22T09:00:00Z" });
     expect(read.available && read.byBranch.get("beta")).toEqual({ number: 7, state: "OPEN", createdAt: "2026-09-22T08:00:00Z" });
+  });
+
+  it("keeps open same-repository targets without conflating a fork's branch", async () => {
+    const fields = { state: "OPEN", headRefName: "topic", baseRefOid: "base", headRefOid: "head" };
+    const stdout = JSON.stringify([
+      { ...fields, number: 3, baseRefName: "main", isCrossRepository: true },
+      { ...fields, number: 7, baseRefName: "release", isCrossRepository: false },
+      { ...fields, number: 8, baseRefName: "next", isCrossRepository: false },
+    ]);
+    const read = await listPullRequestsByBranch({ cwd: "/repo", exec: async () => ({ stdout, stderr: "" }) });
+    expect(read.available && read.openTargets?.get("topic")).toEqual([
+      { number: 7, baseBranch: "release", baseCommit: "base", headCommit: "head" },
+      { number: 8, baseBranch: "next", baseCommit: "base", headCommit: "head" },
+    ]);
   });
 
   it("says gh is not installed, and guesses nothing", async () => {

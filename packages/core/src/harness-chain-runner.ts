@@ -65,6 +65,7 @@ import type { AgentUsage } from "./agent-usage.js";
 import { readTaskChecklist, TASK_CHECKBOX_LINE_RE, writeTaskCheckStates } from "./task-checklist.js";
 import { buildUsageReport, mergeUsageTotals, unitKey, type UsageTotal } from "./usage-report.js";
 import { say, type SaidMessage } from "./message-register.js";
+import { cleanPrReviewCommit } from "./pr-review.js";
 
 /** The subsequence of `HarnessStage` a chain drives. Each entry's
  * `AgentRunner` `CommandKind`, where one exists — `"archive"` and `"git"`
@@ -523,10 +524,12 @@ type MechanicalCheckRunOutcome = DeclaredCheckRunOutcome;
  * for a malformed declaration (task-checklist.ts) — this function does
  * not catch those, so a malformed `tasks.md` fails the stage exactly like
  * a failing check would (via the caller's own try/catch). */
-async function runMechanicalChecksForVerify(workspaceRoot: string, changeDir: string): Promise<MechanicalCheckRunOutcome> {
+async function runMechanicalChecksForVerify(workspaceRoot: string, changeDir: string, recordRevision: boolean): Promise<MechanicalCheckRunOutcome & { checkedCommit?: string }> {
   const changeName = changeNameFromDir(changeDir);
+  const before = recordRevision ? await cleanPrReviewCommit(workspaceRoot) : undefined;
   const outcome = await runDeclaredChecks(workspaceRoot, changeName, false);
   if (!outcome.ranAny) return outcome;
+  const checkedCommit = before !== undefined && before === await cleanPrReviewCommit(workspaceRoot) ? before : undefined;
 
   // The writing is what makes this the `verify` stage's version rather
   // than `runDeclaredChecks` itself: a checkbox records what a check
@@ -542,7 +545,7 @@ async function runMechanicalChecksForVerify(workspaceRoot: string, changeDir: st
       done: entry.result.pass,
     })),
   );
-  return outcome;
+  return { ...outcome, ...(checkedCommit === undefined ? {} : { checkedCommit }) };
 }
 
 /** Renders passing checks' results for the verifying agent's own prompt
@@ -1797,7 +1800,7 @@ export class HarnessChainRunner {
       return "completed";
     }
 
-    let verifyCheckOutcome: MechanicalCheckRunOutcome | undefined;
+    let verifyCheckOutcome: (MechanicalCheckRunOutcome & { checkedCommit?: string }) | undefined;
     if (stage === "verify") {
       // Mechanical checks (task-checklist.ts's `check` declarations) run
       // BEFORE the verifying agent — task 3.1/3.3. A failure here skips
@@ -1807,7 +1810,7 @@ export class HarnessChainRunner {
       // checks (`ranAny: false`) falls straight through unchanged — task
       // 3.5.
       try {
-        verifyCheckOutcome = await runMechanicalChecksForVerify(cwd, context.changeDir);
+        verifyCheckOutcome = await runMechanicalChecksForVerify(cwd, context.changeDir, this.deps.auditLog !== undefined);
         // Recorded before the gate below, which returns without invoking
         // the verifying agent — so the failing case, which records
         // nothing today, is exactly the one this must not miss.
@@ -2174,7 +2177,7 @@ export class HarnessChainRunner {
    * quality-is-charged-to-the-agent-whose-work-was-checked. */
   private recordVerifyChecks(
     command: Command,
-    outcome: MechanicalCheckRunOutcome,
+    outcome: MechanicalCheckRunOutcome & { checkedCommit?: string },
     harnessConfig: HarnessConfig,
     state: Pick<ChainState, "agentOverride">,
   ): void {
@@ -2193,6 +2196,7 @@ export class HarnessChainRunner {
       checkedAgent: resolvedApplyAgent(harnessConfig, state),
       checksRan: outcome.passed.length + outcome.failed.length,
       checksFailed: outcome.failed.length,
+      ...(outcome.checkedCommit === undefined ? {} : { checkedCommit: outcome.checkedCommit }),
       ...(failures.length > 0 ? { reason: failures } : {}),
     });
   }

@@ -14,6 +14,7 @@ import type { Command, Event } from "./protocol.js";
 import { writeChangeHarnessConfig, writeGlobalHarnessConfig } from "./harness-config.js";
 import type { AllowlistConfig } from "./security.js";
 import { FileAuditLog, InMemoryAuditLog, auditLogPath, type AuditEntry } from "./security.js";
+import * as prReview from "./pr-review.js";
 
 // every-varying-check-has-a-budget:
 // measured 2026-09-05 at 1.0s idle and 19.0s under deliberate 8-worker
@@ -3658,6 +3659,8 @@ describe("HarnessChainRunner — verify records what its checks found", () => {
     const { runner } = makeWorkingRunner();
     const chain = new HarnessChainRunner({ resolveRunner: () => runner, auditLog });
     const command = baseCommand(root);
+    const commit = "a".repeat(40);
+    const revisions = vi.spyOn(prReview, "cleanPrReviewCommit").mockResolvedValue(commit);
     for await (const event of chain.run(command)) {
       if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
     }
@@ -3666,7 +3669,8 @@ describe("HarnessChainRunner — verify records what its checks found", () => {
     expect(recorded).toHaveLength(1);
     // Fields, not prose: a number in a sentence is a number nothing can
     // aggregate.
-    expect(recorded[0]).toMatchObject({ outcome: "completed", checksRan: 1, checksFailed: 0, stage: "verify" });
+    expect(recorded[0]).toMatchObject({ outcome: "completed", checksRan: 1, checksFailed: 0, stage: "verify", checkedCommit: commit });
+    expect(revisions).toHaveBeenCalledTimes(2);
     // quality-is-charged-to-the-agent-whose-work-was-checked. Asserted
     // over what a chain run actually recorded, because the reader's own
     // tests were hand-built entries of a shape the runner never wrote,

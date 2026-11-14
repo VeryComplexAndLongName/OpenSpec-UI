@@ -409,6 +409,12 @@
         "category": "OpenSpec Workbench"
       },
       {
+        "command": "openspec-ui.showPrReview",
+        "title": "Show PR Review",
+        "icon": "$(git-pull-request)",
+        "category": "OpenSpec Workbench"
+      },
+      {
         "command": "openspec-ui.stopProcess",
         "title": "Stop Process",
         "icon": "$(stop-circle)",

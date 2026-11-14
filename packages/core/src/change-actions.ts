@@ -9,6 +9,7 @@
 // does.
 
 import { actionCommandId, actionVerb, type ActionGroup } from "./action-vocabulary.js";
+import type { PrReviewReport } from "./pr-review.js";
 
 export type ChangeActionId =
   | "runChange"
@@ -16,6 +17,7 @@ export type ChangeActionId =
   | "stopRun"
   | "validateChange"
   | "showDiff"
+  | "showPrReview"
   | "showTimeline"
   | "showAncestry"
   | "showCost"
@@ -68,6 +70,7 @@ export const CHANGE_ACTIONS: readonly ChangeAction[] = [
   action("stopRun", "Stop Run...", "debug-stop", false),
   action("validateChange", "Validate Change", "checklist", false),
   action("showDiff", "Show Diff", "diff", false),
+  action("showPrReview", "Show PR Review", "git-pull-request", false),
   action("showTimeline", "Show Timeline", "history", false),
   action("showAncestry", "Show Ancestry", "type-hierarchy-super", false),
   action("showCost", "Show Cost", "credit-card", false),
@@ -167,6 +170,7 @@ export function changeActionStates(facts: ChangeActionFacts): ChangeActionState[
  * done, or the relations a person picks from. */
 export type ChangeActionAnswer =
   | { kind: "report"; title: string; markdown: string }
+  | { kind: "pr-review"; report: PrReviewReport }
   | { kind: "done"; message: string }
   | { kind: "relations"; keys: readonly string[]; changes: string[]; stated: Array<{ key: string; id: string }> };
 

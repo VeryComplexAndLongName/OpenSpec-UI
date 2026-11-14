@@ -75,7 +75,7 @@ describe("the Gitea forge", () => {
 
   it("lists pull requests by branch, a merged one by the name its label keeps", async () => {
     const { forge, asked } = forgeWith([["GET", `${REPO}/pulls?`, 200, [
-      { number: 3, state: "open", merged: false, head: { ref: "feature", label: "feature" } },
+      { number: 3, state: "open", merged: false, head: { ref: "feature", label: "feature", sha: "head", repo: { id: 8 } }, base: { ref: "release", sha: "base", repo: { id: 8 } } },
       { number: 2, state: "closed", merged: true, created_at: "2026-09-21T08:00:00+03:00", merged_at: "2026-09-22T08:00:00+03:00", head: { ref: "refs/pull/2/head", label: "done" } },
       { number: 1, state: "closed", merged: false, head: { ref: "refs/pull/1/head", label: "someone:dropped" } },
     ]]]);
@@ -88,6 +88,7 @@ describe("the Gitea forge", () => {
       ["dropped", { number: 1, state: "CLOSED" }],
     ]);
     expect(asked[0]?.headers.Authorization).toBe("token t0ken");
+    expect(read.available && read.openTargets?.get("feature")).toEqual([{ number: 3, baseBranch: "release", baseCommit: "base", headCommit: "head" }]);
   });
 
   it("reads a 404 on the list as no pull requests where the repository is there", async () => {
@@ -139,7 +140,7 @@ describe("the GitLab forge", () => {
 
   it("lists merge requests by source branch, with the token in its header", async () => {
     const { forge, asked } = forgeWith([["GET", `${PROJECT}/merge_requests?`, 200, [
-      { iid: 5, state: "opened", source_branch: "feature" },
+      { iid: 5, state: "opened", source_branch: "feature", target_branch: "release", source_project_id: 8, target_project_id: 8, sha: "head" },
       { iid: 4, state: "merged", source_branch: "done", created_at: "2026-09-21T10:00:00.000Z", merged_at: "2026-09-22T10:00:00.000Z" },
       { iid: 3, state: "closed", source_branch: "dropped" },
     ]]]);
@@ -152,6 +153,7 @@ describe("the GitLab forge", () => {
       ["dropped", { number: 3, state: "CLOSED" }],
     ]);
     expect(asked[0]?.headers["PRIVATE-TOKEN"]).toBe("glpat");
+    expect(read.available && read.openTargets?.get("feature")).toEqual([{ number: 5, baseBranch: "release", headCommit: "head" }]);
   });
 
   it("opens a merge request that removes its branch, and merges it now", async () => {

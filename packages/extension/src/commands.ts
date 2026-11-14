@@ -23,6 +23,7 @@ import {
   findHarnessConfigLimits,
   readTaskChecklist,
   readChangeHarnessConfig,
+  readPrReview,
   buildRunPlan,
   describeChangeState,
   readChangeStandings,
@@ -1110,6 +1111,14 @@ async function openMarkdownDocument(title: string, markdown: string): Promise<vo
   const doc = await vscode.workspace.openTextDocument({ language: "markdown", content: markdown });
   await vscode.window.showTextDocument(doc, { preview: false });
   void vscode.window.showInformationMessage(`OpenSpec Workbench: opened ${title}.`);
+}
+
+function prReviewDiffMarkdown(diff: string | null, truncated: boolean): string {
+  if (diff === null) return "";
+  if (diff.length === 0) return truncated
+    ? "\n\nThe patch exceeds the display limit." : "\n\nNo committed changes in this comparison.";
+  // Unified diff lines begin with a prefix, including lines with fences.
+  return `\n\n### Committed diff\n\n~~~diff\n${diff}\n~~~\n`;
 }
 
 async function pickChange(workspaceRoot: string): Promise<{ name: string; changeDir: string } | undefined> {
@@ -2825,6 +2834,26 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
   );
 
   context.subscriptions.push(
+    vscode.commands.registerCommand("openspec-ui.showPrReview", async (invokedItem?: ChangeTreeItem) => {
+      const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
+      if (!item || item.archived) { warnNoTreeSelection("change"); return; }
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (workspaceRoot === undefined) return;
+      try {
+        const review = await readPrReview(workedIn(item, workspaceRoot).root, item.changeName);
+        const doc = await vscode.workspace.openTextDocument({
+          language: "markdown", content: review.summary + prReviewDiffMarkdown(review.diff, review.truncated),
+        });
+        await vscode.window.showTextDocument(doc, { preview: false });
+        const copy = "Copy PR summary";
+        if (await vscode.window.showInformationMessage(review.title, copy) === copy) {
+          await vscode.env.clipboard.writeText(review.summary);
+          void vscode.window.showInformationMessage("PR summary copied.");
+        }
+      } catch (error) {
+        void vscode.window.showErrorMessage(`OpenSpec Workbench: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }),
     vscode.commands.registerCommand("openspec-ui.showDiff", async (invokedItem?: ChangeTreeItem) => {
       const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
       if (!item) { warnNoTreeSelection("change"); return; }

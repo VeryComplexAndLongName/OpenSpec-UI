@@ -15,6 +15,31 @@ export interface BranchPullRequest {
   mergedAt?: string;
 }
 
+export interface OpenPullRequestTarget {
+  number: number;
+  baseBranch: string;
+  baseCommit?: string;
+  headCommit?: string;
+}
+
+export function recordOpenPullRequestTarget(
+  targets: Map<string, OpenPullRequestTarget[]>,
+  branch: string,
+  number: number,
+  baseBranch: unknown,
+  baseCommit: unknown,
+  headCommit: unknown,
+): void {
+  if (typeof baseBranch !== "string" || baseBranch.length === 0) return;
+  const entries = targets.get(branch) ?? [];
+  if (entries.some((entry) => entry.number === number)) return;
+  targets.set(branch, [...entries, {
+    number, baseBranch,
+    ...(typeof baseCommit === "string" ? { baseCommit } : {}),
+    ...(typeof headCommit === "string" ? { headCommit } : {}),
+  }]);
+}
+
 /** The two times of a pull request, from whatever a forge answered, kept
  * only where they are text. */
 export function pullRequestTimes(createdAt: unknown, mergedAt: unknown): Pick<BranchPullRequest, "createdAt" | "mergedAt"> {
@@ -35,7 +60,7 @@ export interface PullRequestsUnreadable {
 
 /** Every pull request by its head branch, or why none could be read. */
 export type PullRequestsByBranch =
-  | { available: true; byBranch: Map<string, BranchPullRequest> }
+  | { available: true; byBranch: Map<string, BranchPullRequest>; openTargets?: Map<string, OpenPullRequestTarget[]> }
   | PullRequestsUnreadable;
 
 export interface ListPullRequestsOptions {
@@ -50,7 +75,7 @@ export interface ListPullRequestsOptions {
 export function buildGhPrListInvocation(): { executable: string; args: string[] } {
   return {
     executable: "gh",
-    args: ["pr", "list", "--state", "all", "--json", "number,state,headRefName,createdAt,mergedAt", "--limit", "200"],
+    args: ["pr", "list", "--state", "all", "--json", "number,state,headRefName,createdAt,mergedAt,baseRefName,baseRefOid,headRefOid,isCrossRepository", "--limit", "200"],
   };
 }
 
@@ -98,16 +123,20 @@ export async function listPullRequestsByBranch(options: ListPullRequestsOptions)
   if (!Array.isArray(items)) return unavailable(say("OSW-NET-010"));
 
   const byBranch = new Map<string, BranchPullRequest>();
+  const openTargets = new Map<string, OpenPullRequestTarget[]>();
   for (const item of items as Array<Record<string, unknown>>) {
     if (typeof item !== "object" || item === null) continue;
     const { number, state, headRefName, createdAt, mergedAt } = item;
     if (typeof number !== "number" || typeof headRefName !== "string" || typeof state !== "string" || !PR_STATES.has(state)) continue;
+    if (state === "OPEN" && item.isCrossRepository === false) {
+      recordOpenPullRequestTarget(openTargets, headRefName, number, item.baseRefName, item.baseRefOid, item.headRefOid);
+    }
     const seen = byBranch.get(headRefName);
     if (seen === undefined || (seen.state === "CLOSED" && state !== "CLOSED")) {
       byBranch.set(headRefName, { number, state: state as BranchPullRequestState, ...pullRequestTimes(createdAt, mergedAt) });
     }
   }
-  return { available: true, byBranch };
+  return { available: true, byBranch, ...(openTargets.size > 0 ? { openTargets } : {}) };
 }
 
 export interface PullRequestRef {
