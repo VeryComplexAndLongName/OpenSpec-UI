@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.110.0
+
+### Minor Changes
+
+- 830d28d: Open **OpenSpec Stores and Worksets** to find registered planning stores, browse their specification titles and see the folders included in your saved worksets. This requires an OpenSpec CLI with beta stores and worksets.
+- e3ccb82: Use **Refresh PR checks** on GitHub, GitLab and Gitea. Choose a reported check for an OpenSpec scenario in PR Review, inspect the mapping diff, and save it to the change.
+- 1693b40: PR Review can remember the commit you reviewed. Use **Changes since last review** after a push to compare the new proposal, specification and code edits with that commit.
+- 2bc77c3: Select **Show Spec Overlaps** on a Pipeline card before running Apply. See which requirements changed on your locally known default branch or are also named by another local change, with the three versions available for comparison.
+
+### Patch Changes
+
+- Updated dependencies [830d28d]
+- Updated dependencies [e3ccb82]
+- Updated dependencies [1693b40]
+- Updated dependencies [2bc77c3]
+  - @openspec-ui/server@1.66.0
+
 ## 0.109.0
 
 ### Minor Changes
