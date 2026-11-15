@@ -139,7 +139,7 @@ import {
 } from "@openspec-ui/core/browser";
 import type { CatalogTemplate, ChangeReadinessReport, CommandKind, Event, HarnessBudget, HarnessStepAgents, HarnessTemplate, HumanOnlyInboxState, RunPathId, WorkspaceRunStats } from "@openspec-ui/core/browser";
 import { CHANGE_ACTIONS, type ChangeActionAnswer } from "@openspec-ui/core/browser";
-import { ChangeActionDialog, type ChangeActionTarget, type PerformChangeAction } from "./components/ChangeActionDialog.js";
+import { ChangeActionDialog, PrReviewExampleDialog, type ChangeActionTarget, type PerformChangeAction } from "./components/ChangeActionDialog.js";
 import { FeedbackFactsContext } from "./components/SendFeedback.js";
 import type { FeedbackFacts } from "@openspec-ui/core/browser";
 import { ModalLayer } from "./components/ModalLayer.js";
@@ -392,6 +392,7 @@ function StandaloneApp() {
   const [overview, setOverview] = useState<OpenSpecOverview | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [overviewError, setOverviewError] = useState<string | null>(null);
+  const [showReviewExample, setShowReviewExample] = useState(false);
   // Diff Preview: the chosen change and what git said about it
   // (a-screen-says-what-it-is-doing). `diffReading` counts readings, so a
   // reply for a change since left behind sets nothing.
@@ -2061,7 +2062,13 @@ function StandaloneApp() {
               <div className="openspec-panel-head">
                 <h2>Where the work happens</h2>
                 <span className="openspec-panel-head-note">the workspace every command runs in</span>
+                <button className="button" type="button" onClick={() => setShowReviewExample(true)}>Open Example</button>
               </div>
+              {showReviewExample && (
+                <ModalLayer testId="pr-review-example-layer" onCancel={() => setShowReviewExample(false)}>
+                  <PrReviewExampleDialog onClose={() => setShowReviewExample(false)} />
+                </ModalLayer>
+              )}
               <div className="openspec-panel-body">
                 <div className="openspec-shell-grid">
                   <label className="openspec-shell-field">

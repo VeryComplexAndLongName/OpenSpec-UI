@@ -24,6 +24,7 @@ import {
   readTaskChecklist,
   readChangeHarnessConfig,
   readPrReview,
+  PR_REVIEW_EXAMPLE,
   prReviewMarkdown,
   readEnvironmentReport,
   WORKBENCH_ISSUE_DRAFT,
@@ -1303,6 +1304,16 @@ function warnArchivedRelation(change: string): void {
 }
 
 export function registerCommands(context: vscode.ExtensionContext, deps: CommandsDeps): void {
+  context.subscriptions.push(vscode.commands.registerCommand("openspec-ui.openExample", async () => {
+    const doc = await vscode.workspace.openTextDocument({
+      language: "markdown", content: prReviewMarkdown(PR_REVIEW_EXAMPLE),
+    });
+    await vscode.window.showTextDocument(doc, { preview: false });
+    const copy = "Copy PR summary";
+    if (await vscode.window.showInformationMessage(PR_REVIEW_EXAMPLE.title, copy) === copy) {
+      await copyPrReviewSummary(PR_REVIEW_EXAMPLE.summary);
+    }
+  }));
   const timelinePanel = new TimelineWebviewPanel({ extensionUri: context.extensionUri });
   context.subscriptions.push(
     vscode.commands.registerCommand("openspec-ui.sendFeedback", () => vscode.env.openExternal(vscode.Uri.parse(WORKBENCH_ISSUE_DRAFT))),
@@ -2864,12 +2875,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
             continue;
           }
           if (action !== copy) break;
-          try {
-            await vscode.env.clipboard.writeText(review.summary);
-            void vscode.window.showInformationMessage(say("OSW-CHG-008").text);
-          } catch {
-            void vscode.window.showErrorMessage(say("OSW-CHG-009").text);
-          }
+          await copyPrReviewSummary(review.summary);
           break;
         }
       } catch (error) {
@@ -2889,4 +2895,13 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       );
     }),
   );
+}
+
+async function copyPrReviewSummary(summary: string): Promise<void> {
+  try {
+    await vscode.env.clipboard.writeText(summary);
+    void vscode.window.showInformationMessage(say("OSW-CHG-008").text);
+  } catch {
+    void vscode.window.showErrorMessage(say("OSW-CHG-009").text);
+  }
 }

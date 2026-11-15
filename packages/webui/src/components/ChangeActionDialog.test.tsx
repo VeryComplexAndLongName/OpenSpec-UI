@@ -1,11 +1,26 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { ChangeActionDialog, type PerformChangeAction } from "./ChangeActionDialog.js";
+import { ChangeActionDialog, PrReviewExampleDialog, type PerformChangeAction } from "./ChangeActionDialog.js";
 
 // a-change-is-acted-on-from-its-card (ADR 0044): a standalone card's action,
 // run by the server where the change is worked, said over the Pipeline.
 
 describe("ChangeActionDialog", () => {
+  it("shows the fictional example and copies its summary without refreshing", async () => {
+    const copy = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    try {
+      render(<PrReviewExampleDialog onClose={() => undefined} />);
+      expect(screen.getByRole("dialog", { name: "PR Review example" })).toHaveTextContent("This fictional checkout change");
+      expect(screen.queryByRole("button", { name: "Refresh GitHub checks" })).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Committed diff")).toHaveTextContent("address.postalCode.trim()");
+      fireEvent.click(screen.getByRole("button", { name: "Copy PR summary" }));
+      await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("PR summary copied."));
+      expect(copy.mock.calls[0]?.[0]).toContain("### Scenario evidence");
+    } finally {
+      copy.mockRestore();
+    }
+  });
+
   it("refreshes GitHub checks on request and links to the returned run", async () => {
     const perform = vi.fn<PerformChangeAction>()
       .mockResolvedValueOnce({ kind: "pr-review", report: { title: "Review", summary: "Local evidence", diff: null, truncated: false } })

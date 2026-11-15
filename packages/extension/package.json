@@ -427,6 +427,12 @@
         "category": "OpenSpec Workbench"
       },
       {
+        "command": "openspec-ui.openExample",
+        "title": "Open Example",
+        "icon": "$(book)",
+        "category": "OpenSpec Workbench"
+      },
+      {
         "command": "openspec-ui.stopProcess",
         "title": "Stop Process",
         "icon": "$(stop-circle)",

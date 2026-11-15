@@ -89,6 +89,23 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     );
   });
 
+  test("opens the fictional PR Review example and copies its summary", async () => {
+    const previous = await vscode.env.clipboard.readText();
+    const notify = vscode.window.showInformationMessage;
+    vscode.window.showInformationMessage = (async (_message: string, ...items: unknown[]) =>
+      items.find((item) => item === "Copy PR summary")) as typeof notify;
+    try {
+      await vscode.commands.executeCommand("openspec-ui.openExample");
+      const report = vscode.window.activeTextEditor?.document.getText() ?? "";
+      assert.match(report, /fictional checkout change/u);
+      assert.match(report, /address\.postalCode\.trim/u);
+      assert.match(await vscode.env.clipboard.readText(), /Browser workflow: no result on the sample head/u);
+    } finally {
+      vscode.window.showInformationMessage = notify;
+      await vscode.env.clipboard.writeText(previous);
+    }
+  });
+
   test("opens Workspace diagnosis with local findings", async () => {
     const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     assert.ok(root);
