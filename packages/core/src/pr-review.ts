@@ -207,7 +207,7 @@ export async function readPrReview(root: string, changeName: string, sources: {
           github = ["- GitHub did not report a published head for this PR."];
         } else {
           const checked = await forge.githubChecks({ ...target, headCommit: target.headCommit }).catch(
-            (): GitHubChecksReport => ({ kind: "unavailable", reason: "GitHub checks could not be read." }),
+            (): GitHubChecksReport => ({ kind: "unavailable", reason: say("OSW-CHG-011").text }),
           );
           github = githubEvidence(checked, target, head);
         }

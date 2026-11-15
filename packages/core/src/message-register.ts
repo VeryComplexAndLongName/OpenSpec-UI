@@ -110,6 +110,12 @@ export const MESSAGES = {
     why: "Workbench could not read or open the selected change's PR review.",
     todo: "Check the working directory and open PR Review again.",
   },
+  "OSW-CHG-011": {
+    level: "warning",
+    text: "GitHub checks could not be read.",
+    why: "Workbench could not complete the requested GitHub checks read for the published PR head.",
+    todo: "Check GitHub access and select Refresh GitHub checks again.",
+  },
 
   // GIT: git, branches, worktrees, push, pull requests
   // (a-change-is-committed-where-it-is-made).

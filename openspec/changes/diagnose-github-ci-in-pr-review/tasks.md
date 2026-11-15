@@ -16,3 +16,4 @@
 - The standalone Playwright test "opens a worktree PR review and copies the displayed summary" and VS Code 1.145.2 Extension Development Host test "opens PR Review and copies its summary" both exercised the refresh and copied report.
 - The GitHub CLI adapter read PR #961 live and found 10 results for the published head and six base-branch requirements. The fixture covers missing required results, wrong-source results, incomplete rules and run links.
 - `node scripts/check-changesets.mjs` and `node --test scripts/release-notes.test.mjs` passed. The existing pull request gates run the full suites.
+- After the first CI run identified the new action label and fallback message, registered both. The targeted control vocabulary, action vocabulary and message-register tests passed.
