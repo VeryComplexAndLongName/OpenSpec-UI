@@ -2905,6 +2905,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
             continue;
           }
           if (action === mark && review.head !== undefined) {
+            if (await refusedAsAnothersChange(item.changeName, item.ownership)) break;
             markReviewedCommit = review.head;
             sinceLastReview = false;
             continue;
@@ -2927,6 +2928,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
             await vscode.window.showTextDocument(document, { preview: false });
             const save = "Save Scenario Mapping";
             if (await vscode.window.showInformationMessage(save, { modal: true }, save) === save) {
+              if (await refusedAsAnothersChange(item.changeName, item.ownership)) continue;
               const saved = await readPrReview(root, item.changeName, { sinceLastReview, scenarioMapping: {
                 mode: "save", selection, revision: planned.mappingPreview.revision,
               } });

@@ -1,9 +1,13 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { createServer as createHttpServer } from "node:http";
+import { once } from "node:events";
+import type { AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { createServer } from "./server.js";
+import { handleChangeActionRequest } from "./change-actions-rest.js";
 
 // a-change-is-acted-on-from-its-card (ADR 0044): a standalone card's actions
 // run through one route, where the change is worked. A workspace that is not
@@ -35,6 +39,32 @@ async function withServer(test: (post: (body: unknown) => Promise<Response>, wor
 }
 
 describe("a change's actions, for the standalone app's cards", () => {
+  it("uses the worktree write guard for a PR Review save", async () => {
+    const workspace = os.tmpdir();
+    const refusal = "The worktree records do not check out.";
+    const server = createHttpServer((req, res) => void handleChangeActionRequest(req, res, {
+      isCwdAllowed: (root) => root === workspace,
+      maxPayloadBytes: 8_192,
+    }, {
+      resolveRecoveryService: vi.fn(),
+      root: async () => ({ root: workspace, changeDir: workspace, ownership: {
+        kind: "unverified", label: "demo", path: workspace,
+      }, refusal }),
+    }));
+    try {
+      server.listen(0, "127.0.0.1");
+      await once(server, "listening");
+      const { port } = server.address() as AddressInfo;
+      const result = await fetch(`http://127.0.0.1:${port}/api/change-action`, { method: "POST", headers: HEADERS,
+        body: JSON.stringify({ cwd: workspace, changeName: "demo", action: "showPrReview",
+          input: { prReview: { scenarioMapping: { mode: "save" } } } }) });
+      expect(result.status).toBe(409);
+      expect(await result.json()).toEqual({ error: refusal });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
   it("returns the PR review and preserves unavailable comparison and evidence", async () => {
     await withServer(async (post, workspace) => {
       const response = await post({ cwd: workspace, changeName: "demo", action: "showPrReview" });
