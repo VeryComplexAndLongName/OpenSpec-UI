@@ -38,6 +38,7 @@ export * from "./openspec.js";
 export * from "./git.js";
 export * from "./gh-pr-gateway.js";
 export { prReviewMarkdown, readPrReview } from "./pr-review.js";
+export { readSpecArchivePreview } from "./spec-archive-preview.js";
 export type { PrReviewReport } from "./pr-review.js";
 export * from "./forge.js";
 export * from "./forge-remote.js";

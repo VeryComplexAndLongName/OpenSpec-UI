@@ -62,7 +62,7 @@ async function hasWorktreeChanges(git: SimpleGit): Promise<boolean> {
   return (await git.raw(["--no-optional-locks", "status", "--porcelain=v1", "--untracked-files=normal"])).length > 0;
 }
 
-async function defaultPreviewRef(git: SimpleGit): Promise<string | undefined> {
+export async function defaultPreviewRef(git: SimpleGit): Promise<string | undefined> {
   const remoteHead = (await git.raw(["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"]).catch(() => "")).trim();
   if (remoteHead.startsWith("refs/remotes/origin/")) return remoteHead;
   const refs = (await git.raw(["for-each-ref", "--format=%(refname)", "refs/remotes/origin/main", "refs/remotes/origin/master", "refs/heads/main", "refs/heads/master"])).trim().split("\n");

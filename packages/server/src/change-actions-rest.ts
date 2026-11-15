@@ -32,6 +32,7 @@ import {
   readAgentStatuses,
   readChangeDiff,
   readPrReview,
+  readSpecArchivePreview,
   readChangeGraph,
   readRepositoryAuditEntries,
   readTaskChecklist,
@@ -148,6 +149,8 @@ async function perform(request: ChangeActionRequest, at: ChangeActionRoot, seams
       return { kind: "pr-review", report: await readPrReview(at.root, name, {
         githubChecks: request.input?.prReview?.refreshGitHubChecks === true,
       }) };
+    case "showArchivePreview":
+      return report(`Show Archive Preview ${name}`, await readSpecArchivePreview(at.root, name));
     case "showTimeline": {
       const timeline = await getChangeTimeline(at.root, name, false);
       const day = (fact: { day: string | null }) => fact.day ?? "not known";

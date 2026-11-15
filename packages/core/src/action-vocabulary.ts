@@ -80,7 +80,7 @@ export const ACTION_NOUNS: readonly string[] = [
   "Graph", "Worktree", "Worktrees", "Leftover", "Template", "Specs", "Report", "Rules", "Instructions", "PR Review", "PR summary",
   "Scoped Instructions", "Dependabot", "LLM Key", "Key", "Team", "People", "Owner", "Implementer",
   "Presence", "Lock", "Lease", "Checks", "GitHub checks", "Manifest", "Workspace", "Pipeline", "Dashboard", "Views",
-  "Archive", "Archive Filter", "Specs Filter", "Graph Filter", "Process", "Implementation", "Typecheck",
+  "Archive", "Archive Preview", "Archive Filter", "Specs Filter", "Graph Filter", "Process", "Implementation", "Typecheck",
   "Tests", "Lint", "CLI View", "Changes", "Actions", "Compliance", "Ledger Process", "Feedback", "diagnostics",
   // The web UI's controls (every-control-is-a-verb-and-a-noun).
   "Main", "Landed Changes", "Logs", "Path", "Done Tasks",
