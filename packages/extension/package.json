@@ -49,8 +49,8 @@
         "icon": "$(rocket)"
       },
       {
-        "command": "openspec-ui.openOpenSpecLocations",
-        "title": "OpenSpec Stores and Worksets",
+        "command": "openspec-ui.showOpenSpecLocations",
+        "title": "Show OpenSpec Locations",
         "icon": "$(folder-library)",
         "category": "OpenSpec Workbench"
       },

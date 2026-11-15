@@ -1320,7 +1320,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
   const timelinePanel = new TimelineWebviewPanel({ extensionUri: context.extensionUri });
   context.subscriptions.push(
     vscode.commands.registerCommand("openspec-ui.sendFeedback", () => vscode.env.openExternal(vscode.Uri.parse(WORKBENCH_ISSUE_DRAFT))),
-    vscode.commands.registerCommand("openspec-ui.openOpenSpecLocations", async () => {
+    vscode.commands.registerCommand("openspec-ui.showOpenSpecLocations", async () => {
       const cwd = deps.getWorkspaceRoot();
       if (!cwd) { warnNoWorkspace(); return; }
       const locations = await readOpenSpecLocations({ cwd });

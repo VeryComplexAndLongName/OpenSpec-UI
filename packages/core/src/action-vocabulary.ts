@@ -83,7 +83,7 @@ export const ACTION_NOUNS: readonly string[] = [
   "Archive", "Archive Preview", "Archive Filter", "Specs Filter", "Graph Filter", "Process", "Implementation", "Typecheck",
   "Tests", "Lint", "CLI View", "Changes", "Actions", "Compliance", "Ledger Process", "Feedback", "diagnostics",
   // The web UI's controls (every-control-is-a-verb-and-a-noun).
-  "Main", "Landed Changes", "Logs", "Path", "Done Tasks", "Example",
+  "Main", "Landed Changes", "Logs", "Path", "Done Tasks", "Example", "OpenSpec Locations",
   "Chain", "Agents", "Command", "Proposal", "Design", "Stage Agents", "Settings", "Templates", "Summary", "Configuration", "Processes",
 ];
 

@@ -153,7 +153,7 @@ export class WorkspaceTreeProvider implements vscode.TreeDataProvider<WorkspaceT
       new AgentsRootTreeItem(),
       new ArtifactTreeItem("OpenSpec Configuration", configPath, configExists, "openspec-ui.config"),
       new RepoBootstrapRootTreeItem(),
-      new WorkspaceCommandTreeItem("OpenSpec Stores and Worksets", "openspec-ui.openOpenSpecLocations", "folder-library"),
+      new WorkspaceCommandTreeItem("Show OpenSpec Locations", "openspec-ui.showOpenSpecLocations", "folder-library", "registered stores and saved worksets"),
       new WorkspaceCommandTreeItem("Diagnose Workspace", "openspec-ui.diagnoseWorkspace", "search-fuzzy"),
       new WorkspaceCommandTreeItem("Send Feedback", "openspec-ui.sendFeedback", "feedback"),
     ];
