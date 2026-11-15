@@ -85,6 +85,8 @@ const GIVEN = [
   "OSW-PRM-102",
   "OSW-GIT-001",
   "OSW-GIT-002",
+  "OSW-GIT-003",
+  "OSW-GIT-004",
   "OSW-GIT-101",
   "OSW-GIT-102",
   "OSW-GIT-103",

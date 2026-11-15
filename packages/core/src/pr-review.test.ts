@@ -54,6 +54,24 @@ function openTarget(base: string, head: string): Promise<PullRequestsByBranch> {
 }
 
 describe("PR review", () => {
+  it("records the displayed commit locally and compares later edits in a linked worktree", async () => {
+    const { root, changeDir, main, head } = await fixture();
+    const source = { pullRequests: () => openTarget(main, head) };
+    expect((await readPrReview(root, "demo", { ...source, sinceLastReview: true })).diff).toBeNull();
+    expect((await readPrReview(root, "demo", { ...source, markReviewedCommit: head })).lastReviewed).toBe(head);
+    await writeFile(path.join(changeDir, "proposal.md"), "# Revised plan\n");
+    await git(root, "commit", "-am", "Revise the plan");
+    const revised = await git(root, "rev-parse", "HEAD");
+    await expect(readPrReview(root, "demo", { ...source, markReviewedCommit: head })).rejects.toThrow("head changed");
+    const linked = path.join(root, "review-worktree");
+    await git(root, "worktree", "add", "--detach", linked, revised);
+    const followup = await readPrReview(linked, "demo", { ...source, sinceLastReview: true });
+    expect(followup).toMatchObject({ lastReviewed: head, head: revised, sinceLastReview: true });
+    expect(followup.diff).toContain("+# Revised plan");
+    expect(followup.diff).not.toContain("Reviewed implementation");
+    expect((await readPrReview(root, "demo", source)).diff).toContain("+Reviewed implementation");
+  });
+
   it("lists scenarios and check associations from the reviewed commit", async () => {
     const { root, changeDir, main } = await fixture();
     const delta = path.join(changeDir, "specs", "checkout");

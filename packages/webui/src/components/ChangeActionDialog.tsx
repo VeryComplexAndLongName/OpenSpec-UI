@@ -39,6 +39,7 @@ export function ChangeActionDialog({ target, perform, harnessApi, onClose }: {
   const title = `${(action?.title ?? target.action).replace(/\.\.\.$/u, "")} ${target.changeName}`;
   const [step, setStep] = useState<Step>(() => (ASKS_FOR_INPUT.has(target.action) || target.action === "configureChangeHarness" ? { kind: "asking" } : { kind: "busy" }));
   const [copyStatus, setCopyStatus] = useState("");
+  const [checksRequested, setChecksRequested] = useState(false);
 
   async function copySummary(summary: string) {
     setCopyStatus(await copyPrSummary(summary));
@@ -54,6 +55,7 @@ export function ChangeActionDialog({ target, perform, harnessApi, onClose }: {
 
   useEffect(() => {
     setCopyStatus("");
+    setChecksRequested(false);
     if (!ASKS_FOR_INPUT.has(target.action) && target.action !== "configureChangeHarness") send();
     // Sent once, for the action the dialog was opened on.
   }, [target.action, target.changeName]);
@@ -77,7 +79,13 @@ export function ChangeActionDialog({ target, perform, harnessApi, onClose }: {
         <PrReview review={step.answer.report} onCopy={copySummary} copyStatus={copyStatus}
           onRefresh={() => {
             setCopyStatus("");
-            send({ prReview: { refreshGitHubChecks: true } });
+            setChecksRequested(true);
+            send({ prReview: { refreshGitHubChecks: true,
+              ...(step.answer.kind === "pr-review" && step.answer.report.sinceLastReview ? { sinceLastReview: true } : {}) } });
+          }}
+          onReviewAction={(selection) => {
+            setCopyStatus("");
+            send({ prReview: { ...selection, ...(checksRequested ? { refreshGitHubChecks: true } : {}) } });
           }} />
       ) : step.answer.kind === "done" ? (
         <p data-testid="change-action-done">{step.answer.message}</p>
@@ -109,16 +117,24 @@ export function PrReviewExampleDialog({ onClose }: { onClose: () => void }): JSX
   );
 }
 
-function PrReview({ review, onCopy, copyStatus, onRefresh }: {
+function PrReview({ review, onCopy, copyStatus, onRefresh, onReviewAction }: {
   review: Extract<ChangeActionAnswer, { kind: "pr-review" }>["report"];
   onCopy: (summary: string) => Promise<void>;
   copyStatus: string;
   onRefresh?: () => void;
+  onReviewAction?: (selection: NonNullable<ChangeActionInput["prReview"]>) => void;
 }): JSX.Element {
+  const head = review.head;
   return (
     <>
       <button className="button primary" type="button" onClick={() => void onCopy(review.summary)}>Copy PR summary</button>
       {onRefresh !== undefined && <button className="button" type="button" onClick={onRefresh}>Refresh GitHub checks</button>}
+      {onReviewAction !== undefined && head !== undefined && head !== review.lastReviewed &&
+        <button className="button" type="button" onClick={() => onReviewAction({ markReviewedCommit: head })}>Mark as reviewed</button>}
+      {onReviewAction !== undefined && review.lastReviewed !== undefined &&
+        <button className="button" type="button" onClick={() => onReviewAction(review.sinceLastReview ? {} : { sinceLastReview: true })}>
+          {review.sinceLastReview ? "Show Full PR Diff" : "Show Changes Since Last Review"}
+        </button>}
       <span role="status">{copyStatus}</span>
       <div className="openspec-md-preview">{renderMarkdown(review.summary)}</div>
       {review.diff !== null && (review.diff.length > 0 ? <details className="openspec-md-preview" open><summary>Committed diff</summary>

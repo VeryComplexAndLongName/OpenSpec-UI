@@ -6,6 +6,26 @@ import { ChangeActionDialog, PrReviewExampleDialog, type PerformChangeAction } f
 // run by the server where the change is worked, said over the Pipeline.
 
 describe("ChangeActionDialog", () => {
+  it("marks the displayed SHA then switches between the incremental and full review", async () => {
+    const head = "a".repeat(40);
+    const shown = { title: "Review", summary: "Proposal", diff: "+Full", truncated: false, head };
+    const perform = vi.fn<PerformChangeAction>()
+      .mockResolvedValueOnce({ kind: "pr-review", report: shown })
+      .mockResolvedValueOnce({ kind: "pr-review", report: { ...shown, lastReviewed: head } })
+      .mockResolvedValueOnce({ kind: "pr-review", report: { ...shown, lastReviewed: head, sinceLastReview: true, diff: "+Revised proposal" } })
+      .mockResolvedValueOnce({ kind: "pr-review", report: { ...shown, lastReviewed: head } });
+    const target = { action: "showPrReview" as const, changeName: "demo" };
+    render(<ChangeActionDialog target={target} perform={perform} onClose={() => undefined} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Mark as reviewed" }));
+    expect(perform).toHaveBeenLastCalledWith(target, { prReview: { markReviewedCommit: head } });
+    fireEvent.click(await screen.findByRole("button", { name: "Show Changes Since Last Review" }));
+    expect(perform).toHaveBeenLastCalledWith(target, { prReview: { sinceLastReview: true } });
+    expect(await screen.findByLabelText("Committed diff")).toHaveTextContent("+Revised proposal");
+    fireEvent.click(screen.getByRole("button", { name: "Show Full PR Diff" }));
+    expect(await screen.findByLabelText("Committed diff")).toHaveTextContent("+Full");
+  });
+
   it("shows the fictional example and copies its summary without refreshing", async () => {
     const copy = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
     try {

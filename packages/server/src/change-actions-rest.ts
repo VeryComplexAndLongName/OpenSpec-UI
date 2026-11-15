@@ -149,6 +149,9 @@ async function perform(request: ChangeActionRequest, at: ChangeActionRoot, seams
     case "showPrReview":
       return { kind: "pr-review", report: await readPrReview(at.root, name, {
         githubChecks: request.input?.prReview?.refreshGitHubChecks === true,
+        sinceLastReview: request.input?.prReview?.sinceLastReview === true,
+        ...(typeof request.input?.prReview?.markReviewedCommit === "string"
+          ? { markReviewedCommit: request.input.prReview.markReviewedCommit } : {}),
       }) };
     case "showArchivePreview":
       return report(`Show Archive Preview ${name}`, await readSpecArchivePreview(at.root, name));
