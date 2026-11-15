@@ -71,7 +71,7 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     await vscode.commands.executeCommand("openspec-ui.showArchivePreview", {
       changeName: "demo", changeDir: path.join(root, "openspec", "changes", "demo"),
     });
-    assert.match(vscode.window.activeTextEditor?.document.getText() ?? "", /local default branch could not be identified/u);
+    assert.match(vscode.window.activeTextEditor?.document.getText() ?? "", /No default branch is available locally/u);
   });
 
   test("runners are built from the default agent registry once a workspace is open", () => {
