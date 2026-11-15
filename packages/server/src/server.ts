@@ -56,6 +56,7 @@ import {
   handleWorkspaceRunStatsRequest,
   handleHarnessConfigWriteRequest,
   handleOpenSpecInitRequest,
+  handleOpenSpecLocationsRequest,
   handleOverviewRequest,
   handleSprintReportRequest,
   handleStatusJsonRequest,
@@ -246,6 +247,10 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/overview") {
       void handleOverviewRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/openspec-locations") {
+      void handleOpenSpecLocationsRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && (req.url === "/api/status-json" || req.url === "/api/command-json")) {

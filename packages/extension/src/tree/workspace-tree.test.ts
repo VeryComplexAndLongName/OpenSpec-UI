@@ -56,10 +56,12 @@ describe("WorkspaceTreeProvider", () => {
       "workspace-agents",
       `artifact:${path.join(root, "openspec", "config.yaml")}`,
       "repo-bootstrap-root",
+      "workspace-command:openspec-ui.showOpenSpecLocations",
       "workspace-command:openspec-ui.diagnoseWorkspace",
       "workspace-command:openspec-ui.sendFeedback",
     ]);
     expect(rows[0]?.command?.command).toBe("openspec-ui.openPipeline");
+    expect(rows[6]?.command?.command).toBe("openspec-ui.showOpenSpecLocations");
     expect(rows[4]?.description).toBeUndefined();
   });
 
