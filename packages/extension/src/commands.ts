@@ -26,6 +26,7 @@ import {
   readChangeHarnessConfig,
   readPrReview,
   readSpecArchivePreview,
+  readSpecOverlapReport,
   prReviewMarkdown,
   readEnvironmentReport,
   WORKBENCH_ISSUE_DRAFT,
@@ -2854,6 +2855,14 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
   );
 
   context.subscriptions.push(
+    vscode.commands.registerCommand("openspec-ui.showSpecOverlaps", async (invokedItem?: ChangeTreeItem) => {
+      const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
+      if (!item || item.archived) { warnNoTreeSelection("change"); return; }
+      const root = deps.getWorkspaceRoot();
+      if (root === undefined) return;
+      const body = await readSpecOverlapReport(workedIn(item, root).root, item.changeName);
+      await openMarkdownDocument("specification overlaps", body);
+    }),
     vscode.commands.registerCommand("openspec-ui.showArchivePreview", async (invokedItem?: ChangeTreeItem) => {
       const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
       if (!item || item.archived) { warnNoTreeSelection("change"); return; }

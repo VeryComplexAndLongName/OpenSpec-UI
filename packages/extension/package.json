@@ -433,6 +433,12 @@
         "category": "OpenSpec Workbench"
       },
       {
+        "command": "openspec-ui.showSpecOverlaps",
+        "title": "Show Spec Overlaps",
+        "icon": "$(warning)",
+        "category": "OpenSpec Workbench"
+      },
+      {
         "command": "openspec-ui.showArchivePreview",
         "title": "Show Archive Preview",
         "icon": "$(diff-modified)",
