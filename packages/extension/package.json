@@ -429,7 +429,7 @@
       {
         "command": "openspec-ui.showArchivePreview",
         "title": "Show Archive Preview",
-        "icon": "$(preview)",
+        "icon": "$(diff-modified)",
         "category": "OpenSpec Workbench"
       },
       {
