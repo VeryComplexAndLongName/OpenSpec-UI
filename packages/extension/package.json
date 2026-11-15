@@ -55,6 +55,12 @@
         "icon": "$(search-fuzzy)"
       },
       {
+        "command": "openspec-ui.openExample",
+        "title": "Open Example",
+        "icon": "$(book)",
+        "category": "OpenSpec Workbench"
+      },
+      {
         "command": "openspec-ui.sendFeedback",
         "title": "Send Feedback",
         "category": "OpenSpec Workbench",
@@ -424,12 +430,6 @@
         "command": "openspec-ui.showPrReview",
         "title": "Show PR Review",
         "icon": "$(git-pull-request)",
-        "category": "OpenSpec Workbench"
-      },
-      {
-        "command": "openspec-ui.openExample",
-        "title": "Open Example",
-        "icon": "$(book)",
         "category": "OpenSpec Workbench"
       },
       {
