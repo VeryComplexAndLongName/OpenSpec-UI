@@ -150,6 +150,7 @@ async function perform(request: ChangeActionRequest, at: ChangeActionRoot, seams
       return { kind: "pr-review", report: await readPrReview(at.root, name, {
         githubChecks: request.input?.prReview?.refreshGitHubChecks === true,
         sinceLastReview: request.input?.prReview?.sinceLastReview === true,
+        scenarioMapping: request.input?.prReview?.scenarioMapping,
         ...(typeof request.input?.prReview?.markReviewedCommit === "string"
           ? { markReviewedCommit: request.input.prReview.markReviewedCommit } : {}),
       }) };
@@ -308,7 +309,9 @@ export async function handleChangeActionRequest(req: IncomingMessage, res: Serve
   }
   try {
     const at = await (seams.root ?? changeActionRoot)(parsed.cwd, parsed.changeName);
-    if (changeAction(parsed.action)?.writes === true && at.refusal !== undefined) {
+    const reviewWrite = parsed.action === "showPrReview" && (typeof parsed.input?.prReview?.markReviewedCommit === "string"
+      || parsed.input?.prReview?.scenarioMapping?.mode === "save");
+    if ((changeAction(parsed.action)?.writes === true || reviewWrite) && at.refusal !== undefined) {
       sendJson(res, 409, { error: at.refusal });
       return;
     }

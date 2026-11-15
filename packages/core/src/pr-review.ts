@@ -5,13 +5,14 @@ import { changeNameOf, isRunEntry, VERIFY_CHECKS_AGENT_NAME } from "./audit-runs
 import { CHANGE_DIFF_MAX_BYTES } from "./change-diff.js";
 import { isValidChangeName } from "./change-name.js";
 import { forgeFor } from "./forge.js";
-import type { OpenPullRequestTarget, PullRequestsByBranch } from "./gh-pr-gateway.js";
+import type { Forge, OpenPullRequestTarget, PullRequestsByBranch } from "./gh-pr-gateway.js";
 import type { GitHubChecksReport } from "./github-checks.js";
 import { openGit } from "./git-client.js";
 import { createGitWrapper } from "./git.js";
 import { say } from "./message-register.js";
 import { readRepositoryAuditEntries } from "./repository-audit.js";
 import { readScenarioEvidence, scenarioCheckState } from "./scenario-evidence.js";
+import { editScenarioMapping, type ScenarioMappingChoices, type ScenarioMappingPreview } from "./scenario-mapping-edit.js";
 import type { AuditEntry } from "./security.js";
 import { discoverOpenSpecWorkspace } from "./workbench.js";
 
@@ -35,6 +36,8 @@ export interface PrReviewReport {
   head?: string;
   lastReviewed?: string;
   sinceLastReview?: boolean;
+  mappingChoices?: ScenarioMappingChoices;
+  mappingPreview?: ScenarioMappingPreview;
 }
 
 export function prReviewMarkdown({ summary, diff, truncated }: PrReviewReport): string {
@@ -152,19 +155,20 @@ function evidence(entries: readonly AuditEntry[], name: string, head: string | u
   return lines;
 }
 
-function githubEvidence(report: GitHubChecksReport, target: OpenPullRequestTarget, localHead: string): string[] {
+function forgeEvidence(forge: string, report: GitHubChecksReport, target: OpenPullRequestTarget, localHead: string): string[] {
   if (report.kind === "unavailable") return [`- ${report.reason}`];
-  const lines = [`- PR #${target.number}, base ${literal(target.baseBranch)}, published head ${literal(report.head)}.`];
+  const noun = forge === "GitLab" ? "Merge request" : "PR";
+  const lines = [`- ${noun} #${target.number}, base ${literal(target.baseBranch)}, published head ${literal(report.head)}.`];
   if (report.head !== localHead) lines.push("- These results apply to a different commit than the local comparison.");
-  if (report.checks.length === 0 && report.resultsComplete) lines.push("- GitHub has no check results for this commit.");
+  if (report.checks.length === 0 && report.resultsComplete) lines.push(`- ${forge} has no check results for this commit.`);
   for (const check of report.checks) {
     const state = check.state.replaceAll("_", " ");
     lines.push(`- ${literal(check.name)}: ${literal(state)}${check.link === undefined ? "" : ` · [Open run](<${check.link}>)`}`);
   }
-  if (!report.resultsComplete) lines.push("- GitHub check results could only be read partially or were unavailable.");
+  if (!report.resultsComplete) lines.push(`- ${forge} check results could only be read partially or were unavailable.`);
   lines.push("", "#### Expected checks on the base branch", "");
   if (!report.rulesComplete) lines.push("- The list of expected checks is partial or unavailable.");
-  if (report.expected.length === 0 && report.rulesComplete) lines.push("- GitHub reports no required checks for this branch.");
+  if (report.expected.length === 0 && report.rulesComplete) lines.push(`- ${forge} reports no required checks for this branch.`);
   for (const check of report.expected) {
     lines.push(`- ${literal(check.name)}${check.app === undefined ? "" : ` (GitHub App ${check.app})`}: ${check.state}.`);
   }
@@ -173,9 +177,11 @@ function githubEvidence(report: GitHubChecksReport, target: OpenPullRequestTarge
 
 export async function readPrReview(root: string, changeName: string, sources: {
   pullRequests?: (root: string) => Promise<PullRequestsByBranch>;
+  forge?: (root: string) => Promise<Forge>;
   githubChecks?: boolean;
   sinceLastReview?: boolean;
   markReviewedCommit?: string;
+  scenarioMapping?: unknown;
 } = {}): Promise<PrReviewReport> {
   if (!isValidChangeName(changeName)) throw new Error("Choose an active OpenSpec change.");
   const workspace = await discoverOpenSpecWorkspace(root, { changes: "active", names: [changeName] });
@@ -195,8 +201,10 @@ export async function readPrReview(root: string, changeName: string, sources: {
   const lastReviewed = await resolveCommit(git, marker);
   const sinceLastReview = sources.sinceLastReview === true;
   const heading = [`## PR review for ${literal(changeName)}`, "", "### Comparison", ""];
-  let github: string[] = ["- GitHub checks require a unique open PR from this branch."];
-  let githubReport: GitHubChecksReport | undefined;
+  const refreshChecks = sources.githubChecks === true || sources.scenarioMapping !== undefined;
+  let checks: string[] = ["- Checks require a unique open PR or merge request from this branch."];
+  let forgeReport: GitHubChecksReport | undefined;
+  let forgeName = "GitHub";
   let comparison: Awaited<ReturnType<typeof compare>> = { kind: "unavailable", reason: say("OSW-CHG-004").text };
   if (head !== undefined) {
     const [branchRef, dirty, remotes] = await Promise.all([
@@ -208,35 +216,38 @@ export async function readPrReview(root: string, changeName: string, sources: {
     heading.push(`- Reviewed head: ${literal(head)}${branch ? ` on ${literal(branch)}` : " (detached)"}.`);
     if (dirty) heading.push("- Uncommitted working-tree changes are excluded.");
     const remote = remotes.split(/\r?\n/u).includes("origin");
-    const read = branch && remote
-      ? await (sources.pullRequests ?? (async (cwd) => (await forgeFor(cwd)).pullRequestsByBranch()))(root).catch(() => undefined)
-      : undefined;
+    const forge = branch && remote && (sources.pullRequests === undefined || refreshChecks)
+      ? await (sources.forge ?? forgeFor)(root).catch(() => undefined) : undefined;
+    forgeName = forge?.name ?? forgeName;
+    const read = branch && remote ? await (sources.pullRequests === undefined
+      ? forge?.pullRequestsByBranch() : sources.pullRequests(root))?.catch(() => undefined) : undefined;
     const targets = read?.available ? read.openTargets?.get(branch) ?? [] : [];
     const target = targets.length === 1 && targets[0]?.baseBranch ? targets[0] : undefined;
     if (target !== undefined) {
-      heading.push(`- PR #${target.number} targets ${literal(target.baseBranch)}${target.baseCommit === undefined ? " (locally known target ref)" : ""}.`);
+      const noun = forgeName === "GitLab" ? "Merge request" : "PR";
+      heading.push(`- ${noun} #${target.number} targets ${literal(target.baseBranch)}${target.baseCommit === undefined ? " (locally known target ref)" : ""}.`);
       if (target.headCommit && COMMIT.test(target.headCommit) && target.headCommit !== head) {
         heading.push(`- Published PR head: ${literal(target.headCommit)}. This report compares the local head.`);
       }
       const remoteRef = `refs/remotes/origin/${target.baseBranch}`;
       if (!sinceLastReview) comparison = await compare(git, head, remoteRef, target.baseCommit);
-      if (sources.githubChecks === true) {
-        const forge = await forgeFor(root).catch(() => undefined);
-        if (forge?.githubChecks === undefined) {
-          github = ["- GitHub checks require a GitHub.com origin."];
+      if (refreshChecks) {
+        const refresh = forge?.reviewChecks ?? forge?.githubChecks;
+        if (refresh === undefined) {
+          checks = ["- Commit-specific checks are unavailable for this origin."];
         } else if (target.headCommit === undefined || !COMMIT.test(target.headCommit)) {
-          github = ["- GitHub did not report a published head for this PR."];
+          checks = [`- ${forgeName} did not report a published head for this request.`];
         } else {
-          const checked = await forge.githubChecks({ ...target, headCommit: target.headCommit }).catch(
-            (): GitHubChecksReport => ({ kind: "unavailable", reason: say("OSW-CHG-011").text }),
+          const checked = await refresh({ ...target, headCommit: target.headCommit }).catch(
+            (): GitHubChecksReport => ({ kind: "unavailable", reason: say("OSW-CHG-011", { forge: forgeName }).text }),
           );
-          githubReport = checked;
-          github = githubEvidence(checked, target, head);
+          forgeReport = checked;
+          checks = forgeEvidence(forgeName, checked, target, head);
         }
       }
     } else {
-      if (sources.githubChecks === true && read?.available === false) {
-        github = [`- The open PR could not be read. ${literal(read.reason)}`];
+      if (refreshChecks && read?.available === false) {
+        checks = [`- The open request could not be read. ${literal(read.reason)}`];
       }
       const why = targets.length > 1 ? "More than one open PR targets a base from this branch."
         : read?.available ? "No open PR target was identified for this branch." : "The open PR target could not be read.";
@@ -268,27 +279,43 @@ export async function readPrReview(root: string, changeName: string, sources: {
   }
   const entries = await readRepositoryAuditEntries({ git: createGitWrapper({ cwd: root }), workspaceRoot: path.resolve(root) });
   const scenarioLines: string[] = [];
+  let mappingChoices: ScenarioMappingChoices | undefined;
+  let mappingPreview: ScenarioMappingPreview | undefined;
   if (head !== undefined) {
     const linked = await readScenarioEvidence(git, head, changeName);
     if (linked.scenarios.length > 0 || linked.warnings.length > 0) {
       scenarioLines.push("", "### Scenario evidence", "");
       scenarioLines.push(...linked.warnings.map((warning) => `- ${warning}`));
       if (linked.scenarios.some((scenario) => scenario.checks.length === 0)) {
-        scenarioLines.push("- Commit `scenario-checks.json` beside the proposal to associate scenarios with named GitHub checks.");
+        scenarioLines.push("- Commit `scenario-checks.json` beside the proposal to associate scenarios with reported checks.");
       }
       for (const entry of linked.scenarios) {
         scenarioLines.push(`- ${literal(entry.capability)} / ${literal(entry.requirement)} / ${literal(entry.scenario)}`);
         scenarioLines.push(...(entry.checks.length === 0 ? ["  - No check linked."]
-          : entry.checks.map((check) => `  - ${literal(check)}: ${literal(scenarioCheckState(check, head, githubReport))}.`)));
+          : entry.checks.map((check) => `  - ${literal(check)}: ${literal(scenarioCheckState(check, head, forgeReport, forgeName))}.`)));
       }
     }
+    if (linked.scenarios.length > 0 && forgeReport?.kind === "checks" && forgeReport.head === head && forgeReport.resultsComplete) {
+      const counts = new Map<string, number>();
+      for (const check of forgeReport.checks) counts.set(check.name, (counts.get(check.name) ?? 0) + 1);
+      const uniqueChecks = [...counts].filter(([, count]) => count === 1).map(([name]) => name);
+      if (uniqueChecks.length > 0) mappingChoices = { checks: uniqueChecks,
+        scenarios: linked.scenarios.map(({ capability, requirement, scenario }) => ({ capability, requirement, scenario })) };
+    }
+  }
+  if (sources.scenarioMapping !== undefined) {
+    const edit = await editScenarioMapping(root, changeName, sources.scenarioMapping, head, mappingChoices);
+    if ("preview" in edit) mappingPreview = edit.preview;
+    else scenarioLines.push("", "**Mapping saved.** Commit `scenario-checks.json` to include it in the review.");
   }
   const summary = [...heading, "", ...evidence(entries, changeName, head),
-    ...(sources.githubChecks === true ? ["", "### GitHub checks", "", ...github] : []),
+    ...(refreshChecks ? ["", `### ${forgeName} checks`, "", ...checks] : []),
     ...scenarioLines,
   ].join("\n");
   return { title, summary, diff: comparison.kind === "diff" ? comparison.diff : null,
     truncated: comparison.kind === "diff" && comparison.truncated,
     ...(head === undefined ? {} : { head }), ...(lastReviewed === undefined ? {} : { lastReviewed }),
-    ...(sinceLastReview ? { sinceLastReview } : {}) };
+    ...(sinceLastReview ? { sinceLastReview } : {}),
+    ...(mappingChoices === undefined ? {} : { mappingChoices }),
+    ...(mappingPreview === undefined ? {} : { mappingPreview }) };
 }

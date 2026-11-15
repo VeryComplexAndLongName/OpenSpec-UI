@@ -93,11 +93,11 @@ What to do: Check the working directory and open PR Review again.
 
 ### OSW-CHG-011
 
-> warning: GitHub checks could not be read.
+> warning: {forge} checks could not be read.
 
-Why: Workbench could not complete the requested GitHub checks read for the published PR head.
+Why: Workbench could not complete the requested checks read for the published request head.
 
-What to do: Check GitHub access and select Refresh GitHub checks again.
+What to do: Check access to the origin and select Refresh PR checks again.
 
 ### OSW-CHG-012
 

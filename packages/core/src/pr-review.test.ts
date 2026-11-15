@@ -5,7 +5,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanPrReviewCommit, readPrReview } from "./pr-review.js";
-import type { PullRequestsByBranch } from "./gh-pr-gateway.js";
+import type { Forge, PullRequestsByBranch } from "./gh-pr-gateway.js";
 import type { AuditEntry } from "./security.js";
 import { gitIsolationArgs } from "./test-support/git-isolation.js";
 
@@ -54,6 +54,32 @@ function openTarget(base: string, head: string): Promise<PullRequestsByBranch> {
 }
 
 describe("PR review", () => {
+  it("uses the origin forge's check detail and exposes matching scenario choices", async () => {
+    const { root, changeDir, release } = await fixture();
+    const delta = path.join(changeDir, "specs", "checkout");
+    await mkdir(delta, { recursive: true });
+    await writeFile(path.join(delta, "spec.md"), "## ADDED Requirements\n### Requirement: Shipping\n#### Scenario: Address changes\n");
+    await git(root, "add", ".");
+    await git(root, "commit", "-m", "Describe address changes");
+    const head = await git(root, "rev-parse", "HEAD");
+    const reviewChecks = vi.fn<NonNullable<Forge["reviewChecks"]>>(async () => ({
+      kind: "checks", head, checks: [{ name: "Address tests", state: "success", link: "https://gitlab.com/group/app/-/jobs/7" }],
+      expected: [], resultsComplete: true, rulesComplete: false,
+    }));
+    const forge: Forge = {
+      name: "GitLab", pullRequestsByBranch: () => openTarget(release, head), reviewChecks,
+      openPullRequest: vi.fn(), checksOf: vi.fn(), mergeNow: vi.fn(),
+    };
+    const report = await readPrReview(root, "demo", { forge: async () => forge, githubChecks: true });
+    expect(reviewChecks).toHaveBeenCalledWith({ number: 4, baseBranch: "release", baseCommit: release, headCommit: head });
+    expect(report.summary).toContain("### GitLab checks");
+    expect(report.summary).toContain("Merge request #4");
+    expect(report.summary).toContain("https://gitlab.com/group/app/-/jobs/7");
+    expect(report.mappingChoices).toEqual({
+      checks: ["Address tests"], scenarios: [{ capability: "checkout", requirement: "Shipping", scenario: "Address changes" }],
+    });
+  });
+
   it("records the displayed commit locally and compares later edits in a linked worktree", async () => {
     const { root, changeDir, main, head } = await fixture();
     const source = { pullRequests: () => openTarget(main, head) };

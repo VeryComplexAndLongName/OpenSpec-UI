@@ -31,7 +31,7 @@ describe("ChangeActionDialog", () => {
     try {
       render(<PrReviewExampleDialog onClose={() => undefined} />);
       expect(screen.getByRole("dialog", { name: "PR Review example" })).toHaveTextContent("This fictional checkout change");
-      expect(screen.queryByRole("button", { name: "Refresh GitHub checks" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Refresh PR checks" })).not.toBeInTheDocument();
       expect(screen.getByLabelText("Committed diff")).toHaveTextContent("address.postalCode.trim()");
       fireEvent.click(screen.getByRole("button", { name: "Copy PR summary" }));
       await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("PR summary copied."));
@@ -50,9 +50,33 @@ describe("ChangeActionDialog", () => {
       } });
     const target = { action: "showPrReview" as const, changeName: "demo" };
     render(<ChangeActionDialog target={target} perform={perform} onClose={() => undefined} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Refresh GitHub checks" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Refresh PR checks" }));
     expect(perform.mock.calls).toEqual([[target, undefined], [target, { prReview: { refreshGitHubChecks: true } }]]);
     expect(await screen.findByRole("link", { name: "Open run" })).toHaveAttribute("href", "https://github.com/owner/repo/actions/runs/12");
+  });
+
+  it("shows a mapping diff before submitting a distinct save", async () => {
+    const head = "a".repeat(40);
+    const revision = "b".repeat(64);
+    const scenario = { capability: "checkout", requirement: "Shipping", scenario: "Address change" };
+    const selection = { head, scenario, check: "Address tests" };
+    const shown = { title: "Review", summary: "GitLab checks", diff: null, truncated: false, head,
+      mappingChoices: { scenarios: [scenario], checks: [selection.check] } };
+    const perform = vi.fn<PerformChangeAction>()
+      .mockResolvedValueOnce({ kind: "pr-review", report: shown })
+      .mockResolvedValueOnce({ kind: "pr-review", report: { ...shown, mappingPreview: { selection, revision, diff: "+Address tests" } } })
+      .mockResolvedValueOnce({ kind: "pr-review", report: { ...shown, summary: "Mapping saved" } });
+    const target = { action: "showPrReview" as const, changeName: "demo" };
+    render(<ChangeActionDialog target={target} perform={perform} onClose={() => undefined} />);
+    fireEvent.change(await screen.findByRole("combobox", { name: "Scenario" }), { target: { value: "0" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Reported check" }), { target: { value: selection.check } });
+    fireEvent.click(screen.getByRole("button", { name: "Show Mapping Preview" }));
+    expect(perform).toHaveBeenLastCalledWith(target, { prReview: { scenarioMapping: { mode: "preview", selection } } });
+    expect(await screen.findByLabelText("Scenario mapping diff")).toHaveTextContent("+Address tests");
+    expect(perform).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole("button", { name: "Save Scenario Mapping" }));
+    expect(perform).toHaveBeenLastCalledWith(target, { prReview: { scenarioMapping: { mode: "save", selection, revision } } });
+    expect(await screen.findByText("Mapping saved")).toBeVisible();
   });
 
   it("sends a reading action at once and shows what came back", async () => {

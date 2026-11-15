@@ -112,9 +112,9 @@ export const MESSAGES = {
   },
   "OSW-CHG-011": {
     level: "warning",
-    text: "GitHub checks could not be read.",
-    why: "Workbench could not complete the requested GitHub checks read for the published PR head.",
-    todo: "Check GitHub access and select Refresh GitHub checks again.",
+    text: "{forge} checks could not be read.",
+    why: "Workbench could not complete the requested checks read for the published request head.",
+    todo: "Check access to the origin and select Refresh PR checks again.",
   },
   "OSW-CHG-012": {
     level: "info",
