@@ -48,8 +48,12 @@ export function parseSpecRequirements(source: string): SpecRequirement[] {
  * heading, or the end of the file. `undefined` when the delta names no
  * modified requirement, which is the common case: most deltas only add. */
 export function extractModifiedSection(source: string): string | undefined {
+  return extractDeltaSection(source, "MODIFIED");
+}
+
+export function extractDeltaSection(source: string, operation: "ADDED" | "MODIFIED"): string | undefined {
   const lines = source.split(/\r?\n/);
-  const startIndex = lines.findIndex((line) => line.trim() === "## MODIFIED Requirements");
+  const startIndex = lines.findIndex((line) => line.trim() === `## ${operation} Requirements`);
   if (startIndex === -1) return undefined;
 
   let endIndex = lines.length;

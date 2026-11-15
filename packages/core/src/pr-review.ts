@@ -10,6 +10,7 @@ import { openGit } from "./git-client.js";
 import { createGitWrapper } from "./git.js";
 import { say } from "./message-register.js";
 import { readRepositoryAuditEntries } from "./repository-audit.js";
+import { readScenarioEvidence, scenarioCheckState } from "./scenario-evidence.js";
 import type { AuditEntry } from "./security.js";
 import { discoverOpenSpecWorkspace } from "./workbench.js";
 
@@ -176,6 +177,7 @@ export async function readPrReview(root: string, changeName: string, sources: {
   const head = await resolveCommit(git, "HEAD");
   const heading = [`## PR review for ${literal(changeName)}`, "", "### Comparison", ""];
   let github: string[] = ["- GitHub checks require a unique open PR from this branch."];
+  let githubReport: GitHubChecksReport | undefined;
   let comparison: Awaited<ReturnType<typeof compare>> = { kind: "unavailable", reason: say("OSW-CHG-004").text };
   if (head !== undefined) {
     const [branchRef, dirty, remotes] = await Promise.all([
@@ -209,6 +211,7 @@ export async function readPrReview(root: string, changeName: string, sources: {
           const checked = await forge.githubChecks({ ...target, headCommit: target.headCommit }).catch(
             (): GitHubChecksReport => ({ kind: "unavailable", reason: say("OSW-CHG-011").text }),
           );
+          githubReport = checked;
           github = githubEvidence(checked, target, head);
         }
       }
@@ -235,8 +238,25 @@ export async function readPrReview(root: string, changeName: string, sources: {
     if (comparison.truncated) heading.push("- The displayed patch is truncated.");
   }
   const entries = await readRepositoryAuditEntries({ git: createGitWrapper({ cwd: root }), workspaceRoot: path.resolve(root) });
+  const scenarioLines: string[] = [];
+  if (head !== undefined) {
+    const linked = await readScenarioEvidence(git, head, changeName);
+    if (linked.scenarios.length > 0 || linked.warnings.length > 0) {
+      scenarioLines.push("", "### Scenario evidence", "");
+      scenarioLines.push(...linked.warnings.map((warning) => `- ${warning}`));
+      if (linked.scenarios.some((scenario) => scenario.checks.length === 0)) {
+        scenarioLines.push("- Commit `scenario-checks.json` beside the proposal to associate scenarios with named GitHub checks.");
+      }
+      for (const entry of linked.scenarios) {
+        scenarioLines.push(`- ${literal(entry.capability)} / ${literal(entry.requirement)} / ${literal(entry.scenario)}`);
+        scenarioLines.push(...(entry.checks.length === 0 ? ["  - No check linked."]
+          : entry.checks.map((check) => `  - ${literal(check)}: ${literal(scenarioCheckState(check, head, githubReport))}.`)));
+      }
+    }
+  }
   const summary = [...heading, "", ...evidence(entries, changeName, head),
     ...(sources.githubChecks === true ? ["", "### GitHub checks", "", ...github] : []),
+    ...scenarioLines,
   ].join("\n");
   return { title, summary, diff: comparison.kind === "diff" ? comparison.diff : null, truncated: comparison.kind === "diff" && comparison.truncated };
 }
