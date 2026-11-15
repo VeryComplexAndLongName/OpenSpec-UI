@@ -150,6 +150,7 @@ async function perform(request: ChangeActionRequest, at: ChangeActionRoot, seams
       return { kind: "pr-review", report: await readPrReview(at.root, name, {
         githubChecks: request.input?.prReview?.refreshGitHubChecks === true,
         sinceLastReview: request.input?.prReview?.sinceLastReview === true,
+        scenarioMapping: request.input?.prReview?.scenarioMapping,
         ...(typeof request.input?.prReview?.markReviewedCommit === "string"
           ? { markReviewedCommit: request.input.prReview.markReviewedCommit } : {}),
       }) };

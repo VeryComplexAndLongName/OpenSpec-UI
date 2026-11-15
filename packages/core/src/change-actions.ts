@@ -10,6 +10,7 @@
 
 import { actionCommandId, actionVerb, type ActionGroup } from "./action-vocabulary.js";
 import type { PrReviewReport } from "./pr-review.js";
+import type { ScenarioMappingRequest } from "./scenario-mapping-edit.js";
 
 export type ChangeActionId =
   | "runChange"
@@ -180,7 +181,7 @@ export type ChangeActionAnswer =
 
 /** What a person gave an action that asks first. */
 export interface ChangeActionInput {
-  prReview?: { refreshGitHubChecks?: true; sinceLastReview?: true; markReviewedCommit?: string };
+  prReview?: { refreshGitHubChecks?: true; sinceLastReview?: true; markReviewedCommit?: string; scenarioMapping?: ScenarioMappingRequest };
   relation?: { key: string; id: string };
   message?: { kind: "note" | "ask"; words: string };
   stop?: { afterTask?: string; reason: string };

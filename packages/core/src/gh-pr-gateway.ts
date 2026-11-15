@@ -376,6 +376,8 @@ export interface Forge {
   checksOf(prNumber: number): Promise<PullRequestCheckStatus>;
   /** Optional, read-only detail for GitHub.com PR Review. */
   githubChecks?(target: GitHubCheckTarget): Promise<GitHubChecksReport>;
+  /** Commit-specific PR Review evidence on forges with native HTTP APIs. */
+  reviewChecks?(target: OpenPullRequestTarget & { headCommit: string }): Promise<GitHubChecksReport>;
   /** Merges the pull request now, by the given method, and deletes its
    * branch. Throws with the forge's reason where it will not. */
   mergeNow(prNumber: number, method?: MergeMethod): Promise<void>;

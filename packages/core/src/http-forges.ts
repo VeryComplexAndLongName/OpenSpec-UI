@@ -8,8 +8,9 @@
 import { parseCheckStatus, pullRequestTimes, recordOpenPullRequestTarget, type BranchPullRequest, type MergeMethod, type BranchPullRequestState, type Forge, type OpenPullRequestTarget, type PullRequestCheckStatus, type PullRequestRef, type PullRequestsByBranch } from "./gh-pr-gateway.js";
 import { say, type MessageCode, type SaidMessage } from "./message-register.js";
 import { readGitHubChecks, type GitHubCheckTarget } from "./github-checks.js";
+import { readGiteaReviewChecks, readGitLabReviewChecks } from "./http-review-checks.js";
 
-export type FetchLike = (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal }) => Promise<{
+export type FetchLike = (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal; redirect?: "error" }) => Promise<{
   ok: boolean;
   status: number;
   text(): Promise<string>;
@@ -39,13 +40,14 @@ class ForgeRefusal extends Error {
   }
 }
 
-async function call(options: HttpForgeOptions, headers: Record<string, string>, method: string, url: string, body?: unknown, signal?: AbortSignal): Promise<unknown> {
+async function call(options: HttpForgeOptions, headers: Record<string, string>, method: string, url: string, body?: unknown, signal?: AbortSignal, redirect?: "error"): Promise<unknown> {
   const fetchImpl = options.fetch ?? (globalThis.fetch as unknown as FetchLike);
   const response = await fetchImpl(url, {
     method,
     headers: { ...headers, Accept: "application/json", ...(body !== undefined ? { "Content-Type": "application/json" } : {}) },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     ...(signal !== undefined ? { signal } : {}),
+    ...(redirect !== undefined ? { redirect } : {}),
   });
   const text = await response.text();
   if (!response.ok) {
@@ -118,6 +120,8 @@ export function createGiteaForge(options: HttpForgeOptions): Forge {
   const headers = (): Record<string, string> => ({ Authorization: `token ${options.token ?? ""}` });
   return {
     name: "Gitea",
+    reviewChecks: (target) => readGiteaReviewChecks(
+      (suffix) => call(options, headers(), "GET", api + suffix, undefined, AbortSignal.timeout(15_000), "error"), options.base, target),
     async pullRequestsByBranch(): Promise<PullRequestsByBranch> {
       if (!options.token) return tokenNotSet(options.tokenName);
       const byBranch = new Map<string, BranchPullRequest>();
@@ -193,6 +197,8 @@ export function createGitLabForge(options: HttpForgeOptions): Forge {
   const headers = (): Record<string, string> => ({ "PRIVATE-TOKEN": options.token ?? "" });
   return {
     name: "GitLab",
+    reviewChecks: (target) => readGitLabReviewChecks(
+      (suffix) => call(options, headers(), "GET", api + suffix, undefined, AbortSignal.timeout(15_000), "error"), options.base, target),
     async pullRequestsByBranch(): Promise<PullRequestsByBranch> {
       if (!options.token) return tokenNotSet(options.tokenName);
       const byBranch = new Map<string, BranchPullRequest>();

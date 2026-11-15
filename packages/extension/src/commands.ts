@@ -2879,7 +2879,8 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       try {
         const root = workedIn(item, workspaceRoot).root;
         const copy = "Copy PR summary";
-        const refresh = "Refresh GitHub checks";
+        const refresh = "Refresh PR checks";
+        const link = "Link scenario to check";
         const mark = "Mark as reviewed";
         const since = "Show Changes Since Last Review";
         const full = "Show Full PR Diff";
@@ -2897,6 +2898,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           const actions = [copy, refresh];
           if (review.head !== undefined && review.head !== review.lastReviewed) actions.push(mark);
           if (review.lastReviewed !== undefined) actions.push(sinceLastReview ? full : since);
+          if (review.mappingChoices !== undefined && review.head !== undefined) actions.push(link);
           const action = await vscode.window.showInformationMessage(review.title, ...actions);
           if (action === refresh) {
             refreshChecks = true;
@@ -2909,6 +2911,28 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           }
           if (action === since || action === full) {
             sinceLastReview = action === since;
+            continue;
+          }
+          if (action === link && review.head !== undefined && review.mappingChoices !== undefined) {
+            const scenario = await vscode.window.showQuickPick(review.mappingChoices.scenarios.map((entry) => ({
+              label: entry.scenario, description: `${entry.capability} / ${entry.requirement}`, entry,
+            })), { placeHolder: "Choose an OpenSpec scenario" });
+            if (scenario === undefined) continue;
+            const check = await vscode.window.showQuickPick(review.mappingChoices.checks, { placeHolder: "Choose a reported check" });
+            if (check === undefined) continue;
+            const selection = { head: review.head, scenario: scenario.entry, check };
+            const planned = await readPrReview(root, item.changeName, { sinceLastReview, scenarioMapping: { mode: "preview", selection } });
+            if (planned.mappingPreview === undefined) continue;
+            const document = await vscode.workspace.openTextDocument({ language: "diff", content: planned.mappingPreview.diff });
+            await vscode.window.showTextDocument(document, { preview: false });
+            const save = "Save Scenario Mapping";
+            if (await vscode.window.showInformationMessage(save, { modal: true }, save) === save) {
+              const saved = await readPrReview(root, item.changeName, { sinceLastReview, scenarioMapping: {
+                mode: "save", selection, revision: planned.mappingPreview.revision,
+              } });
+              await openMarkdownDocument("PR Review", saved.summary);
+              refreshChecks = true;
+            }
             continue;
           }
           if (action !== copy) break;

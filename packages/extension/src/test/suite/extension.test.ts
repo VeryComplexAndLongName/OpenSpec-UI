@@ -44,9 +44,9 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     const show = vscode.window.showInformationMessage;
     let refreshed = false;
     vscode.window.showInformationMessage = (async (_message: string, ...items: unknown[]) => {
-      if (!refreshed && items.includes("Refresh GitHub checks")) {
+      if (!refreshed && items.includes("Refresh PR checks")) {
         refreshed = true;
-        return "Refresh GitHub checks";
+        return "Refresh PR checks";
       }
       return items.find((item) => item === "Copy PR summary");
     }) as typeof show;
@@ -58,7 +58,7 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
       const copied = await vscode.env.clipboard.readText();
       assert.match(copied, /Comparison unavailable/u);
       assert.match(copied, /Mechanical checks: no result recorded/u);
-      assert.match(copied, /GitHub checks require a unique open PR/u);
+      assert.match(copied, /Checks require a unique open PR/u);
     } finally {
       vscode.window.showInformationMessage = show;
       await vscode.env.clipboard.writeText(oldClipboard);

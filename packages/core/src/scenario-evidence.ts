@@ -13,18 +13,18 @@ const associations = z.strictObject({
   })).max(1000),
 });
 
-interface Scenario {
+export interface ReviewScenario {
   capability: string;
   requirement: string;
   scenario: string;
 }
 
-function key({ capability, requirement, scenario }: Scenario): string {
+function key({ capability, requirement, scenario }: ReviewScenario): string {
   return JSON.stringify([capability, requirement, scenario]);
 }
 
 interface ScenarioEvidence {
-  scenarios: Array<Scenario & { checks: string[] }>;
+  scenarios: Array<ReviewScenario & { checks: string[] }>;
   warnings: string[];
 }
 
@@ -73,11 +73,34 @@ export async function readScenarioEvidence(git: SimpleGit, head: string, change:
   }
 }
 
-export function scenarioCheckState(name: string, head: string, report?: GitHubChecksReport): string {
-  if (report?.kind !== "checks") return "No GitHub result read";
-  if (report.head !== head) return "GitHub reported a different commit";
+export function scenarioCheckState(name: string, head: string, report?: GitHubChecksReport, forge = "GitHub"): string {
+  if (report?.kind !== "checks") return `No ${forge} result read`;
+  if (report.head !== head) return `${forge} reported a different commit`;
   const matches = report.checks.filter((one) => one.name === name);
-  if (!report.resultsComplete) return "GitHub results incomplete";
+  if (!report.resultsComplete) return `${forge} results incomplete`;
   if (matches.length > 1) return "Several results use this name";
   return matches[0]?.state.replaceAll("_", " ") ?? "No result on this commit";
+}
+
+export function appendScenarioCheck(previous: string | undefined, scenarios: ReviewScenario[], selected: ReviewScenario, check: string): string {
+  const known = new Set(scenarios.map(key));
+  if (!known.has(key(selected))) throw new Error("The selected scenario is not in the reviewed delta.");
+  let existing: z.infer<typeof associations>;
+  try {
+    existing = previous === undefined ? { scenarios: [] } : associations.parse(JSON.parse(previous));
+  } catch {
+    throw new Error("Fix the current scenario-checks.json format before adding a check.");
+  }
+  const seen = new Set<string>();
+  for (const one of existing.scenarios) {
+    const id = key(one);
+    if (seen.has(id) || !known.has(id)) throw new Error("Resolve duplicate or unknown scenarios in scenario-checks.json before adding a check.");
+    seen.add(id);
+  }
+  const row = existing.scenarios.find((one) => key(one) === key(selected));
+  if (row?.checks.includes(check)) throw new Error("The selected check is already linked to this scenario.");
+  if (row === undefined) existing.scenarios.push({ ...selected, checks: [check] });
+  else row.checks.push(check);
+  if (!associations.safeParse(existing).success) throw new Error("The association exceeds the scenario-checks.json format limits.");
+  return JSON.stringify(existing, null, 2) + "\n";
 }

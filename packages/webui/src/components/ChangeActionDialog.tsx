@@ -85,7 +85,9 @@ export function ChangeActionDialog({ target, perform, harnessApi, onClose }: {
           }}
           onReviewAction={(selection) => {
             setCopyStatus("");
-            send({ prReview: { ...selection, ...(checksRequested ? { refreshGitHubChecks: true } : {}) } });
+            send({ prReview: { ...selection, ...(checksRequested ? { refreshGitHubChecks: true } : {}),
+              ...(step.answer.kind === "pr-review" && step.answer.report.sinceLastReview && selection.scenarioMapping
+                ? { sinceLastReview: true } : {}) } });
           }} />
       ) : step.answer.kind === "done" ? (
         <p data-testid="change-action-done">{step.answer.message}</p>
@@ -125,10 +127,11 @@ function PrReview({ review, onCopy, copyStatus, onRefresh, onReviewAction }: {
   onReviewAction?: (selection: NonNullable<ChangeActionInput["prReview"]>) => void;
 }): JSX.Element {
   const head = review.head;
+  const preview = review.mappingPreview;
   return (
     <>
       <button className="button primary" type="button" onClick={() => void onCopy(review.summary)}>Copy PR summary</button>
-      {onRefresh !== undefined && <button className="button" type="button" onClick={onRefresh}>Refresh GitHub checks</button>}
+      {onRefresh !== undefined && <button className="button" type="button" onClick={onRefresh}>Refresh PR checks</button>}
       {onReviewAction !== undefined && head !== undefined && head !== review.lastReviewed &&
         <button className="button" type="button" onClick={() => onReviewAction({ markReviewedCommit: head })}>Mark as reviewed</button>}
       {onReviewAction !== undefined && review.lastReviewed !== undefined &&
@@ -137,10 +140,53 @@ function PrReview({ review, onCopy, copyStatus, onRefresh, onReviewAction }: {
         </button>}
       <span role="status">{copyStatus}</span>
       <div className="openspec-md-preview">{renderMarkdown(review.summary)}</div>
+      {onReviewAction !== undefined && head !== undefined &&
+        (preview ? <section aria-label="Scenario mapping preview">
+          <h4>Scenario mapping preview</h4>
+          <pre aria-label="Scenario mapping diff"><code>{preview.diff}</code></pre>
+          <button className="button primary" type="button" onClick={() => onReviewAction({ scenarioMapping: {
+            mode: "save", selection: preview.selection, revision: preview.revision,
+          } })}>Save Scenario Mapping</button>
+          <button className="button" type="button" onClick={() => onReviewAction(review.sinceLastReview ? { sinceLastReview: true } : {})}>Show PR Review</button>
+        </section> : review.mappingChoices && <ScenarioCheckPicker head={head} choices={review.mappingChoices} onReviewAction={onReviewAction} />)}
       {review.diff !== null && (review.diff.length > 0 ? <details className="openspec-md-preview" open><summary>Committed diff</summary>
         <pre aria-label="Committed diff"><code>{review.diff}</code></pre>
       </details> : <p>{review.truncated ? "The patch exceeds the display limit." : "No committed changes in this comparison."}</p>)}
     </>
+  );
+}
+
+function ScenarioCheckPicker({ head, choices, onReviewAction }: {
+  head: string;
+  choices: NonNullable<Extract<ChangeActionAnswer, { kind: "pr-review" }>["report"]["mappingChoices"]>;
+  onReviewAction: (selection: NonNullable<ChangeActionInput["prReview"]>) => void;
+}): JSX.Element {
+  const [scenarioIndex, setScenarioIndex] = useState("");
+  const [check, setCheck] = useState("");
+  const scenario = scenarioIndex === "" ? undefined : choices.scenarios[Number(scenarioIndex)];
+  return (
+    <form aria-label="Link scenario to check" onSubmit={(event) => {
+      event.preventDefault();
+      if (scenario && choices.checks.includes(check)) onReviewAction({ scenarioMapping: {
+        mode: "preview", selection: { head, scenario, check },
+      } });
+    }}>
+      <label>Scenario
+        <select value={scenarioIndex} onChange={(event) => setScenarioIndex(event.currentTarget.value)}>
+          <option value="">Select a scenario</option>
+          {choices.scenarios.map((entry, index) => <option key={index} value={index}>
+            {`${entry.capability} / ${entry.requirement} / ${entry.scenario}`}
+          </option>)}
+        </select>
+      </label>
+      <label>Reported check
+        <select value={check} onChange={(event) => setCheck(event.currentTarget.value)}>
+          <option value="">Select a check</option>
+          {choices.checks.map((name) => <option key={name} value={name}>{name}</option>)}
+        </select>
+      </label>
+      <button className="button" type="submit" disabled={!scenario || check === ""}>Show Mapping Preview</button>
+    </form>
   );
 }
 
