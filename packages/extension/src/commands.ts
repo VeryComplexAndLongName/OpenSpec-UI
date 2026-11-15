@@ -2848,19 +2848,29 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       const workspaceRoot = deps.getWorkspaceRoot();
       if (workspaceRoot === undefined) return;
       try {
-        const review = await readPrReview(workedIn(item, workspaceRoot).root, item.changeName);
-        const doc = await vscode.workspace.openTextDocument({
-          language: "markdown", content: prReviewMarkdown(review),
-        });
-        await vscode.window.showTextDocument(doc, { preview: false });
+        const root = workedIn(item, workspaceRoot).root;
         const copy = "Copy PR summary";
-        if (await vscode.window.showInformationMessage(review.title, copy) === copy) {
+        const refresh = "Refresh GitHub checks";
+        let refreshChecks = false;
+        for (;;) {
+          const review = await readPrReview(root, item.changeName, { githubChecks: refreshChecks });
+          const doc = await vscode.workspace.openTextDocument({
+            language: "markdown", content: prReviewMarkdown(review),
+          });
+          await vscode.window.showTextDocument(doc, { preview: false });
+          const action = await vscode.window.showInformationMessage(review.title, copy, refresh);
+          if (action === refresh) {
+            refreshChecks = true;
+            continue;
+          }
+          if (action !== copy) break;
           try {
             await vscode.env.clipboard.writeText(review.summary);
             void vscode.window.showInformationMessage(say("OSW-CHG-008").text);
           } catch {
             void vscode.window.showErrorMessage(say("OSW-CHG-009").text);
           }
+          break;
         }
       } catch (error) {
         void vscode.window.showErrorMessage(say("OSW-CHG-010", {

@@ -42,8 +42,14 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     assert.ok(root);
     const oldClipboard = await vscode.env.clipboard.readText();
     const show = vscode.window.showInformationMessage;
-    vscode.window.showInformationMessage = (async (_message: string, ...items: unknown[]) =>
-      items.find((item) => item === "Copy PR summary")) as typeof show;
+    let refreshed = false;
+    vscode.window.showInformationMessage = (async (_message: string, ...items: unknown[]) => {
+      if (!refreshed && items.includes("Refresh GitHub checks")) {
+        refreshed = true;
+        return "Refresh GitHub checks";
+      }
+      return items.find((item) => item === "Copy PR summary");
+    }) as typeof show;
     try {
       await vscode.commands.executeCommand("openspec-ui.showPrReview", {
         changeName: "demo", changeDir: path.join(root, "openspec", "changes", "demo"),
@@ -52,6 +58,7 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
       const copied = await vscode.env.clipboard.readText();
       assert.match(copied, /Comparison unavailable/u);
       assert.match(copied, /Mechanical checks: no result recorded/u);
+      assert.match(copied, /GitHub checks require a unique open PR/u);
     } finally {
       vscode.window.showInformationMessage = show;
       await vscode.env.clipboard.writeText(oldClipboard);

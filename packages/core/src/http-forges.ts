@@ -7,8 +7,9 @@
 
 import { parseCheckStatus, pullRequestTimes, recordOpenPullRequestTarget, type BranchPullRequest, type MergeMethod, type BranchPullRequestState, type Forge, type OpenPullRequestTarget, type PullRequestCheckStatus, type PullRequestRef, type PullRequestsByBranch } from "./gh-pr-gateway.js";
 import { say, type MessageCode, type SaidMessage } from "./message-register.js";
+import { readGitHubChecks, type GitHubCheckTarget } from "./github-checks.js";
 
-export type FetchLike = (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => Promise<{
+export type FetchLike = (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal }) => Promise<{
   ok: boolean;
   status: number;
   text(): Promise<string>;
@@ -38,12 +39,13 @@ class ForgeRefusal extends Error {
   }
 }
 
-async function call(options: HttpForgeOptions, headers: Record<string, string>, method: string, url: string, body?: unknown): Promise<unknown> {
+async function call(options: HttpForgeOptions, headers: Record<string, string>, method: string, url: string, body?: unknown, signal?: AbortSignal): Promise<unknown> {
   const fetchImpl = options.fetch ?? (globalThis.fetch as unknown as FetchLike);
   const response = await fetchImpl(url, {
     method,
     headers: { ...headers, Accept: "application/json", ...(body !== undefined ? { "Content-Type": "application/json" } : {}) },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    ...(signal !== undefined ? { signal } : {}),
   });
   const text = await response.text();
   if (!response.ok) {
@@ -300,6 +302,11 @@ export function createGitHubApiForge(options: HttpForgeOptions & { apiBase?: str
   });
   return {
     name: "GitHub",
+    ...(apiBase === "https://api.github.com" ? {
+      githubChecks: (target: GitHubCheckTarget) =>
+        readGitHubChecks((suffix) => call(options, headers(), "GET", `${api}${suffix}`,
+          undefined, AbortSignal.timeout(15_000)), target),
+    } : {}),
     async pullRequestsByBranch(): Promise<PullRequestsByBranch> {
       if (!options.token) return tokenNotSet(options.tokenName);
       const byBranch = new Map<string, BranchPullRequest>();

@@ -257,11 +257,14 @@ test("opens a worktree PR review and copies the displayed summary", async ({ pag
   const dialog = page.getByTestId("change-action-dialog");
   await expect(dialog.getByText("Default-branch preview", { exact: false })).toBeVisible({ timeout: 30_000 });
   await expect(dialog.getByLabel("Committed diff")).toContainText("+Worktree implementation");
+  await dialog.getByRole("button", { name: "Refresh GitHub checks" }).click();
+  await expect(dialog.getByText("GitHub checks require a unique open PR", { exact: false })).toBeVisible();
   await dialog.getByRole("button", { name: "Copy PR summary" }).click();
   await expect(dialog.getByRole("status")).toHaveText("PR summary copied.");
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   expect(copied).toContain("implementation.txt");
   expect(copied).toContain("no result recorded");
+  expect(copied).toContain("GitHub checks require a unique open PR");
   expect(copied).not.toContain("+Worktree implementation");
 });
 
