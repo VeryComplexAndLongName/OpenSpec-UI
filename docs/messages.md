@@ -2462,6 +2462,22 @@ Why: A change reaches the default branch through its pull request, never by a co
 
 What to do: Work the change on a branch of its own, named after it.
 
+### OSW-GIT-003
+
+> warning: The checkout head changed. Open PR Review again before marking it as reviewed.
+
+Why: The commit displayed during review no longer matches the checked-out revision.
+
+What to do: Review the current revision and mark it again.
+
+### OSW-GIT-004
+
+> info: No locally reviewed commit has been saved for this change.
+
+Why: There is no local review reference to compare with the current commit.
+
+What to do: Choose Mark as reviewed at the commit you reviewed.
+
 ### OSW-GIT-101
 
 > error: Nothing of {name} was committed: {why}

@@ -188,7 +188,7 @@ export async function readPrReview(root: string, changeName: string, sources: {
   const marker = `refs/openspec-ui/reviewed/${createHash("sha256").update(changeName).digest("hex")}`;
   if (sources.markReviewedCommit !== undefined) {
     if (head === undefined || sources.markReviewedCommit !== head) {
-      throw new Error("The checkout head changed. Open PR Review again before marking it as reviewed.");
+      throw new Error(say("OSW-GIT-003").text);
     }
     await git.raw(["update-ref", marker, head]);
   }
@@ -250,7 +250,7 @@ export async function readPrReview(root: string, changeName: string, sources: {
     }
     if (sinceLastReview) {
       comparison = lastReviewed === undefined
-        ? { kind: "unavailable", reason: "No locally reviewed commit has been saved for this change." }
+        ? { kind: "unavailable", reason: say("OSW-GIT-004").text }
         : await compareTrees(git, head, lastReviewed, lastReviewed);
     }
   }
