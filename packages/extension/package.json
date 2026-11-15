@@ -49,6 +49,12 @@
         "icon": "$(rocket)"
       },
       {
+        "command": "openspec-ui.openOpenSpecLocations",
+        "title": "OpenSpec Stores and Worksets",
+        "icon": "$(folder-library)",
+        "category": "OpenSpec Workbench"
+      },
+      {
         "command": "openspec-ui.diagnoseWorkspace",
         "title": "Diagnose Workspace",
         "category": "OpenSpec Workbench",

@@ -113,6 +113,27 @@ export interface OpenSpecListSpecsResult {
   root: OpenSpecRoot;
 }
 
+export interface OpenSpecStore {
+  id: string;
+  root: string;
+}
+
+interface OpenSpecWorksetMember {
+  name: string;
+  path: string;
+}
+
+export interface OpenSpecWorkset {
+  name: string;
+  members: OpenSpecWorksetMember[];
+}
+
+export interface OpenSpecLocations {
+  stores: OpenSpecStore[];
+  worksets: OpenSpecWorkset[];
+  issues: string[];
+}
+
 export interface OpenSpecScenario {
   rawText: string;
 }
@@ -466,6 +487,42 @@ export function isNoOpenSpecRoot(error: unknown): boolean {
 
 export async function listSpecs(options: OpenSpecCliOptions): Promise<OpenSpecListSpecsResult> {
   return runJson(["list", "--specs", "--json"], options, "specs[] and root", isListSpecsResult);
+}
+
+function isStoreList(value: unknown): value is { stores: OpenSpecStore[] } {
+  return isRecord(value) && Array.isArray(value.stores)
+    && value.stores.every((store) => isRecord(store) && hasString(store, "id") && hasString(store, "root"));
+}
+
+function isWorksetList(value: unknown): value is { worksets: OpenSpecWorkset[] } {
+  return isRecord(value) && Array.isArray(value.worksets)
+    && value.worksets.every((workset) => isRecord(workset) && hasString(workset, "name")
+      && Array.isArray(workset.members) && workset.members.every((member) =>
+        isRecord(member) && hasString(member, "name") && hasString(member, "path")));
+}
+
+function listStores(options: OpenSpecCliOptions): Promise<{ stores: OpenSpecStore[] }> {
+  return runJson(["store", "list", "--json"], options, "stores with identifiers and roots", isStoreList);
+}
+
+export async function readOpenSpecLocations(options: OpenSpecCliOptions): Promise<OpenSpecLocations> {
+  const [stores, worksets] = await Promise.allSettled([
+    listStores(options),
+    runJson(["workset", "list", "--json"], options, "worksets with member folders", isWorksetList),
+  ]);
+  const issues = [];
+  if (stores.status === "rejected") issues.push("Registered stores could not be read. Check that the installed OpenSpec CLI supports stores and that its registry is readable.");
+  if (worksets.status === "rejected") issues.push("Saved worksets could not be read. Check that the installed OpenSpec CLI supports worksets and that its settings are readable.");
+  return { stores: stores.status === "fulfilled" ? stores.value.stores : [],
+    worksets: worksets.status === "fulfilled" ? worksets.value.worksets : [], issues };
+}
+
+export async function readOpenSpecStore(id: string, options: OpenSpecCliOptions): Promise<OpenSpecListSpecsResult> {
+  const valid = /^[a-z0-9][a-z0-9._-]{0,127}$/iu.test(id);
+  if (!valid || !(await listStores(options)).stores.some((store) => store.id === id)) {
+    throw new Error("Choose a locally registered OpenSpec store.");
+  }
+  return runJson(["list", "--specs", "--json", "--store", id], options, "specs[] and root", isListSpecsResult);
 }
 
 export async function showChange(changeName: string, options: OpenSpecCliOptions): Promise<OpenSpecShowResult> {

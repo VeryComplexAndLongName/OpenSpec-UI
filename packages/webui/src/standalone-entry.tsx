@@ -40,6 +40,7 @@ const PIPELINE_VIEW_STORAGE_KEY = "openspec-ui.pipeline-view";
  * four times (the-timeline-compares-changes). */
 const CHARTS_ASKED_AFTER_MS = 600;
 import { loadChangeReadiness } from "./change-readiness-client.js";
+import { OpenSpecLocationsDialog } from "./components/OpenSpecLocationsDialog.js";
 import { loadWorkspaceLeftovers, removeWorkspaceLeftover, type WorkspaceLeftoverReading } from "./change-leftovers-client.js";
 import { LeftoverList } from "./components/LeftoverList.js";
 import { loadChangeLastRuns } from "./change-last-runs-client.js";
@@ -393,6 +394,7 @@ function StandaloneApp() {
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [overviewError, setOverviewError] = useState<string | null>(null);
   const [showReviewExample, setShowReviewExample] = useState(false);
+  const [showOpenSpecLocations, setShowOpenSpecLocations] = useState(false);
   // Diff Preview: the chosen change and what git said about it
   // (a-screen-says-what-it-is-doing). `diffReading` counts readings, so a
   // reply for a change since left behind sets nothing.
@@ -2063,10 +2065,16 @@ function StandaloneApp() {
                 <h2>Where the work happens</h2>
                 <span className="openspec-panel-head-note">the workspace every command runs in</span>
                 <button className="button" type="button" onClick={() => setShowReviewExample(true)}>Open Example</button>
+                <button className="button" type="button" disabled={!cwd.trim()} onClick={() => setShowOpenSpecLocations(true)}>OpenSpec Stores and Worksets</button>
               </div>
               {showReviewExample && (
                 <ModalLayer testId="pr-review-example-layer" onCancel={() => setShowReviewExample(false)}>
                   <PrReviewExampleDialog onClose={() => setShowReviewExample(false)} />
+                </ModalLayer>
+              )}
+              {showOpenSpecLocations && (
+                <ModalLayer testId="openspec-locations-layer" onCancel={() => setShowOpenSpecLocations(false)}>
+                  <OpenSpecLocationsDialog cwd={cwd} request={apiFetch} onClose={() => setShowOpenSpecLocations(false)} />
                 </ModalLayer>
               )}
               <div className="openspec-panel-body">

@@ -43,6 +43,8 @@ import {
   listChanges,
   listProjectTemplates,
   listSpecs,
+  readOpenSpecLocations,
+  readOpenSpecStore,
   readArchivedChangeTasksTemplate,
   runTimestampsByChange,
   readChangeEditorDocument,
@@ -159,6 +161,27 @@ export function authorizeCwd(res: ServerResponse, policy: RestRequestPolicy, cwd
 
 interface OverviewRequest {
   cwd: string;
+}
+
+export async function handleOpenSpecLocationsRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  let input: unknown;
+  try {
+    input = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+  const { cwd, store } = (input ?? {}) as { cwd?: unknown; store?: unknown };
+  if (typeof cwd !== "string" || cwd.trim().length === 0 || (store !== undefined && typeof store !== "string")) {
+    sendJson(res, 400, { error: "Provide a workspace and, optionally, a registered store identifier." });
+    return;
+  }
+  if (!authorizeCwd(res, policy, cwd)) return;
+  try {
+    sendJson(res, 200, store === undefined ? await readOpenSpecLocations({ cwd }) : await readOpenSpecStore(store, { cwd }));
+  } catch (error) {
+    sendJson(res, 422, { error: error instanceof Error ? error.message : "The OpenSpec store could not be read." });
+  }
 }
 
 interface OverviewArchivedChangeSummary {

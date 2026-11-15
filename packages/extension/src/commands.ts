@@ -28,6 +28,8 @@ import {
   readSpecArchivePreview,
   prReviewMarkdown,
   readEnvironmentReport,
+  readOpenSpecLocations,
+  readOpenSpecStore,
   WORKBENCH_ISSUE_DRAFT,
   buildRunPlan,
   describeChangeState,
@@ -1318,6 +1320,37 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
   const timelinePanel = new TimelineWebviewPanel({ extensionUri: context.extensionUri });
   context.subscriptions.push(
     vscode.commands.registerCommand("openspec-ui.sendFeedback", () => vscode.env.openExternal(vscode.Uri.parse(WORKBENCH_ISSUE_DRAFT))),
+    vscode.commands.registerCommand("openspec-ui.openOpenSpecLocations", async () => {
+      const cwd = deps.getWorkspaceRoot();
+      if (!cwd) { warnNoWorkspace(); return; }
+      const locations = await readOpenSpecLocations({ cwd });
+      const selection = await vscode.window.showQuickPick([
+        { label: "Show registered stores and saved worksets", store: undefined },
+        ...locations.stores.map((store) => ({ label: store.id, description: store.root, store: store.id })),
+      ], { placeHolder: "OpenSpec Stores and Worksets" });
+      if (selection === undefined) return;
+      const plain = (text: string) => text.replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, " ");
+      if (selection.store === undefined) {
+        const lines = ["# OpenSpec Stores and Worksets", "", ...locations.issues, "", "## Registered stores", "",
+          ...(locations.stores.length ? locations.stores.map((store) => `    ${plain(store.id)} — ${plain(store.root)}`) : ["No registered stores to display."]),
+          "", "## Saved worksets", "",
+          ...(locations.worksets.length ? locations.worksets.flatMap((workset) => [
+            `    ${plain(workset.name)}`,
+            ...workset.members.map((member) => `      ${plain(member.name)} — ${plain(member.path)}`),
+          ]) : ["No saved worksets to display."])];
+        await openMarkdownDocument("OpenSpec stores and worksets", lines.join("\n"));
+        return;
+      }
+      try {
+        const catalog = await readOpenSpecStore(selection.store, { cwd });
+        const lines = ["# Store specifications", "", `    ${plain(selection.store)} — ${plain(catalog.root.path)}`, "",
+          ...(catalog.specs.length ? catalog.specs.map((spec) => `    ${plain(spec.id)} (${spec.requirementCount} requirements)`)
+            : ["This store has no specifications."])];
+        await openMarkdownDocument("store specifications", lines.join("\n"));
+      } catch (error) {
+        void vscode.window.showErrorMessage(error instanceof Error ? error.message : "The OpenSpec store could not be read.");
+      }
+    }),
     vscode.commands.registerCommand("openspec-ui.diagnoseWorkspace", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }

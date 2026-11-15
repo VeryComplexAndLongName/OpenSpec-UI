@@ -30,6 +30,8 @@ const {
   instructionsForArtifact,
   listChanges,
   listSpecs,
+  readOpenSpecLocations,
+  readOpenSpecStore,
   showChange,
   statusChange,
   validateChange,
@@ -58,6 +60,35 @@ async function loadFixture(name: string): Promise<string> {
 }
 
 describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
+  it("reads the store and workset catalogs and scopes a spec request to a registered store", async () => {
+    const registration = JSON.stringify({ stores: [{ id: "contracts", root: "/team/contracts" }] });
+    mockSuccessfulSpawn(registration);
+    mockSuccessfulSpawn(JSON.stringify({ worksets: [{ name: "checkout", members: [{ name: "web", path: "/team/web" }] }] }));
+    const options = { cwd: "/team/web" };
+    expect(await readOpenSpecLocations(options)).toEqual({
+      stores: [{ id: "contracts", root: "/team/contracts" }],
+      worksets: [{ name: "checkout", members: [{ name: "web", path: "/team/web" }] }],
+      issues: [],
+    });
+    await expect(readOpenSpecStore("--json", options)).rejects.toThrow("locally registered");
+    mockSuccessfulSpawn(registration);
+    await expect(readOpenSpecStore("missing", options)).rejects.toThrow("locally registered");
+    mockSuccessfulSpawn(registration);
+    mockSuccessfulSpawn(JSON.stringify({ specs: [{ id: "checkout-api", requirementCount: 2 }], root: {
+      path: "/team/contracts", source: "explicit_store",
+    } }));
+    expect((await readOpenSpecStore("contracts", options)).specs).toEqual([{ id: "checkout-api", requirementCount: 2 }]);
+    expect(spawnMock).toHaveBeenLastCalledWith("openspec", ["list", "--specs", "--json", "--store", "contracts"],
+      { cwd: "/team/web", windowsHide: true });
+  });
+
+  it("keeps the available worksets when the installed store command gives an incompatible result", async () => {
+    mockSuccessfulSpawn("{}");
+    mockSuccessfulSpawn('{"worksets":[]}');
+    const result = await readOpenSpecLocations({ cwd: "/team/web" });
+    expect(result).toMatchObject({ stores: [], worksets: [], issues: [expect.stringContaining("stores could not be read")] });
+  });
+
   it("listChanges parses real `openspec list --json` output", async () => {
     mockSuccessfulSpawn(await loadFixture("list.json"));
 
