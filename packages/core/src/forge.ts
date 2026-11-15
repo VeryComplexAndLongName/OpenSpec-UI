@@ -13,7 +13,7 @@
 // The token is the person's, in their environment: `GITLAB_TOKEN`,
 // `GITEA_TOKEN`. It is read when a forge is made and passed nowhere else.
 
-import { createGitHubForge, createPullRequestGateway, pullRequestGatewayOver, type Forge, type PullRequestGateway } from "./gh-pr-gateway.js";
+import { createGitHubForge, pullRequestGatewayOver, type Forge, type PullRequestGateway } from "./gh-pr-gateway.js";
 import { createGitWrapper } from "./git.js";
 import { parseForgeRemote } from "./forge-remote.js";
 import { createGitHubApiForge, createGitLabForge, createGiteaForge, type FetchLike } from "./http-forges.js";
@@ -112,7 +112,9 @@ export function forgeFor(root: string, options: ForgeForOptions = {}): Promise<F
     if (found.kind === "github" && found.path && githubToken) {
       return createGitHubApiForge({ base: "https://github.com", apiBase: found.base, path: found.path, token: githubToken, tokenName: env.GITHUB_TOKEN ? "GITHUB_TOKEN" : "GH_TOKEN", ...(options.fetch ? { fetch: options.fetch } : {}) });
     }
-    return withTokenHint(createGitHubForge({ cwd: root }));
+    return withTokenHint(createGitHubForge({ cwd: root,
+      ...(found.kind === "github" && found.path !== undefined ? { githubRepository: found.path } : {}),
+    }));
   };
   // Seams are a test's own: never shared with the cache.
   if (options.remoteUrl !== undefined || options.fetch !== undefined || options.env !== undefined) return read();

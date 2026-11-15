@@ -79,7 +79,11 @@ export function ChangeActionDialog({ target, perform, harnessApi, onClose }: {
       ) : step.answer.kind === "report" ? (
         <div className="openspec-md-preview" data-testid="change-action-report">{renderMarkdown(step.answer.markdown)}</div>
       ) : step.answer.kind === "pr-review" ? (
-        <PrReview review={step.answer.report} onCopy={copySummary} copyStatus={copyStatus} />
+        <PrReview review={step.answer.report} onCopy={copySummary} copyStatus={copyStatus}
+          onRefresh={() => {
+            setCopyStatus("");
+            send({ prReview: { refreshGitHubChecks: true } });
+          }} />
       ) : step.answer.kind === "done" ? (
         <p data-testid="change-action-done">{step.answer.message}</p>
       ) : (
@@ -90,14 +94,16 @@ export function ChangeActionDialog({ target, perform, harnessApi, onClose }: {
   );
 }
 
-function PrReview({ review, onCopy, copyStatus }: {
+function PrReview({ review, onCopy, copyStatus, onRefresh }: {
   review: Extract<ChangeActionAnswer, { kind: "pr-review" }>["report"];
   onCopy: (summary: string) => Promise<void>;
   copyStatus: string;
+  onRefresh: () => void;
 }): JSX.Element {
   return (
     <>
       <button className="button primary" type="button" onClick={() => void onCopy(review.summary)}>Copy PR summary</button>
+      <button className="button" type="button" onClick={onRefresh}>Refresh GitHub checks</button>
       <span role="status">{copyStatus}</span>
       <div className="openspec-md-preview">{renderMarkdown(review.summary)}</div>
       {review.diff !== null && (review.diff.length > 0 ? <details className="openspec-md-preview" open><summary>Committed diff</summary>

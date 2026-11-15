@@ -145,7 +145,9 @@ async function perform(request: ChangeActionRequest, at: ChangeActionRoot, seams
         : ["```diff", diff.diff, "```", ...(diff.truncated ? ["", `Cut at ${diff.maxBytes} bytes.`] : [])].join("\n"));
     }
     case "showPrReview":
-      return { kind: "pr-review", report: await readPrReview(at.root, name) };
+      return { kind: "pr-review", report: await readPrReview(at.root, name, {
+        githubChecks: request.input?.prReview?.refreshGitHubChecks === true,
+      }) };
     case "showTimeline": {
       const timeline = await getChangeTimeline(at.root, name, false);
       const day = (fact: { day: string | null }) => fact.day ?? "not known";

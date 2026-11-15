@@ -4,7 +4,8 @@ import { changeNameOf, isRunEntry, VERIFY_CHECKS_AGENT_NAME } from "./audit-runs
 import { CHANGE_DIFF_MAX_BYTES } from "./change-diff.js";
 import { isValidChangeName } from "./change-name.js";
 import { forgeFor } from "./forge.js";
-import type { PullRequestsByBranch } from "./gh-pr-gateway.js";
+import type { OpenPullRequestTarget, PullRequestsByBranch } from "./gh-pr-gateway.js";
+import type { GitHubChecksReport } from "./github-checks.js";
 import { openGit } from "./git-client.js";
 import { createGitWrapper } from "./git.js";
 import { say } from "./message-register.js";
@@ -142,8 +143,28 @@ function evidence(entries: readonly AuditEntry[], name: string, head: string | u
   return lines;
 }
 
+function githubEvidence(report: GitHubChecksReport, target: OpenPullRequestTarget, localHead: string): string[] {
+  if (report.kind === "unavailable") return [`- ${report.reason}`];
+  const lines = [`- PR #${target.number}, base ${literal(target.baseBranch)}, published head ${literal(report.head)}.`];
+  if (report.head !== localHead) lines.push("- These results apply to a different commit than the local comparison.");
+  if (report.checks.length === 0 && report.resultsComplete) lines.push("- GitHub has no check results for this commit.");
+  for (const check of report.checks) {
+    const state = check.state.replaceAll("_", " ");
+    lines.push(`- ${literal(check.name)}: ${literal(state)}${check.link === undefined ? "" : ` · [Open run](<${check.link}>)`}`);
+  }
+  if (!report.resultsComplete) lines.push("- GitHub check results could only be read partially or were unavailable.");
+  lines.push("", "#### Expected checks on the base branch", "");
+  if (!report.rulesComplete) lines.push("- The list of expected checks is partial or unavailable.");
+  if (report.expected.length === 0 && report.rulesComplete) lines.push("- GitHub reports no required checks for this branch.");
+  for (const check of report.expected) {
+    lines.push(`- ${literal(check.name)}${check.app === undefined ? "" : ` (GitHub App ${check.app})`}: ${check.state}.`);
+  }
+  return lines;
+}
+
 export async function readPrReview(root: string, changeName: string, sources: {
   pullRequests?: (root: string) => Promise<PullRequestsByBranch>;
+  githubChecks?: boolean;
 } = {}): Promise<PrReviewReport> {
   if (!isValidChangeName(changeName)) throw new Error("Choose an active OpenSpec change.");
   const workspace = await discoverOpenSpecWorkspace(root, { changes: "active", names: [changeName] });
@@ -154,6 +175,7 @@ export async function readPrReview(root: string, changeName: string, sources: {
   const git = openGit(root);
   const head = await resolveCommit(git, "HEAD");
   const heading = [`## PR review for ${literal(changeName)}`, "", "### Comparison", ""];
+  let github: string[] = ["- GitHub checks require a unique open PR from this branch."];
   let comparison: Awaited<ReturnType<typeof compare>> = { kind: "unavailable", reason: say("OSW-CHG-004").text };
   if (head !== undefined) {
     const [branchRef, dirty, remotes] = await Promise.all([
@@ -177,7 +199,23 @@ export async function readPrReview(root: string, changeName: string, sources: {
       }
       const remoteRef = `refs/remotes/origin/${target.baseBranch}`;
       comparison = await compare(git, head, remoteRef, target.baseCommit);
+      if (sources.githubChecks === true) {
+        const forge = await forgeFor(root).catch(() => undefined);
+        if (forge?.githubChecks === undefined) {
+          github = ["- GitHub checks require a GitHub.com origin."];
+        } else if (target.headCommit === undefined || !COMMIT.test(target.headCommit)) {
+          github = ["- GitHub did not report a published head for this PR."];
+        } else {
+          const checked = await forge.githubChecks({ ...target, headCommit: target.headCommit }).catch(
+            (): GitHubChecksReport => ({ kind: "unavailable", reason: say("OSW-CHG-011").text }),
+          );
+          github = githubEvidence(checked, target, head);
+        }
+      }
     } else {
+      if (sources.githubChecks === true && read?.available === false) {
+        github = [`- The open PR could not be read. ${literal(read.reason)}`];
+      }
       const why = targets.length > 1 ? "More than one open PR targets a base from this branch."
         : read?.available ? "No open PR target was identified for this branch." : "The open PR target could not be read.";
       heading.push(`- ${why}`);
@@ -197,6 +235,8 @@ export async function readPrReview(root: string, changeName: string, sources: {
     if (comparison.truncated) heading.push("- The displayed patch is truncated.");
   }
   const entries = await readRepositoryAuditEntries({ git: createGitWrapper({ cwd: root }), workspaceRoot: path.resolve(root) });
-  const summary = [...heading, "", ...evidence(entries, changeName, head)].join("\n");
+  const summary = [...heading, "", ...evidence(entries, changeName, head),
+    ...(sources.githubChecks === true ? ["", "### GitHub checks", "", ...github] : []),
+  ].join("\n");
   return { title, summary, diff: comparison.kind === "diff" ? comparison.diff : null, truncated: comparison.kind === "diff" && comparison.truncated };
 }

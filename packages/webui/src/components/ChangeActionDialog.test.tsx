@@ -6,6 +6,20 @@ import { ChangeActionDialog, type PerformChangeAction } from "./ChangeActionDial
 // run by the server where the change is worked, said over the Pipeline.
 
 describe("ChangeActionDialog", () => {
+  it("refreshes GitHub checks on request and links to the returned run", async () => {
+    const perform = vi.fn<PerformChangeAction>()
+      .mockResolvedValueOnce({ kind: "pr-review", report: { title: "Review", summary: "Local evidence", diff: null, truncated: false } })
+      .mockResolvedValueOnce({ kind: "pr-review", report: {
+        title: "Review", summary: "### GitHub checks\n\n- [Open run](<https://github.com/owner/repo/actions/runs/12>)",
+        diff: null, truncated: false,
+      } });
+    const target = { action: "showPrReview" as const, changeName: "demo" };
+    render(<ChangeActionDialog target={target} perform={perform} onClose={() => undefined} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Refresh GitHub checks" }));
+    expect(perform.mock.calls).toEqual([[target, undefined], [target, { prReview: { refreshGitHubChecks: true } }]]);
+    expect(await screen.findByRole("link", { name: "Open run" })).toHaveAttribute("href", "https://github.com/owner/repo/actions/runs/12");
+  });
+
   it("sends a reading action at once and shows what came back", async () => {
     const perform = vi.fn<PerformChangeAction>(async () => ({ kind: "report", title: "Show Ancestry demo", markdown: "- **older** change" }));
     render(<ChangeActionDialog target={{ action: "showAncestry", changeName: "demo" }} perform={perform} onClose={() => undefined} />);

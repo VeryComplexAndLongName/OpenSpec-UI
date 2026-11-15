@@ -91,6 +91,14 @@ Why: Workbench could not read or open the selected change's PR review.
 
 What to do: Check the working directory and open PR Review again.
 
+### OSW-CHG-011
+
+> warning: GitHub checks could not be read.
+
+Why: Workbench could not complete the requested GitHub checks read for the published PR head.
+
+What to do: Check GitHub access and select Refresh GitHub checks again.
+
 ## RUN: runs, chains, stages, checkpoints, limits
 
 ### OSW-RUN-001

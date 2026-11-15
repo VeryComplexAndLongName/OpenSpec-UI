@@ -1,5 +1,6 @@
 import { setTimeout as delay } from "node:timers/promises";
 import crossSpawn from "cross-spawn";
+import { readGitHubChecks, type GitHubCheckTarget, type GitHubChecksReport } from "./github-checks.js";
 import { say, type MessageCode, type SaidMessage } from "./message-register.js";
 
 /** A pull request's state as `gh` reports it. */
@@ -66,6 +67,7 @@ export type PullRequestsByBranch =
 export interface ListPullRequestsOptions {
   cwd: string;
   ghBinary?: string;
+  githubRepository?: string;
   /** Test seam: runs `gh`. */
   exec?: (binary: string, args: string[], options: { cwd: string }) => Promise<{ stdout: string; stderr: string }>;
 }
@@ -107,6 +109,9 @@ function unavailable(said: SaidMessage): PullRequestsByBranch {
  * is missing, not signed in or fails, says why and guesses nothing. */
 export async function listPullRequestsByBranch(options: ListPullRequestsOptions): Promise<PullRequestsByBranch> {
   const invocation = buildGhPrListInvocation();
+  if (options.githubRepository !== undefined) {
+    invocation.args.push("--repo", `github.com/${options.githubRepository}`);
+  }
   let stdout: string;
   try {
     ({ stdout } = await (options.exec ?? execFileAsync)(options.ghBinary ?? invocation.executable, invocation.args, { cwd: options.cwd }));
@@ -245,7 +250,7 @@ function extractNoChecks(stderr: string): boolean {
 function execFileAsync(
   binary: string,
   args: string[],
-  options: { cwd: string },
+  options: { cwd: string; signal?: AbortSignal },
 ): Promise<ExecResult> {
   return new Promise((resolve, reject) => {
     const child = crossSpawn(binary, args, options);
@@ -369,6 +374,8 @@ export interface Forge {
    * and the archive pass (ADR 0036) alike - and never asks a forge to
    * merge later by its own rules. */
   checksOf(prNumber: number): Promise<PullRequestCheckStatus>;
+  /** Optional, read-only detail for GitHub.com PR Review. */
+  githubChecks?(target: GitHubCheckTarget): Promise<GitHubChecksReport>;
   /** Merges the pull request now, by the given method, and deletes its
    * branch. Throws with the forge's reason where it will not. */
   mergeNow(prNumber: number, method?: MergeMethod): Promise<void>;
@@ -415,6 +422,8 @@ export function pullRequestGatewayOver(forge: Forge, options: { pollIntervalMs?:
 export interface GitHubForgeOptions {
   cwd: string;
   ghBinary?: string;
+  /** GitHub.com repository named by origin. */
+  githubRepository?: string;
   /** Test seam: runs `gh`. */
   exec?: (binary: string, args: string[], options: { cwd: string }) => Promise<{ stdout: string; stderr: string }>;
 }
@@ -429,9 +438,19 @@ export function buildGhPrCreateWithBodyInvocation(request: { head: string; base:
 export function createGitHubForge(options: GitHubForgeOptions): Forge {
   const ghBinary = options.ghBinary ?? "gh";
   const exec = options.exec ?? execFileAsync;
+  const githubRepository = options.githubRepository?.split("/").map(encodeURIComponent).join("/");
   return {
     name: "GitHub",
     pullRequestsByBranch: () => listPullRequestsByBranch(options),
+    ...(githubRepository === undefined ? {} : {
+      githubChecks: (target: GitHubCheckTarget) =>
+        readGitHubChecks(async (suffix) => {
+          const requestOptions = { cwd: options.cwd, signal: AbortSignal.timeout(15_000) };
+          const { stdout } = await exec(ghBinary, ["api", "--hostname", "github.com",
+            `repos/${githubRepository}${suffix}`], requestOptions);
+          return JSON.parse(stdout) as unknown;
+        }, target),
+    }),
     async openPullRequest(request) {
       const invocation = buildGhPrCreateWithBodyInvocation(request);
       const { stdout } = await exec(ghBinary, invocation.args, { cwd: options.cwd });
