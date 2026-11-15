@@ -50,6 +50,7 @@ export * from "./mechanical-checks.js";
 export * from "./check-script-resolution.js";
 export * from "./version-info.js";
 export * from "./template-catalog.js";
+export { PR_REVIEW_EXAMPLE } from "./pr-review-example.js";
 export * from "./repo-bootstrap.js";
 export * from "./agent-workflow-rules.js";
 export * from "./change-in-its-worktree.js";

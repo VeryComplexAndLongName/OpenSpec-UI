@@ -1,0 +1,47 @@
+import type { PrReviewReport } from "./pr-review.js";
+
+/** A fictional review which uses the same report shape as a real change. */
+export const PR_REVIEW_EXAMPLE: PrReviewReport = {
+  title: "PR Review example",
+  summary: [
+    "## Example PR review",
+    "",
+    "This fictional checkout change uses sample data.",
+    "",
+    "### Proposal",
+    "",
+    "Trim spaces from the postal code before saving a shipping address. " +
+      "Keep empty postal codes subject to the existing validation.",
+    "",
+    "### Tasks",
+    "",
+    "- [x] Normalize the postal code at the save boundary.",
+    "- [x] Add a scenario for a postal code pasted with extra spaces.",
+    "",
+    "### Comparison",
+    "",
+    "- Base branch: `main`. Branch under review: `trim-postal-code`.",
+    "- Changed file: `shipping.ts`.",
+    "",
+    "### Verification",
+    "",
+    "- Checkout integration: passed on the sample head.",
+    "- Browser workflow: no result on the sample head.",
+    "",
+    "### Scenario evidence",
+    "",
+    "- A customer pastes a postal code with extra spaces: Checkout integration passed.",
+    "- An empty postal code is rejected: no check linked.",
+  ].join("\n"),
+  diff: [
+    "diff --git a/shipping.ts b/shipping.ts",
+    "--- a/shipping.ts",
+    "+++ b/shipping.ts",
+    "@@ -1,3 +1,3 @@",
+    " export function saveShippingAddress(address: Address) {",
+    "-  return saveAddress(address);",
+    "+  return saveAddress({ ...address, postalCode: address.postalCode.trim() });",
+    " }",
+  ].join("\n"),
+  truncated: false,
+};

@@ -39,6 +39,23 @@ test.afterAll(async () => {
   if (workspaceRoot) await rm(workspaceRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 });
 
+test("opens the read-only PR Review example and copies it", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto(`${baseUrl}/#token=${encodeURIComponent(server.accessToken)}`);
+  const root = page.getByLabel("Workspace root (cwd)");
+  await expect(root).toHaveValue(workspaceRoot);
+  await page.getByRole("button", { name: "Open Example" }).click();
+  const dialog = page.getByRole("dialog", { name: "PR Review example" });
+  await expect(dialog.getByRole("heading", { name: "Proposal" })).toBeVisible();
+  await expect(dialog.getByLabel("Committed diff")).toContainText("postalCode.trim()");
+  await dialog.getByRole("button", { name: "Copy PR summary" }).click();
+  await expect(dialog.getByRole("status")).toHaveText("PR summary copied.");
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copied).toContain("This fictional checkout change");
+  await dialog.getByRole("button", { name: "Close" }).click();
+  await expect(root).toHaveValue(workspaceRoot);
+});
+
 test("loads, edits, and saves an accessible standalone change", async ({ page }) => {
   test.setTimeout(60000);
   const pageErrors: Error[] = [];

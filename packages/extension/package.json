@@ -55,6 +55,12 @@
         "icon": "$(search-fuzzy)"
       },
       {
+        "command": "openspec-ui.openExample",
+        "title": "Open Example",
+        "icon": "$(notebook)",
+        "category": "OpenSpec Workbench"
+      },
+      {
         "command": "openspec-ui.sendFeedback",
         "title": "Send Feedback",
         "category": "OpenSpec Workbench",

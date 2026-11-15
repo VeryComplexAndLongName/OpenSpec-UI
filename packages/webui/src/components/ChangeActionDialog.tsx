@@ -7,7 +7,7 @@
 // This file draws and asks; what each action does is the server's and core's.
 
 import { useEffect, useState } from "react";
-import { changeAction, say, type ChangeActionAnswer, type ChangeActionId, type ChangeActionInput } from "@openspec-ui/core/browser";
+import { changeAction, PR_REVIEW_EXAMPLE, say, type ChangeActionAnswer, type ChangeActionId, type ChangeActionInput } from "@openspec-ui/core/browser";
 import { renderMarkdown } from "../markdown.js";
 import { ChangeHarnessSettingsView } from "./ChangeHarnessSettingsView.js";
 import type { HarnessSettingsApi } from "./harness-settings-parts.js";
@@ -41,12 +41,7 @@ export function ChangeActionDialog({ target, perform, harnessApi, onClose }: {
   const [copyStatus, setCopyStatus] = useState("");
 
   async function copySummary(summary: string) {
-    try {
-      await navigator.clipboard.writeText(summary);
-      setCopyStatus(say("OSW-CHG-008").text);
-    } catch {
-      setCopyStatus(say("OSW-CHG-009").text);
-    }
+    setCopyStatus(await copyPrSummary(summary));
   }
 
   const send = (input?: ChangeActionInput) => {
@@ -94,16 +89,36 @@ export function ChangeActionDialog({ target, perform, harnessApi, onClose }: {
   );
 }
 
+async function copyPrSummary(summary: string): Promise<string> {
+  try {
+    await navigator.clipboard.writeText(summary);
+    return say("OSW-CHG-008").text;
+  } catch {
+    return say("OSW-CHG-009").text;
+  }
+}
+
+export function PrReviewExampleDialog({ onClose }: { onClose: () => void }): JSX.Element {
+  const [copyStatus, setCopyStatus] = useState("");
+  return (
+    <section className="openspec-shell-panel openspec-change-action" role="dialog" aria-modal="true" aria-label="PR Review example" tabIndex={-1}>
+      <PrReview review={PR_REVIEW_EXAMPLE}
+        onCopy={async (summary) => setCopyStatus(await copyPrSummary(summary))} copyStatus={copyStatus} />
+      <button className="button" type="button" onClick={onClose}>Close</button>
+    </section>
+  );
+}
+
 function PrReview({ review, onCopy, copyStatus, onRefresh }: {
   review: Extract<ChangeActionAnswer, { kind: "pr-review" }>["report"];
   onCopy: (summary: string) => Promise<void>;
   copyStatus: string;
-  onRefresh: () => void;
+  onRefresh?: () => void;
 }): JSX.Element {
   return (
     <>
       <button className="button primary" type="button" onClick={() => void onCopy(review.summary)}>Copy PR summary</button>
-      <button className="button" type="button" onClick={onRefresh}>Refresh GitHub checks</button>
+      {onRefresh !== undefined && <button className="button" type="button" onClick={onRefresh}>Refresh GitHub checks</button>}
       <span role="status">{copyStatus}</span>
       <div className="openspec-md-preview">{renderMarkdown(review.summary)}</div>
       {review.diff !== null && (review.diff.length > 0 ? <details className="openspec-md-preview" open><summary>Committed diff</summary>
