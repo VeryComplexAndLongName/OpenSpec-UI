@@ -54,6 +54,25 @@ function openTarget(base: string, head: string): Promise<PullRequestsByBranch> {
 }
 
 describe("PR review", () => {
+  it("lists scenarios and check associations from the reviewed commit", async () => {
+    const { root, changeDir, main } = await fixture();
+    const delta = path.join(changeDir, "specs", "checkout");
+    await mkdir(delta, { recursive: true });
+    await writeFile(path.join(delta, "spec.md"), "## ADDED Requirements\n### Requirement: Shipping\n#### Scenario: Address changes\n");
+    const mapping = path.join(changeDir, "scenario-checks.json");
+    await writeFile(mapping, JSON.stringify({ scenarios: [{
+      capability: "checkout", requirement: "Shipping", scenario: "Address changes", checks: ["build"],
+    }] }));
+    await git(root, "add", ".");
+    await git(root, "commit", "-m", "Add the shipping scenario");
+    await writeFile(mapping, "{dirty");
+    const report = await readPrReview(root, "demo", { pullRequests: async () => openTarget(main, main) });
+    expect(report.summary).toContain("### Scenario evidence");
+    expect(report.summary).toContain("Address changes");
+    expect(report.summary).toContain("No GitHub result read");
+    expect(report.summary).not.toContain("invalid format");
+  });
+
   it("compares the pinned local head with the open PR's non-default target", async () => {
     const { root, main, release, head } = await fixture();
     await writeFile(path.join(root, "implementation.txt"), "Uncommitted work\n");

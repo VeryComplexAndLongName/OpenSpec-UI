@@ -247,7 +247,9 @@ async function expectNoBlockingViolations(page: Page): Promise<void> {
 test("opens a worktree PR review and copies the displayed summary", async ({ page, context }) => {
   test.setTimeout(90_000);
   await writeFile(path.join(ownDirectory, "implementation.txt"), "Worktree implementation\n");
-  await git(ownDirectory, ["add", "implementation.txt"]);
+  const delta = path.join("openspec", "changes", "pipeline-unrelated", "specs", "pipeline-unrelated", "spec.md");
+  await writeFile(path.join(ownDirectory, delta), "## ADDED Requirements\n\n### Requirement: Fixture\nThe system SHALL load.\n\n#### Scenario: Open the pipeline\n- **WHEN** selected\n- **THEN** it loads\n");
+  await git(ownDirectory, ["add", "implementation.txt", delta]);
   await git(ownDirectory, ["commit", "-qm", "Worktree implementation"]);
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto(`${baseUrl}/#token=${encodeURIComponent(server.accessToken)}`);
@@ -259,12 +261,15 @@ test("opens a worktree PR review and copies the displayed summary", async ({ pag
   await expect(dialog.getByLabel("Committed diff")).toContainText("+Worktree implementation");
   await dialog.getByRole("button", { name: "Refresh GitHub checks" }).click();
   await expect(dialog.getByText("GitHub checks require a unique open PR", { exact: false })).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Scenario evidence" })).toBeVisible();
+  await expect(dialog.getByText("No check linked.", { exact: true })).toBeVisible();
   await dialog.getByRole("button", { name: "Copy PR summary" }).click();
   await expect(dialog.getByRole("status")).toHaveText("PR summary copied.");
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   expect(copied).toContain("implementation.txt");
   expect(copied).toContain("no result recorded");
   expect(copied).toContain("GitHub checks require a unique open PR");
+  expect(copied).toContain("Open the pipeline");
   expect(copied).not.toContain("+Worktree implementation");
 });
 
