@@ -427,6 +427,12 @@
         "category": "OpenSpec Workbench"
       },
       {
+        "command": "openspec-ui.showArchivePreview",
+        "title": "Show Archive Preview",
+        "icon": "$(preview)",
+        "category": "OpenSpec Workbench"
+      },
+      {
         "command": "openspec-ui.stopProcess",
         "title": "Stop Process",
         "icon": "$(stop-circle)",

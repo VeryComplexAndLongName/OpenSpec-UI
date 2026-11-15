@@ -555,6 +555,15 @@ export async function archiveChange(
     throw new OpenSpecCommandError(say("OSW-ARC-004", { change: changeName, debts: said }));
   }
 
+  return applyArchiveInDirectory(changeName, options, archiveOptions);
+}
+
+/** Applies to a disposable preview directory or a task-gated checkout. */
+export async function applyArchiveInDirectory(
+  changeName: string,
+  options: OpenSpecCliOptions,
+  archiveOptions: ArchiveChangeOptions = {},
+): Promise<OpenSpecArchiveResult> {
   const args = ["archive", changeName, "--yes", "--json"];
   if (archiveOptions.skipSpecs) args.push("--skip-specs");
   // `archive` refuses by printing a report and exiting non-zero — the

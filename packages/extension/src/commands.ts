@@ -24,6 +24,7 @@ import {
   readTaskChecklist,
   readChangeHarnessConfig,
   readPrReview,
+  readSpecArchivePreview,
   prReviewMarkdown,
   readEnvironmentReport,
   WORKBENCH_ISSUE_DRAFT,
@@ -2842,6 +2843,14 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
   );
 
   context.subscriptions.push(
+    vscode.commands.registerCommand("openspec-ui.showArchivePreview", async (invokedItem?: ChangeTreeItem) => {
+      const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
+      if (!item || item.archived) { warnNoTreeSelection("change"); return; }
+      const root = deps.getWorkspaceRoot();
+      if (root === undefined) return;
+      const body = await readSpecArchivePreview(workedIn(item, root).root, item.changeName);
+      await openMarkdownDocument("archive preview", body);
+    }),
     vscode.commands.registerCommand("openspec-ui.showPrReview", async (invokedItem?: ChangeTreeItem) => {
       const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
       if (!item || item.archived) { warnNoTreeSelection("change"); return; }

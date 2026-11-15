@@ -273,6 +273,21 @@ test("opens a worktree PR review and copies the displayed summary", async ({ pag
   expect(copied).not.toContain("+Worktree implementation");
 });
 
+test("opens an isolated specification archive preview", async ({ page }) => {
+  test.setTimeout(90_000);
+  const delta = path.join("openspec", "changes", "pipeline-unrelated", "specs", "pipeline-unrelated", "spec.md");
+  await writeFile(path.join(ownDirectory, delta), "## ADDED Requirements\n\n### Requirement: Fixture\nThe system SHALL load.\n\n#### Scenario: Open the pipeline\n- **WHEN** selected\n- **THEN** it loads\n");
+  await git(ownDirectory, ["add", delta]);
+  await git(ownDirectory, ["commit", "-qm", "Write the delta"]);
+  await page.goto(`${baseUrl}/#token=${encodeURIComponent(server.accessToken)}`);
+  await page.getByLabel("Workspace root (cwd)").fill(workspaceRoot);
+  await page.getByRole("tab", { name: "Pipeline" }).click();
+  await page.getByTestId("pipeline-action-showArchivePreview-pipeline-unrelated").click();
+  const dialog = page.getByTestId("change-action-dialog");
+  await expect(dialog.getByRole("heading", { name: "Predicted specification diff" })).toBeVisible({ timeout: 30_000 });
+  await expect(dialog.getByText("+The system SHALL load.", { exact: false })).toBeVisible();
+});
+
 test("draws the declared order, and passes axe", async ({ page }) => {
   test.setTimeout(60000);
   const pageErrors: Error[] = [];

@@ -65,6 +65,15 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     }
   });
 
+  test("opens Archive Preview without running archive in the workspace", async () => {
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    assert.ok(root);
+    await vscode.commands.executeCommand("openspec-ui.showArchivePreview", {
+      changeName: "demo", changeDir: path.join(root, "openspec", "changes", "demo"),
+    });
+    assert.match(vscode.window.activeTextEditor?.document.getText() ?? "", /local default branch could not be identified/u);
+  });
+
   test("runners are built from the default agent registry once a workspace is open", () => {
     const runners = api.getRunners();
     assert.ok(runners, "expected a runners map once a workspace is open");
