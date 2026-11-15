@@ -2871,16 +2871,35 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         const root = workedIn(item, workspaceRoot).root;
         const copy = "Copy PR summary";
         const refresh = "Refresh GitHub checks";
+        const mark = "Mark as reviewed";
+        const since = "Changes since last review";
+        const full = "Show full PR diff";
         let refreshChecks = false;
+        let sinceLastReview = false;
+        let markReviewedCommit: string | undefined;
         for (;;) {
-          const review = await readPrReview(root, item.changeName, { githubChecks: refreshChecks });
+          const review = await readPrReview(root, item.changeName, { githubChecks: refreshChecks, sinceLastReview,
+            ...(markReviewedCommit === undefined ? {} : { markReviewedCommit }) });
+          markReviewedCommit = undefined;
           const doc = await vscode.workspace.openTextDocument({
             language: "markdown", content: prReviewMarkdown(review),
           });
           await vscode.window.showTextDocument(doc, { preview: false });
-          const action = await vscode.window.showInformationMessage(review.title, copy, refresh);
+          const actions = [copy, refresh];
+          if (review.head !== undefined && review.head !== review.lastReviewed) actions.push(mark);
+          if (review.lastReviewed !== undefined) actions.push(sinceLastReview ? full : since);
+          const action = await vscode.window.showInformationMessage(review.title, ...actions);
           if (action === refresh) {
             refreshChecks = true;
+            continue;
+          }
+          if (action === mark && review.head !== undefined) {
+            markReviewedCommit = review.head;
+            sinceLastReview = false;
+            continue;
+          }
+          if (action === since || action === full) {
+            sinceLastReview = action === since;
             continue;
           }
           if (action !== copy) break;

@@ -1,4 +1,5 @@
 import path from "node:path";
+import { createHash } from "node:crypto";
 import type { SimpleGit } from "simple-git";
 import { changeNameOf, isRunEntry, VERIFY_CHECKS_AGENT_NAME } from "./audit-runs.js";
 import { CHANGE_DIFF_MAX_BYTES } from "./change-diff.js";
@@ -31,6 +32,9 @@ export interface PrReviewReport {
   summary: string;
   diff: string | null;
   truncated: boolean;
+  head?: string;
+  lastReviewed?: string;
+  sinceLastReview?: boolean;
 }
 
 export function prReviewMarkdown({ summary, diff, truncated }: PrReviewReport): string {
@@ -83,6 +87,10 @@ async function compare(git: SimpleGit, head: string, ref: string, baseCommit: st
   const mergeBase = (await git.raw(["merge-base", base, head]).catch(() => "")).trim();
   if (!COMMIT.test(mergeBase)) return { kind: "unavailable", reason: say("OSW-CHG-006", { target: literal(target) }).text };
 
+  return compareTrees(git, head, mergeBase, base);
+}
+
+async function compareTrees(git: SimpleGit, head: string, mergeBase: string, base: string): Promise<PrComparison> {
   const args = ["diff", "--no-ext-diff", "--no-textconv", "--no-color"];
   const [names, patch] = await Promise.all([
     git.raw([...args, "--name-only", "-z", mergeBase, head, "--"]),
@@ -166,6 +174,8 @@ function githubEvidence(report: GitHubChecksReport, target: OpenPullRequestTarge
 export async function readPrReview(root: string, changeName: string, sources: {
   pullRequests?: (root: string) => Promise<PullRequestsByBranch>;
   githubChecks?: boolean;
+  sinceLastReview?: boolean;
+  markReviewedCommit?: string;
 } = {}): Promise<PrReviewReport> {
   if (!isValidChangeName(changeName)) throw new Error("Choose an active OpenSpec change.");
   const workspace = await discoverOpenSpecWorkspace(root, { changes: "active", names: [changeName] });
@@ -175,6 +185,15 @@ export async function readPrReview(root: string, changeName: string, sources: {
   const title = `PR Review for ${changeName}`;
   const git = openGit(root);
   const head = await resolveCommit(git, "HEAD");
+  const marker = `refs/openspec-ui/reviewed/${createHash("sha256").update(changeName).digest("hex")}`;
+  if (sources.markReviewedCommit !== undefined) {
+    if (head === undefined || sources.markReviewedCommit !== head) {
+      throw new Error("The checkout head changed. Open PR Review again before marking it as reviewed.");
+    }
+    await git.raw(["update-ref", marker, head]);
+  }
+  const lastReviewed = await resolveCommit(git, marker);
+  const sinceLastReview = sources.sinceLastReview === true;
   const heading = [`## PR review for ${literal(changeName)}`, "", "### Comparison", ""];
   let github: string[] = ["- GitHub checks require a unique open PR from this branch."];
   let githubReport: GitHubChecksReport | undefined;
@@ -200,7 +219,7 @@ export async function readPrReview(root: string, changeName: string, sources: {
         heading.push(`- Published PR head: ${literal(target.headCommit)}. This report compares the local head.`);
       }
       const remoteRef = `refs/remotes/origin/${target.baseBranch}`;
-      comparison = await compare(git, head, remoteRef, target.baseCommit);
+      if (!sinceLastReview) comparison = await compare(git, head, remoteRef, target.baseCommit);
       if (sources.githubChecks === true) {
         const forge = await forgeFor(root).catch(() => undefined);
         if (forge?.githubChecks === undefined) {
@@ -223,15 +242,25 @@ export async function readPrReview(root: string, changeName: string, sources: {
         : read?.available ? "No open PR target was identified for this branch." : "The open PR target could not be read.";
       heading.push(`- ${why}`);
       const ref = await defaultPreviewRef(git);
-      comparison = ref === undefined ? { kind: "unavailable", reason: say("OSW-CHG-007").text }
-        : await compare(git, head, ref, undefined);
-      if (ref !== undefined) heading.push(`- Default-branch preview against ${literal(shortRef(ref))}.`);
+      if (!sinceLastReview) {
+        comparison = ref === undefined ? { kind: "unavailable", reason: say("OSW-CHG-007").text }
+          : await compare(git, head, ref, undefined);
+        if (ref !== undefined) heading.push(`- Default-branch preview against ${literal(shortRef(ref))}.`);
+      }
+    }
+    if (sinceLastReview) {
+      comparison = lastReviewed === undefined
+        ? { kind: "unavailable", reason: "No locally reviewed commit has been saved for this change." }
+        : await compareTrees(git, head, lastReviewed, lastReviewed);
     }
   }
+  if (lastReviewed !== undefined) heading.push(`- Last reviewed locally: ${literal(lastReviewed)}.`);
   if (comparison.kind === "unavailable") {
     heading.push(`- Comparison unavailable. ${comparison.reason}`);
   } else {
-    heading.push(`- Target commit: ${literal(comparison.baseCommit)}. Merge base: ${literal(comparison.mergeBase)}.`);
+    heading.push(sinceLastReview
+      ? "- The diff compares the last reviewed commit directly with the current head."
+      : `- Target commit: ${literal(comparison.baseCommit)}. Merge base: ${literal(comparison.mergeBase)}.`);
     heading.push(`- Changed files: ${comparison.files.length}.`);
     heading.push(...comparison.files.slice(0, SUMMARY_FILES).map((file) => `  - ${literal(file)}`));
     if (comparison.files.length > SUMMARY_FILES) heading.push(`  - ${comparison.files.length - SUMMARY_FILES} more.`);
@@ -258,5 +287,8 @@ export async function readPrReview(root: string, changeName: string, sources: {
     ...(sources.githubChecks === true ? ["", "### GitHub checks", "", ...github] : []),
     ...scenarioLines,
   ].join("\n");
-  return { title, summary, diff: comparison.kind === "diff" ? comparison.diff : null, truncated: comparison.kind === "diff" && comparison.truncated };
+  return { title, summary, diff: comparison.kind === "diff" ? comparison.diff : null,
+    truncated: comparison.kind === "diff" && comparison.truncated,
+    ...(head === undefined ? {} : { head }), ...(lastReviewed === undefined ? {} : { lastReviewed }),
+    ...(sinceLastReview ? { sinceLastReview } : {}) };
 }

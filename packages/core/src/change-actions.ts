@@ -178,7 +178,7 @@ export type ChangeActionAnswer =
 
 /** What a person gave an action that asks first. */
 export interface ChangeActionInput {
-  prReview?: { refreshGitHubChecks: true };
+  prReview?: { refreshGitHubChecks?: true; sinceLastReview?: true; markReviewedCommit?: string };
   relation?: { key: string; id: string };
   message?: { kind: "note" | "ask"; words: string };
   stop?: { afterTask?: string; reason: string };
