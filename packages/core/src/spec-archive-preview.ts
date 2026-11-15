@@ -7,6 +7,7 @@ import type { SimpleGit } from "simple-git";
 import { CHANGE_DIFF_MAX_BYTES } from "./change-diff.js";
 import { isValidChangeName } from "./change-name.js";
 import { openGit } from "./git-client.js";
+import { say } from "./message-register.js";
 import { applyArchiveInDirectory } from "./openspec.js";
 import { defaultPreviewRef } from "./pr-review.js";
 
@@ -77,19 +78,19 @@ interface RequirementOverlap {
 }
 
 async function analyze(root: string, change: string) {
-  if (!isValidChangeName(change)) return { reason: "Choose an active OpenSpec change." };
+  if (!isValidChangeName(change)) return { reason: say("OSW-CHG-001", { name: change }).text };
   const git = openGit(root);
   const baseRef = await defaultPreviewRef(git).catch(() => undefined);
-  if (baseRef === undefined) return { reason: "The local default branch could not be identified." };
+  if (baseRef === undefined) return { reason: say("OSW-CHG-007").text };
   const commit = async (ref: string) =>
     (await git.raw(["rev-parse", "--verify", "--end-of-options", `${ref}^{commit}`]).catch(() => "")).trim();
   const [head, base] = await Promise.all([commit("HEAD"), commit(baseRef)]);
-  if (!SHA.test(head) || !SHA.test(base)) return { reason: "The committed change or default branch could not be read." };
+  if (!SHA.test(head) || !SHA.test(base)) return { reason: say("OSW-CHG-012").text };
   const ancestor = (await git.raw(["merge-base", head, base]).catch(() => "")).trim();
   const changePath = `openspec/changes/${change}/`;
   const files = await list(git, head, changePath);
   const deltas = files.filter((file) => SPEC_PATH.test(file));
-  if (deltas.length === 0) return { reason: "This commit has no OpenSpec delta specs to inspect. Commit the proposed delta to check its requirements." };
+  if (deltas.length === 0) return { reason: say("OSW-CHG-013").text };
 
   const basePaths = new Set(await list(git, base, "openspec/"));
   const sharedPaths = SHA.test(ancestor) ? new Set(await list(git, ancestor, "openspec/")) : undefined;
