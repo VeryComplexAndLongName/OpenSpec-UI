@@ -1,5 +1,14 @@
 # @openspec-ui/server
 
+## 1.65.0
+
+### Minor Changes
+
+- 233b132: Select **Refresh GitHub checks** in PR Review to see check statuses and run links for the published PR commit. The report also lists expected checks when GitHub makes the target branch rules available.
+- 1cfc27d: Select **Open Example** to explore a sample PR review with a proposal, tasks, committed diff and verification. You can copy its summary without setting up a repository or agent.
+- 5bd25e5: Select **Show Archive Preview** to see the specification patch a committed change would produce against the locally known default branch. The preview names overlapping requirements in local branches and surfaces an archive refusal before merge.
+- 7da3c44: PR Review lists added and modified OpenSpec scenarios. Commit a scenario-checks.json beside the change proposal to associate scenarios with named GitHub checks and see their results for the reviewed commit.
+
 ## 1.64.0
 
 ### Minor Changes
