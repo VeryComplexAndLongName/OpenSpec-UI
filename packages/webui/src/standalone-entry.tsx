@@ -2065,7 +2065,7 @@ function StandaloneApp() {
                 <h2>Where the work happens</h2>
                 <span className="openspec-panel-head-note">the workspace every command runs in</span>
                 <button className="button" type="button" onClick={() => setShowReviewExample(true)}>Open Example</button>
-                <button className="button" type="button" disabled={!cwd.trim()} onClick={() => setShowOpenSpecLocations(true)}>OpenSpec Stores and Worksets</button>
+                <button className="button" type="button" disabled={!cwd.trim()} onClick={() => setShowOpenSpecLocations(true)}>Show OpenSpec Locations</button>
               </div>
               {showReviewExample && (
                 <ModalLayer testId="pr-review-example-layer" onCancel={() => setShowReviewExample(false)}>
