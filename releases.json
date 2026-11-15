@@ -1,47 +1,47 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-11-15T02:52:11.432Z",
+  "generated_at": "2026-11-15T09:22:16.510Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "04e0d8c625d8e645242c51a5106f78acce2435b9",
+  "commit": "5b391fb43c278272811f7976b49b20b35b4c2c25",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.109.0",
-      "released_at": "2026-11-15T02:52:11.432Z",
-      "tag": "openspec-ui-vscode@0.109.0",
+      "version": "0.110.0",
+      "released_at": "2026-11-15T09:22:16.510Z",
+      "tag": "openspec-ui-vscode@0.110.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.109.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.110.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.109.0/openspec-ui-vscode-0.109.0.vsix",
-          "size_bytes": 11195502
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.110.0/openspec-ui-vscode-0.110.0.vsix",
+          "size_bytes": 11221692
         }
       ],
       "changes": [
         {
           "kind": "minor",
-          "summary": "Select **Refresh GitHub checks** in PR Review to see check statuses and run links for the published PR commit. The report also lists expected checks when GitHub makes the target branch rules available."
+          "summary": "Open **OpenSpec Stores and Worksets** to find registered planning stores, browse their specification titles and see the folders included in your saved worksets. This requires an OpenSpec CLI with beta stores and worksets."
         },
         {
           "kind": "minor",
-          "summary": "Select **Open Example** to explore a sample PR review with a proposal, tasks, committed diff and verification. You can copy its summary without setting up a repository or agent."
+          "summary": "Use **Refresh PR checks** on GitHub, GitLab and Gitea. Choose a reported check for an OpenSpec scenario in PR Review, inspect the mapping diff, and save it to the change."
         },
         {
           "kind": "minor",
-          "summary": "Select **Show Archive Preview** to see the specification patch a committed change would produce against the locally known default branch. The preview names overlapping requirements in local branches and surfaces an archive refusal before merge."
+          "summary": "PR Review can remember the commit you reviewed. Use **Changes since last review** after a push to compare the new proposal, specification and code edits with that commit."
         },
         {
           "kind": "minor",
-          "summary": "PR Review lists added and modified OpenSpec scenarios. Commit a scenario-checks.json beside the change proposal to associate scenarios with named GitHub checks and see their results for the reviewed commit."
+          "summary": "Select **Show Spec Overlaps** on a Pipeline card before running Apply. See which requirements changed on your locally known default branch or are also named by another local change, with the three versions available for comparison."
         }
       ]
     },
@@ -50,8 +50,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.65.0",
-      "released_at": "2026-11-15T02:52:11.432Z",
+      "version": "1.66.0",
+      "released_at": "2026-11-15T09:22:16.510Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -62,19 +62,19 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "Select **Refresh GitHub checks** in PR Review to see check statuses and run links for the published PR commit. The report also lists expected checks when GitHub makes the target branch rules available."
+          "summary": "Open **OpenSpec Stores and Worksets** to find registered planning stores, browse their specification titles and see the folders included in your saved worksets. This requires an OpenSpec CLI with beta stores and worksets."
         },
         {
           "kind": "minor",
-          "summary": "Select **Open Example** to explore a sample PR review with a proposal, tasks, committed diff and verification. You can copy its summary without setting up a repository or agent."
+          "summary": "Use **Refresh PR checks** on GitHub, GitLab and Gitea. Choose a reported check for an OpenSpec scenario in PR Review, inspect the mapping diff, and save it to the change."
         },
         {
           "kind": "minor",
-          "summary": "Select **Show Archive Preview** to see the specification patch a committed change would produce against the locally known default branch. The preview names overlapping requirements in local branches and surfaces an archive refusal before merge."
+          "summary": "PR Review can remember the commit you reviewed. Use **Changes since last review** after a push to compare the new proposal, specification and code edits with that commit."
         },
         {
           "kind": "minor",
-          "summary": "PR Review lists added and modified OpenSpec scenarios. Commit a scenario-checks.json beside the change proposal to associate scenarios with named GitHub checks and see their results for the reviewed commit."
+          "summary": "Select **Show Spec Overlaps** on a Pipeline card before running Apply. See which requirements changed on your locally known default branch or are also named by another local change, with the three versions available for comparison."
         }
       ]
     },
@@ -84,7 +84,7 @@
       "package": "@openspec-ui/core",
       "public": false,
       "version": "0.150.1",
-      "released_at": "2026-11-15T02:52:11.432Z",
+      "released_at": "2026-11-15T09:22:16.510Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -105,7 +105,7 @@
       "package": "@openspec-ui/webui",
       "public": false,
       "version": "1.94.4",
-      "released_at": "2026-11-15T02:52:11.432Z",
+      "released_at": "2026-11-15T09:22:16.510Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -120,7 +120,7 @@
       "package": "@openspec-ui/cli",
       "public": true,
       "version": "0.33.0",
-      "released_at": "2026-11-15T02:52:11.432Z",
+      "released_at": "2026-11-15T09:22:16.510Z",
       "prerelease": false,
       "summary": "Run, validate and check OpenSpec changes from a terminal or CI.",
       "links": {
