@@ -133,7 +133,7 @@ function PrReview({ review, onCopy, copyStatus, onRefresh, onReviewAction }: {
         <button className="button" type="button" onClick={() => onReviewAction({ markReviewedCommit: head })}>Mark as reviewed</button>}
       {onReviewAction !== undefined && review.lastReviewed !== undefined &&
         <button className="button" type="button" onClick={() => onReviewAction(review.sinceLastReview ? {} : { sinceLastReview: true })}>
-          {review.sinceLastReview ? "Show full PR diff" : "Changes since last review"}
+          {review.sinceLastReview ? "Show Full PR Diff" : "Show Changes Since Last Review"}
         </button>}
       <span role="status">{copyStatus}</span>
       <div className="openspec-md-preview">{renderMarkdown(review.summary)}</div>

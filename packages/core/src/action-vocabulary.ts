@@ -85,6 +85,7 @@ export const ACTION_NOUNS: readonly string[] = [
   // The web UI's controls (every-control-is-a-verb-and-a-noun).
   "Main", "Landed Changes", "Logs", "Path", "Done Tasks", "Example",
   "Chain", "Agents", "Command", "Proposal", "Design", "Stage Agents", "Settings", "Templates", "Summary", "Configuration", "Processes",
+  "Full PR Diff", "Changes Since Last Review",
 ];
 
 /** The verb an action is named by. */

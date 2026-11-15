@@ -2872,8 +2872,8 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         const copy = "Copy PR summary";
         const refresh = "Refresh GitHub checks";
         const mark = "Mark as reviewed";
-        const since = "Changes since last review";
-        const full = "Show full PR diff";
+        const since = "Show Changes Since Last Review";
+        const full = "Show Full PR Diff";
         let refreshChecks = false;
         let sinceLastReview = false;
         let markReviewedCommit: string | undefined;

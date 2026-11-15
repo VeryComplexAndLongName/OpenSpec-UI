@@ -19,10 +19,10 @@ describe("ChangeActionDialog", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Mark as reviewed" }));
     expect(perform).toHaveBeenLastCalledWith(target, { prReview: { markReviewedCommit: head } });
-    fireEvent.click(await screen.findByRole("button", { name: "Changes since last review" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Show Changes Since Last Review" }));
     expect(perform).toHaveBeenLastCalledWith(target, { prReview: { sinceLastReview: true } });
     expect(await screen.findByLabelText("Committed diff")).toHaveTextContent("+Revised proposal");
-    fireEvent.click(screen.getByRole("button", { name: "Show full PR diff" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show Full PR Diff" }));
     expect(await screen.findByLabelText("Committed diff")).toHaveTextContent("+Full");
   });
 
