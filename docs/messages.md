@@ -99,6 +99,22 @@ Why: Workbench could not complete the requested GitHub checks read for the publi
 
 What to do: Check GitHub access and select Refresh GitHub checks again.
 
+### OSW-CHG-012
+
+> info: The committed change or default branch could not be read.
+
+Why: The overlap report could not resolve one of the two commits.
+
+What to do: Check your local branch history and reopen the report.
+
+### OSW-CHG-013
+
+> info: This commit has no OpenSpec delta specs to inspect. Commit the proposed delta to check its requirements.
+
+Why: The overlap report compares committed delta specifications.
+
+What to do: Commit the proposed delta if it is ready to review.
+
 ## RUN: runs, chains, stages, checkpoints, limits
 
 ### OSW-RUN-001

@@ -18,6 +18,7 @@ export type ChangeActionId =
   | "validateChange"
   | "showDiff"
   | "showPrReview"
+  | "showSpecOverlaps"
   | "showArchivePreview"
   | "showTimeline"
   | "showAncestry"
@@ -72,6 +73,7 @@ export const CHANGE_ACTIONS: readonly ChangeAction[] = [
   action("validateChange", "Validate Change", "checklist", false),
   action("showDiff", "Show Diff", "diff", false),
   action("showPrReview", "Show PR Review", "git-pull-request", false),
+  action("showSpecOverlaps", "Show Spec Overlaps", "warning", false),
   action("showArchivePreview", "Show Archive Preview", "diff-modified", false),
   action("showTimeline", "Show Timeline", "history", false),
   action("showAncestry", "Show Ancestry", "type-hierarchy-super", false),

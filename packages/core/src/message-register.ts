@@ -116,6 +116,18 @@ export const MESSAGES = {
     why: "Workbench could not complete the requested GitHub checks read for the published PR head.",
     todo: "Check GitHub access and select Refresh GitHub checks again.",
   },
+  "OSW-CHG-012": {
+    level: "info",
+    text: "The committed change or default branch could not be read.",
+    why: "The overlap report could not resolve one of the two commits.",
+    todo: "Check your local branch history and reopen the report.",
+  },
+  "OSW-CHG-013": {
+    level: "info",
+    text: "This commit has no OpenSpec delta specs to inspect. Commit the proposed delta to check its requirements.",
+    why: "The overlap report compares committed delta specifications.",
+    todo: "Commit the proposed delta if it is ready to review.",
+  },
 
   // GIT: git, branches, worktrees, push, pull requests
   // (a-change-is-committed-where-it-is-made).

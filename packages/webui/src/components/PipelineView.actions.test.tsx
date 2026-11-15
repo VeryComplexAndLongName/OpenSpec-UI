@@ -52,6 +52,17 @@ describe("PipelineView - a change is acted on from its card", () => {
     expect(actions.perform).toHaveBeenCalledWith("validateChange", "beta", { confirmed: false });
   });
 
+  it("opens the selected change's overlap report before a run starts", async () => {
+    const actions = host();
+    const onStart = vi.fn();
+    render(<PipelineView isActive load={load} changeActions={actions} onStart={onStart} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Show Spec Overlaps beta" }));
+
+    expect(actions.perform).toHaveBeenCalledWith("showSpecOverlaps", "beta", { confirmed: false });
+    expect(onStart).not.toHaveBeenCalled();
+  });
+
   it("asks before a Danger action, saying what it does, and runs it only when confirmed", async () => {
     const actions = host();
     render(<PipelineView isActive load={load} changeActions={actions} />);

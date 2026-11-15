@@ -33,6 +33,7 @@ import {
   readChangeDiff,
   readPrReview,
   readSpecArchivePreview,
+  readSpecOverlapReport,
   readChangeGraph,
   readRepositoryAuditEntries,
   readTaskChecklist,
@@ -151,6 +152,8 @@ async function perform(request: ChangeActionRequest, at: ChangeActionRoot, seams
       }) };
     case "showArchivePreview":
       return report(`Show Archive Preview ${name}`, await readSpecArchivePreview(at.root, name));
+    case "showSpecOverlaps":
+      return report(`Show Spec Overlaps ${name}`, await readSpecOverlapReport(at.root, name));
     case "showTimeline": {
       const timeline = await getChangeTimeline(at.root, name, false);
       const day = (fact: { day: string | null }) => fact.day ?? "not known";

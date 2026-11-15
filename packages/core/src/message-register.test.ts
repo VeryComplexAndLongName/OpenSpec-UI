@@ -436,6 +436,8 @@ const GIVEN = [
   "OSW-CHG-009",
   "OSW-CHG-010",
   "OSW-CHG-011",
+  "OSW-CHG-012",
+  "OSW-CHG-013",
 ];
 
 /** Messages said in place rather than from the register, counted by

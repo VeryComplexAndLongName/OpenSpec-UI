@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { expect, it, vi } from "vitest";
-import { readSpecArchivePreview } from "./spec-archive-preview.js";
+import { readSpecArchivePreview, readSpecOverlapReport } from "./spec-archive-preview.js";
 import { gitIsolationArgs } from "./test-support/git-isolation.js";
 
 // A git fixture. The local smoke run also uses the real OpenSpec CLI.
@@ -59,6 +59,14 @@ it("previews a real archive and names parallel changes without changing the chec
     expect(result).toContain("changed on the default branch");
     expect(result).toContain("also appears in `other-change`");
     expect(result).toContain("+The checkout SHALL validate the address.");
+    const preApply = await readSpecOverlapReport(root, "edit-address");
+    expect(preApply).toContain("also appears in `other-change`");
+    expect(preApply).toContain("changed on the default branch");
+    expect(preApply).toContain("The checkout SHALL keep the address.");
+    expect(preApply).toContain("The checkout SHALL store the address.");
+    expect(preApply).toContain("The checkout SHALL validate the address.");
+    expect(preApply).not.toContain("Predicted specification diff");
+    expect(await readSpecOverlapReport(root, "missing-change")).toContain("no OpenSpec delta specs");
     expect(await git("status", "--porcelain")).toBe("");
     expect(await git("show-ref")).toBe(before);
   } finally {
