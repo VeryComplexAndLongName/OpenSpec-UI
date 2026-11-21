@@ -13,6 +13,8 @@
 
 - [x] In packages/core/src/action-vocabulary.ts register Import and JUnit XML so the new controls follow ADR 0045; verify action-vocabulary.test.ts and webui control-vocabulary.test.ts.
 
+- [ ] In packages/server/e2e/junit-review.spec.ts verify real file selection, all six rendered states, persistent reopening and actual copied clipboard provenance in the CI browser job; record the named regression result.
+
 ## Scoped verification
 
 - [x] In packages/core/src/junit-evidence.test.ts exercise outcomes, nested suites, malformed/DTD/size/depth/count refusal, duplicates and mapping/revision qualifications; run node_modules/vitest/vitest.mjs run --project core packages/core/src/junit-evidence.test.ts.
@@ -60,3 +62,5 @@ Node 24.21.0 and npm 10.9.0. `tsc --noEmit -p` passed for packages/core, package
 - CI run 44894037628: dependency audit and dependency review passed. Full verification found the new Import report label outside ADR 0045's action vocabulary. Corrected it to Import Report and registered the Import verb / JUnit XML noun rather than exempting the control from the rule. A new CI run is required; this failed run is not claimed as complete verification.
 
 - Action vocabulary correction: Core action-vocabulary.test.ts passed 5 tests; webui control-vocabulary.test.ts plus ChangeActionDialog.test.tsx passed 12 tests. Scoped ESLint passed for the corrected labels and vocabulary.
+
+- To close the local Edge tool limitation, a dedicated real-file-selection and clipboard Playwright regression is added to the existing CI browser job. This task remains open until CI runs it; no full browser suite is run locally.
