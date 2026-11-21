@@ -33,7 +33,7 @@
 
 ## Evidence and completion
 
-Full verification is pending in the existing PR CI gates. Complete and archive this change through the standard filtered product archive pass after it lands; remove only its own clean worktree after archived remote main is verified.
+Full verification passed in the implementation PR gates. Complete and archive this change through the standard filtered product archive pass after it lands; remove only its own clean worktree after archived remote main is verified.
 
 ## Recorded local verification
 
@@ -48,3 +48,8 @@ Node 24.21.0 and npm 10.9.0. Isolated npm ci completed with the tracked lockfile
 - Affected static checks passed: `tsc --noEmit -p` for packages/core, packages/server, packages/webui and packages/extension. Scoped ESLint passed on all changed source/test paths and again on the final formatter/command edits. The standalone client build completed. Strict OpenSpec validation, git diff --check and exact authored Changeset summary validation passed.
 - Real external read-only smoke: `node node_modules/tsx/dist/cli.mjs C:/Temp/osw-ci-repair-live.mts` queried the actual failed GitHub check 136815744448 in run https://github.com/VeryComplexAndLongName/OpenSpec-UI/actions/runs/44894037628 for f24e576e8171ad0638628c373c48f80384fc1fd8. The prepared brief retained the vocabulary assertion, packages/webui/src/control-vocabulary.test.ts:95, run link and explicit historical/different-revision warning against ff9e81fb724ca1f432ef76c5ec3947c5743794c6. No PR was mutated and no agent was launched.
 - Final review mapped all four delta scenarios to formatter/reader tests and checked each input junction. Source API identifiers determine requests; remote status/annotation URLs are never fetched. Copy is distinct from preparation; optional fields preserve existing clients; unified agent commands/events are unchanged. Remaining limits are provider-supplied partial/generic detail, no full log download, manual agent handoff and private project text requiring review before sharing. Full CI is pending.
+
+
+## Full CI evidence before archival
+
+Implementation PR gates passed in https://github.com/VeryComplexAndLongName/OpenSpec-UI/actions/runs/44897936002. The standard Workbench archive pass folds the accepted delta into the current specification after the implementation has landed. Targeted local evidence and tooling limitations remain recorded in tasks.md.
