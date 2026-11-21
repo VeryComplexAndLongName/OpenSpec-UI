@@ -148,6 +148,19 @@ export const MESSAGES = {
     todo: "Fetch the tested commit and supply its complete git identifier.",
   },
 
+  "OSW-CHG-017": {
+    level: "info",
+    text: "CI repair task copied.",
+    why: "The host copied the prepared brief after the person chose to copy it.",
+    todo: "Review the brief before giving it to your chosen agent.",
+  },
+  "OSW-CHG-018": {
+    level: "error",
+    text: "Could not copy the CI repair task.",
+    why: "The host refused the clipboard write.",
+    todo: "Allow clipboard access or select the prepared brief and copy it.",
+  },
+
   // GIT: git, branches, worktrees, push, pull requests
   // (a-change-is-committed-where-it-is-made).
   "OSW-GIT-001": {

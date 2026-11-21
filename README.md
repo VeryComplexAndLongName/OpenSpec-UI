@@ -104,6 +104,7 @@ Both hosts also carry, beyond the views above:
   ([how to](docs/how-to/close-a-task-from-its-card.md)).
 - **The Timeline** - one change as a line of moments read from git, and a
   comparison of every change on a grid of days.
+- **CI repair brief** - [prepare a qualified task from CI evidence](docs/how-to/prepare-ci-repair-task.md) and copy it to your chosen agent.
 - **PR Review** - review committed changes against the PR target and
   [link OpenSpec scenarios to GitHub checks](docs/how-to/link-scenarios-to-checks.md).
   [Import JUnit testcase evidence](docs/how-to/link-scenarios-to-tests.md) to review named test outcomes with their declared revision.

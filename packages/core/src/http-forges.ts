@@ -7,7 +7,7 @@
 
 import { parseCheckStatus, pullRequestTimes, recordOpenPullRequestTarget, type BranchPullRequest, type MergeMethod, type BranchPullRequestState, type Forge, type OpenPullRequestTarget, type PullRequestCheckStatus, type PullRequestRef, type PullRequestsByBranch } from "./gh-pr-gateway.js";
 import { say, type MessageCode, type SaidMessage } from "./message-register.js";
-import { readGitHubChecks, type GitHubCheckTarget } from "./github-checks.js";
+import { readGitHubChecks, type GitHubCheckTarget, type ReviewCheckOptions } from "./github-checks.js";
 import { readGiteaReviewChecks, readGitLabReviewChecks } from "./http-review-checks.js";
 
 export type FetchLike = (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal; redirect?: "error" }) => Promise<{
@@ -120,8 +120,8 @@ export function createGiteaForge(options: HttpForgeOptions): Forge {
   const headers = (): Record<string, string> => ({ Authorization: `token ${options.token ?? ""}` });
   return {
     name: "Gitea",
-    reviewChecks: (target) => readGiteaReviewChecks(
-      (suffix) => call(options, headers(), "GET", api + suffix, undefined, AbortSignal.timeout(15_000), "error"), options.base, target),
+    reviewChecks: (target, checkOptions) => readGiteaReviewChecks(
+      (suffix) => call(options, headers(), "GET", api + suffix, undefined, AbortSignal.timeout(15_000), "error"), options.base, target, checkOptions),
     async pullRequestsByBranch(): Promise<PullRequestsByBranch> {
       if (!options.token) return tokenNotSet(options.tokenName);
       const byBranch = new Map<string, BranchPullRequest>();
@@ -197,8 +197,8 @@ export function createGitLabForge(options: HttpForgeOptions): Forge {
   const headers = (): Record<string, string> => ({ "PRIVATE-TOKEN": options.token ?? "" });
   return {
     name: "GitLab",
-    reviewChecks: (target) => readGitLabReviewChecks(
-      (suffix) => call(options, headers(), "GET", api + suffix, undefined, AbortSignal.timeout(15_000), "error"), options.base, target),
+    reviewChecks: (target, checkOptions) => readGitLabReviewChecks(
+      (suffix) => call(options, headers(), "GET", api + suffix, undefined, AbortSignal.timeout(15_000), "error"), options.base, target, checkOptions),
     async pullRequestsByBranch(): Promise<PullRequestsByBranch> {
       if (!options.token) return tokenNotSet(options.tokenName);
       const byBranch = new Map<string, BranchPullRequest>();
@@ -309,9 +309,9 @@ export function createGitHubApiForge(options: HttpForgeOptions & { apiBase?: str
   return {
     name: "GitHub",
     ...(apiBase === "https://api.github.com" ? {
-      githubChecks: (target: GitHubCheckTarget) =>
+      githubChecks: (target: GitHubCheckTarget, checkOptions?: ReviewCheckOptions) =>
         readGitHubChecks((suffix) => call(options, headers(), "GET", `${api}${suffix}`,
-          undefined, AbortSignal.timeout(15_000)), target),
+          undefined, AbortSignal.timeout(15_000), "error"), target, checkOptions),
     } : {}),
     async pullRequestsByBranch(): Promise<PullRequestsByBranch> {
       if (!options.token) return tokenNotSet(options.tokenName);

@@ -9,6 +9,7 @@ import type { Forge, OpenPullRequestTarget, PullRequestsByBranch } from "./gh-pr
 import type { GitHubChecksReport } from "./github-checks.js";
 import { openGit } from "./git-client.js";
 import { createGitWrapper } from "./git.js";
+import { prepareCiRepairTask } from "./ci-repair-task.js";
 import { say } from "./message-register.js";
 import { importJUnit, readJUnitScenarioSummary } from "./junit-evidence.js";
 import { readRepositoryAuditEntries } from "./repository-audit.js";
@@ -39,9 +40,11 @@ export interface PrReviewReport {
   sinceLastReview?: boolean;
   mappingChoices?: ScenarioMappingChoices;
   mappingPreview?: ScenarioMappingPreview;
+  ciRepairTask?: string;
 }
 
-export function prReviewMarkdown({ summary, diff, truncated }: PrReviewReport): string {
+export function prReviewMarkdown({ summary: reviewSummary, diff, truncated, ciRepairTask }: PrReviewReport): string {
+  const summary = ciRepairTask === undefined ? reviewSummary : `${reviewSummary}\n\n### Prepared agent task\n\n${ciRepairTask}`;
   if (diff === null) return summary;
   if (diff.length === 0) return summary + (truncated
     ? "\n\nThe patch exceeds the display limit." : "\n\nNo committed changes in this comparison.");
@@ -184,6 +187,7 @@ export async function readPrReview(root: string, changeName: string, sources: {
   markReviewedCommit?: string;
   scenarioMapping?: unknown;
   junitImport?: unknown;
+  prepareCiRepairTask?: boolean;
 } = {}): Promise<PrReviewReport> {
   if (!isValidChangeName(changeName)) throw new Error("Choose an active OpenSpec change.");
   const workspace = await discoverOpenSpecWorkspace(root, { changes: "active", names: [changeName] });
@@ -204,7 +208,7 @@ export async function readPrReview(root: string, changeName: string, sources: {
   const lastReviewed = await resolveCommit(git, marker);
   const sinceLastReview = sources.sinceLastReview === true;
   const heading = [`## PR review for ${literal(changeName)}`, "", "### Comparison", ""];
-  const refreshChecks = sources.githubChecks === true || sources.scenarioMapping !== undefined;
+  const refreshChecks = sources.githubChecks === true || sources.scenarioMapping !== undefined || sources.prepareCiRepairTask === true;
   let checks: string[] = ["- Checks require a unique open PR or merge request from this branch."];
   let forgeReport: GitHubChecksReport | undefined;
   let forgeName = "GitHub";
@@ -241,7 +245,9 @@ export async function readPrReview(root: string, changeName: string, sources: {
         } else if (target.headCommit === undefined || !COMMIT.test(target.headCommit)) {
           checks = [`- ${forgeName} did not report a published head for this request.`];
         } else {
-          const checked = await refresh({ ...target, headCommit: target.headCommit }).catch(
+          const checked = await (sources.prepareCiRepairTask
+            ? refresh({ ...target, headCommit: target.headCommit }, { failureDetails: true })
+            : refresh({ ...target, headCommit: target.headCommit })).catch(
             (): GitHubChecksReport => ({ kind: "unavailable", reason: say("OSW-CHG-011", { forge: forgeName }).text }),
           );
           forgeReport = checked;
@@ -312,14 +318,17 @@ export async function readPrReview(root: string, changeName: string, sources: {
     if ("preview" in edit) mappingPreview = edit.preview;
     else scenarioLines.push("", "**Mapping saved.** Commit `scenario-checks.json` to include it in the review.");
   }
+  const repair = sources.prepareCiRepairTask ? prepareCiRepairTask(changeName, head, forgeName, forgeReport) : undefined;
   const summary = [...heading, "", ...evidence(entries, changeName, head),
     ...(refreshChecks ? ["", `### ${forgeName} checks`, "", ...checks] : []),
     ...scenarioLines,
+    ...(repair?.lines ?? []),
   ].join("\n");
   return { title, summary, diff: comparison.kind === "diff" ? comparison.diff : null,
     truncated: comparison.kind === "diff" && comparison.truncated,
     ...(head === undefined ? {} : { head }), ...(lastReviewed === undefined ? {} : { lastReviewed }),
     ...(sinceLastReview ? { sinceLastReview } : {}),
     ...(mappingChoices === undefined ? {} : { mappingChoices }),
-    ...(mappingPreview === undefined ? {} : { mappingPreview }) };
+    ...(mappingPreview === undefined ? {} : { mappingPreview }),
+    ...(repair?.task === undefined ? {} : { ciRepairTask: repair.task }) };
 }

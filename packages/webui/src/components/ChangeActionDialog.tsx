@@ -8,7 +8,7 @@
 
 import { useEffect, useState } from "react";
 import { changeAction, JUNIT_XML_MAX_BYTES, PR_REVIEW_EXAMPLE, say, type ChangeActionAnswer, type ChangeActionId, type ChangeActionInput, type JUnitImport } from "@openspec-ui/core/browser";
-import { Upload } from "lucide-react";
+import { Clipboard, Upload, Wrench } from "lucide-react";
 import { renderMarkdown } from "../markdown.js";
 import { ChangeHarnessSettingsView } from "./ChangeHarnessSettingsView.js";
 import type { HarnessSettingsApi } from "./harness-settings-parts.js";
@@ -42,8 +42,8 @@ export function ChangeActionDialog({ target, perform, harnessApi, onClose }: {
   const [copyStatus, setCopyStatus] = useState("");
   const [checksRequested, setChecksRequested] = useState(false);
 
-  async function copySummary(summary: string) {
-    setCopyStatus(await copyPrSummary(summary));
+  async function copySummary(summary: string, repair = false) {
+    setCopyStatus(await copyPrSummary(summary, repair));
   }
 
   const send = (input?: ChangeActionInput) => {
@@ -87,7 +87,7 @@ export function ChangeActionDialog({ target, perform, harnessApi, onClose }: {
           onReviewAction={(selection) => {
             setCopyStatus("");
             send({ prReview: { ...selection, ...(checksRequested ? { refreshGitHubChecks: true } : {}),
-              ...(step.answer.kind === "pr-review" && step.answer.report.sinceLastReview && (selection.scenarioMapping || selection.junitImport)
+              ...(step.answer.kind === "pr-review" && step.answer.report.sinceLastReview && (selection.scenarioMapping || selection.junitImport || selection.prepareCiRepairTask)
                 ? { sinceLastReview: true } : {}) } });
           }} />
       ) : step.answer.kind === "done" ? (
@@ -100,12 +100,12 @@ export function ChangeActionDialog({ target, perform, harnessApi, onClose }: {
   );
 }
 
-async function copyPrSummary(summary: string): Promise<string> {
+async function copyPrSummary(summary: string, repair = false): Promise<string> {
   try {
     await navigator.clipboard.writeText(summary);
-    return say("OSW-CHG-008").text;
+    return say(repair ? "OSW-CHG-017" : "OSW-CHG-008").text;
   } catch {
-    return say("OSW-CHG-009").text;
+    return say(repair ? "OSW-CHG-018" : "OSW-CHG-009").text;
   }
 }
 
@@ -122,18 +122,23 @@ export function PrReviewExampleDialog({ onClose }: { onClose: () => void }): JSX
 
 function PrReview({ review, onCopy, copyStatus, onRefresh, onReviewAction }: {
   review: Extract<ChangeActionAnswer, { kind: "pr-review" }>["report"];
-  onCopy: (summary: string) => Promise<void>;
+  onCopy: (summary: string, repair?: boolean) => Promise<void>;
   copyStatus: string;
   onRefresh?: () => void;
   onReviewAction?: (selection: NonNullable<ChangeActionInput["prReview"]>) => void;
 }): JSX.Element {
   const head = review.head;
   const preview = review.mappingPreview;
+  const repair = review.ciRepairTask;
   const [importing, setImporting] = useState(false);
   return (
     <>
       <button className="button primary" type="button" onClick={() => void onCopy(review.summary)}>Copy PR summary</button>
       {onRefresh !== undefined && <button className="button" type="button" onClick={onRefresh}>Refresh PR checks</button>}
+      {onReviewAction !== undefined && <button className="button" type="button" title="Prepare CI Repair Task" aria-label="Prepare CI Repair Task"
+        onClick={() => onReviewAction({ prepareCiRepairTask: true })}><Wrench size={16} aria-hidden="true" /></button>}
+      {repair !== undefined && <button className="button" type="button" title="Copy CI Repair Task" aria-label="Copy CI Repair Task"
+        onClick={() => void onCopy(repair, true)}><Clipboard size={16} aria-hidden="true" /></button>}
       {onReviewAction !== undefined && head !== undefined && <button className="button" type="button"
         title="Import JUnit XML" aria-label="Import JUnit XML" aria-expanded={importing} onClick={() => setImporting(!importing)}>
         <Upload size={16} aria-hidden="true" />
@@ -148,6 +153,7 @@ function PrReview({ review, onCopy, copyStatus, onRefresh, onReviewAction }: {
         </button>}
       <span role="status">{copyStatus}</span>
       <div className="openspec-md-preview">{renderMarkdown(review.summary)}</div>
+      {repair !== undefined && <details><summary>CI repair task draft</summary><pre aria-label="CI repair task draft"><code>{repair}</code></pre></details>}
       {onReviewAction !== undefined && head !== undefined &&
         (preview ? <section aria-label="Scenario mapping preview">
           <h4>Scenario mapping preview</h4>

@@ -11,6 +11,18 @@ interface Check {
   state: string;
   link?: string;
   app?: number;
+  failureDetails?: FailureDetails;
+}
+
+export interface FailureDetails { messages: string[]; partial: boolean }
+export interface ReviewCheckOptions { failureDetails?: boolean }
+export const isFailedCheck = (state: string): boolean => ["failure", "failed", "error", "timed_out", "action_required", "startup_failure"].includes(state.toLowerCase());
+
+/** Remote diagnostic text remains bounded data, never a command. */
+export function failureDetails(values: unknown[], partial = false): FailureDetails {
+  const strings = values.filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+  return { messages: strings.slice(0, 10).map((value) => value.replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, " ").slice(0, 1500)),
+    partial: partial || strings.length === 0 || strings.length > 10 || strings.some((value) => value.length > 1500) };
 }
 
 interface Expected {
@@ -70,6 +82,7 @@ function checkOf(name: unknown, state: unknown, url: unknown, source?: number): 
 export async function readGitHubChecks(
   get: GitHubGet,
   target: GitHubCheckTarget,
+  options: ReviewCheckOptions = {},
 ): Promise<GitHubChecksReport> {
   const query = `per_page=${PAGE_LIMIT}`;
   const branch = encodeURIComponent(target.baseBranch);
@@ -84,17 +97,54 @@ export async function readGitHubChecks(
   const statuses = record(statusesValue.status === "fulfilled" ? statusesValue.value : undefined);
   const runRows = rows(runs.check_runs);
   const statusRows = rows(statuses.statuses);
-  const checks = [
+  const runSources = new Map<Check, Record<string, unknown>>();
+  const statusSources = new Map<Check, Record<string, unknown>>();
+  const checks: Check[] = [
     ...runRows.map((value) => {
       const run = record(value);
-      return checkOf(run.name, run.status === "completed" ? run.conclusion : run.status,
+      const check = checkOf(run.name, run.status === "completed" ? run.conclusion : run.status,
         run.details_url, appId(record(run.app).id));
+      if (check) runSources.set(check, run);
+      return check;
     }),
     ...statusRows.map((value) => {
       const status = record(value);
-      return checkOf(status.context, status.state, status.target_url);
+      const check = checkOf(status.context, status.state, status.target_url);
+      if (check) statusSources.set(check, status);
+      return check;
     }),
   ].filter((check) => check !== undefined);
+  if (options.failureDetails) {
+    let requested = 0;
+    await Promise.all(checks.filter((check) => isFailedCheck(check.state)).map(async (check) => {
+      const run = runSources.get(check);
+      const output = record(run?.output);
+      const messages: unknown[] = [output.title, output.summary, output.text];
+      let partial = false;
+      if (run && typeof run.id === "number" && Number.isSafeInteger(run.id) && run.id > 0 && requested < 5) {
+        requested += 1;
+        try {
+          const annotations = await get(`/check-runs/${run.id}/annotations?per_page=10&page=1`);
+          if (!Array.isArray(annotations)) partial = true;
+          else {
+            partial = typeof output.annotations_count !== "number" || output.annotations_count > annotations.length;
+            for (const value of annotations) {
+              const annotation = record(value);
+              if (annotation.annotation_level !== "failure") continue;
+              const location = typeof annotation.path === "string" ? annotation.path.slice(0, 400) : "";
+              const line = typeof annotation.start_line === "number" && Number.isSafeInteger(annotation.start_line) && annotation.start_line > 0 ? `:${annotation.start_line}` : "";
+              if (typeof annotation.message === "string") messages.push(`${location}${line}: ${annotation.message}`);
+            }
+          }
+        } catch { partial = true; }
+      } else partial = true;
+      if (!run) {
+        messages.push(statusSources.get(check)?.description);
+        partial = true;
+      }
+      check.failureDetails = failureDetails(messages, partial);
+    }));
+  }
   const resultsComplete = Array.isArray(runs.check_runs) && runs.total_count === runRows.length
     && Array.isArray(statuses.statuses) && statuses.total_count === statusRows.length
     && checks.length === runRows.length + statusRows.length;

@@ -42,6 +42,41 @@ async function withServer(test: (post: (body: unknown) => Promise<Response>, wor
 }
 
 describe("a change's actions, for the standalone app's cards", () => {
+  it("prepares CI repair through authenticated HTTP and retains exact forge diagnostics", async () => {
+    await withServer(async (post, workspace) => {
+      const exec = promisify(execFile);
+      const git = async (...args: string[]) => (await exec("git", [...await gitIsolationArgs(), "-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", ...args], { cwd: workspace })).stdout.trim();
+      await git("init", "-b", "main"); await git("add", "."); await git("commit", "-m", "Fixture");
+      await git("switch", "-c", "demo"); await git("remote", "add", "origin", "https://github.com/org/app.git");
+      const head = await git("rev-parse", "HEAD");
+      const actualFetch = globalThis.fetch.bind(globalThis);
+      vi.stubEnv("GITHUB_TOKEN", "ci-repair-fixture");
+      const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (!url.startsWith("https://api.github.com/repos/org/app")) return actualFetch(input, init);
+        const suffix = url.slice("https://api.github.com/repos/org/app".length);
+        const values: Record<string, unknown> = {
+          "/pulls?state=all&sort=created&direction=desc&per_page=50&page=1": [{ number: 4, state: "open", head: { ref: "demo", sha: head, repo: { id: 1 } }, base: { ref: "main", sha: head, repo: { id: 1 } } }],
+          [`/commits/${head}/check-runs?per_page=100`]: { total_count: 1, check_runs: [{ id: 7, name: "tests", status: "completed", conclusion: "failure", output: { annotations_count: 1 } }] },
+          [`/commits/${head}/status?per_page=100`]: { total_count: 0, statuses: [] },
+          "/rules/branches/main?per_page=100": [], "/branches/main": { protection: { enabled: false } },
+          "/check-runs/7/annotations?per_page=10&page=1": [{ annotation_level: "failure", path: "src/test.ts", start_line: 42, message: "Assertion failed" }],
+        };
+        return new Response(JSON.stringify(values[suffix] ?? {}), { status: suffix in values ? 200 : 404 });
+      });
+      try {
+        const response = await post({ cwd: workspace, changeName: "demo", action: "showPrReview", input: { prReview: { prepareCiRepairTask: true } } });
+        expect(response.status).toBe(200);
+        const answer = await response.json();
+        expect(answer.report.ciRepairTask).toContain("src/test.ts:42: Assertion failed");
+        expect(answer.report.ciRepairTask).toContain(head);
+        expect(answer.report.summary).toContain("No agent was started");
+        expect(fetch.mock.calls.some(([url]) => String(url).includes("/annotations?"))).toBe(true);
+        expect(await git("status", "--porcelain")).toBe("");
+      } finally { fetch.mockRestore(); vi.unstubAllEnvs(); }
+    });
+  });
+
   it.each([{ scenarioMapping: { mode: "save" } }, { junitImport: { head: "a".repeat(40), testedCommit: "a".repeat(40), xml: "<testsuite/>" } }])("uses the worktree write guard for a PR Review write %j", async (prReview) => {
     const workspace = os.tmpdir();
     const refusal = "The worktree records do not check out.";

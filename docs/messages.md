@@ -139,6 +139,22 @@ Why: JUnit XML does not establish git provenance, so a declared local commit is 
 
 What to do: Fetch the tested commit and supply its complete git identifier.
 
+### OSW-CHG-017
+
+> info: CI repair task copied.
+
+Why: The host copied the prepared brief after the person chose to copy it.
+
+What to do: Review the brief before giving it to your chosen agent.
+
+### OSW-CHG-018
+
+> error: Could not copy the CI repair task.
+
+Why: The host refused the clipboard write.
+
+What to do: Allow clipboard access or select the prepared brief and copy it.
+
 ## RUN: runs, chains, stages, checkpoints, limits
 
 ### OSW-RUN-001

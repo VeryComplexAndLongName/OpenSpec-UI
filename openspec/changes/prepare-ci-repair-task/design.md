@@ -30,3 +30,5 @@ Annotations and provider messages can be absent, generic or contain private proj
 ## Verification
 
 Target the failure-detail readers and brief formatter, then verify every junction of the new optional input: dialog -> server -> Core -> forge reader, and native command -> Core. Use actual authenticated HTTP and a real GitHub annotation read without modifying a PR or starting an agent. Existing CI performs full verification. Commands, outcomes and remaining limits are recorded in tasks.md before archival.
+
+Completed contract evidence: the named webui preparation/copy component test passed, as did the named authenticated HTTP server test using real Core and fixture forge responses. The named Core revision/option integration and native command/preview/clipboard test passed. The actual GitHub CLI adapter read check 136815744448 in run 44894037628 and the formatter retained its source assertion and historical revision qualifier without mutation. See tasks.md, Recorded local verification, for exact commands and counts. Full CI is pending; the provider-detail, manual-handoff and private-text limits above remain design trade-offs.

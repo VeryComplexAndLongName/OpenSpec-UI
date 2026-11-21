@@ -2918,6 +2918,8 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         const refresh = "Refresh PR checks";
         const link = "Link scenario to check";
         const importReport = "Import JUnit XML";
+        const prepareRepair = "Prepare CI Repair Task";
+        const copyRepair = "Copy CI Repair Task";
         const mark = "Mark as reviewed";
         const since = "Show Changes Since Last Review";
         const full = "Show Full PR Diff";
@@ -2925,8 +2927,10 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         let sinceLastReview = false;
         let markReviewedCommit: string | undefined;
         let junitImport: JUnitImport | undefined;
+        let prepareCiRepairTask = false;
         for (;;) {
           const review = await readPrReview(root, item.changeName, { githubChecks: refreshChecks, sinceLastReview,
+            ...(prepareCiRepairTask ? { prepareCiRepairTask: true } : {}),
             ...(junitImport === undefined ? {} : { junitImport }),
             ...(markReviewedCommit === undefined ? {} : { markReviewedCommit }) });
           markReviewedCommit = undefined;
@@ -2935,12 +2939,18 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
             language: "markdown", content: prReviewMarkdown(review),
           });
           await vscode.window.showTextDocument(doc, { preview: false });
-          const actions = [copy, refresh];
+          const actions = [copy, refresh, prepareRepair];
+          if (review.ciRepairTask !== undefined) actions.push(copyRepair);
           if (review.head !== undefined) actions.push(importReport);
           if (review.head !== undefined && review.head !== review.lastReviewed) actions.push(mark);
           if (review.lastReviewed !== undefined) actions.push(sinceLastReview ? full : since);
           if (review.mappingChoices !== undefined && review.head !== undefined) actions.push(link);
           const action = await vscode.window.showInformationMessage(review.title, ...actions);
+          if (action === prepareRepair) { prepareCiRepairTask = true; continue; }
+          if (action === copyRepair && review.ciRepairTask !== undefined) {
+            await copyPrReviewSummary(review.ciRepairTask, true);
+            break;
+          }
           if (action === importReport && review.head !== undefined) {
             if (await refusedAsAnothersChange(item.changeName, item.ownership)) continue;
             const imported = await pickJUnitReport(review.head, {
@@ -3016,11 +3026,11 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
   );
 }
 
-async function copyPrReviewSummary(summary: string): Promise<void> {
+async function copyPrReviewSummary(summary: string, repair = false): Promise<void> {
   try {
     await vscode.env.clipboard.writeText(summary);
-    void vscode.window.showInformationMessage(say("OSW-CHG-008").text);
+    void vscode.window.showInformationMessage(say(repair ? "OSW-CHG-017" : "OSW-CHG-008").text);
   } catch {
-    void vscode.window.showErrorMessage(say("OSW-CHG-009").text);
+    void vscode.window.showErrorMessage(say(repair ? "OSW-CHG-018" : "OSW-CHG-009").text);
   }
 }
