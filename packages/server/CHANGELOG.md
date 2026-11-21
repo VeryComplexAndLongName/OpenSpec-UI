@@ -1,5 +1,24 @@
 # @openspec-ui/server
 
+## 1.67.0
+
+### Minor Changes
+
+- a69db83: Prepare CI Repair Task in PR Review gathers available failure details and missing expected checks, keeps their checked commit and source links, and provides a brief to copy to an agent. GitHub annotations and forge-reported messages may be partial; preparing a task does not start a run or modify the change.
+- 86a88fd: PR Review flags committed files outside the paths listed in a change's `change-scope.json`, including paths removed by renames. Copy PR summary retains missing or invalid declarations and warns when the declaration itself changed. Scope checking is advisory and excludes uncommitted edits.
+- ff9e81f: PR Review in openspec-ui-vscode and @openspec-ui/server can import JUnit XML and show individual test results for OpenSpec scenarios, including skipped, missing and ambiguous evidence. Commit scenario-tests.json to declare test associations. The imported report's tested commit is user-declared and remains visible, including historical results, in Copy PR summary.
+
+### Patch Changes
+
+- 10d9059: Use Codex CLI (ACP) for unconfigured commands and new sessions. Repository setup offers Codex ACP first when installed. Existing selections take precedence, and both Claude adapters retain their supported settings.
+- a0e9b22: Embedded Workbench hosts can report the Core/server versions included in their build. Listen failures reject cleanly, and closing the host disconnects browser sockets so shutdown can finish.
+- Updated dependencies [10d9059]
+- Updated dependencies [a0e9b22]
+- Updated dependencies [a69db83]
+- Updated dependencies [86a88fd]
+- Updated dependencies [ff9e81f]
+  - @openspec-ui/core@0.151.0
+
 ## 1.66.0
 
 ### Minor Changes

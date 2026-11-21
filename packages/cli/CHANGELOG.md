@@ -1,5 +1,15 @@
 # @openspec-ui/cli
 
+## 0.34.0
+
+### Minor Changes
+
+- a0e9b22: Launch the standalone Workbench with `npx @openspec-ui/cli open workbench --cwd <project>` without cloning or building OpenSpec-UI. The command prints an authenticated localhost URL, accepts `--port` and stops on Ctrl+C. OpenSpec and agent executables remain separate prerequisites for operations that use them.
+
+### Patch Changes
+
+- 10d9059: Use Codex CLI (ACP) for unconfigured commands and new sessions. Repository setup offers Codex ACP first when installed. Existing selections take precedence, and both Claude adapters retain their supported settings.
+
 ## 0.33.0
 
 ### Minor Changes
