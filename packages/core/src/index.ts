@@ -181,3 +181,5 @@ export * from "./change-actions.js";
 export * from "./change-ancestry.js";
 export * from "./change-action-root.js";
 export * from "./message-register.js";
+export * from "./forge-issue.js";
+export * from "./issue-change.js";

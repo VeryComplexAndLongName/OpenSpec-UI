@@ -155,6 +155,118 @@ Why: The host refused the clipboard write.
 
 What to do: Allow clipboard access or select the prepared brief and copy it.
 
+### OSW-CHG-019
+
+> info: Create {change} from {source}?
+
+Why: An issue snapshot is ready and creation needs explicit confirmation.
+
+What to do: Review the source, then confirm to create and share the change, or cancel.
+
+### OSW-CHG-020
+
+> error: Enter a positive issue number.
+
+Why: The issue number is not a positive safe integer.
+
+What to do: Use the repository issue number.
+
+### OSW-CHG-021
+
+> error: The forge did not return an issue.
+
+Why: The source response is malformed.
+
+What to do: Check repository credentials and preview again.
+
+### OSW-CHG-022
+
+> error: Use an issue, not a pull request.
+
+Why: The forge returned a pull request.
+
+What to do: Enter an issue number or issue URL.
+
+### OSW-CHG-023
+
+> error: The forge returned a different or invalid issue.
+
+Why: The response identity or title does not match the request.
+
+What to do: Check the issue in the configured repository.
+
+### OSW-CHG-024
+
+> error: The issue body is invalid.
+
+Why: The source body is not text.
+
+What to do: Check the forge response and preview again.
+
+### OSW-CHG-025
+
+> error: The issue exceeds the 256 KiB source limit.
+
+Why: The request is too large to import safely.
+
+What to do: Use a smaller issue with a focused request.
+
+### OSW-CHG-026
+
+> error: The workspace needs an origin repository.
+
+Why: An issue must belong to the workspace repository.
+
+What to do: Configure origin before previewing an issue.
+
+### OSW-CHG-027
+
+> error: This forge cannot read issues. Configure the repository credentials first.
+
+Why: No issue reader is available for this origin.
+
+What to do: Use a supported forge with its existing repository authentication.
+
+### OSW-CHG-028
+
+> error: Enter an issue number or a matching repository issue URL.
+
+Why: The source reference could not be parsed.
+
+What to do: Use a positive issue number or its canonical URL.
+
+### OSW-CHG-029
+
+> error: The issue URL must belong to this workspace's origin repository.
+
+Why: A foreign repository, credentials, query or fragment was supplied.
+
+What to do: Use the workspace repository's canonical issue URL or a number.
+
+### OSW-CHG-030
+
+> error: Enter a repository issue URL without extra path segments.
+
+Why: Only a single issue number may follow the issues path.
+
+What to do: Remove comments, extra paths and trailing separators.
+
+### OSW-CHG-031
+
+> error: Use lowercase letters, numbers and dashes for the change id.
+
+Why: The new change id is unsafe or invalid.
+
+What to do: Choose a lowercase change id such as improve-workbench.
+
+### OSW-CHG-032
+
+> error: The issue changed. Preview it again before creating the change.
+
+Why: The re-read source differs from the confirmed preview.
+
+What to do: Review a fresh preview and confirm again.
+
 ## RUN: runs, chains, stages, checkpoints, limits
 
 ### OSW-RUN-001

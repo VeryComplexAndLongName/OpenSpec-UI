@@ -9,6 +9,7 @@ import { parseCheckStatus, pullRequestTimes, recordOpenPullRequestTarget, type B
 import { say, type MessageCode, type SaidMessage } from "./message-register.js";
 import { readGitHubChecks, type GitHubCheckTarget, type ReviewCheckOptions } from "./github-checks.js";
 import { readGiteaReviewChecks, readGitLabReviewChecks } from "./http-review-checks.js";
+import { assertIssueNumber, readForgeIssue } from "./forge-issue.js";
 
 export type FetchLike = (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal; redirect?: "error" }) => Promise<{
   ok: boolean;
@@ -120,6 +121,11 @@ export function createGiteaForge(options: HttpForgeOptions): Forge {
   const headers = (): Record<string, string> => ({ Authorization: `token ${options.token ?? ""}` });
   return {
     name: "Gitea",
+    issueWebBase: options.base,
+    async readIssue(number) {
+      assertIssueNumber(number);
+      return readForgeIssue(await call(options, headers(), "GET", `${api}/issues/${number}`, undefined, AbortSignal.timeout(15_000), "error"), number, "gitea");
+    },
     reviewChecks: (target, checkOptions) => readGiteaReviewChecks(
       (suffix) => call(options, headers(), "GET", api + suffix, undefined, AbortSignal.timeout(15_000), "error"), options.base, target, checkOptions),
     async pullRequestsByBranch(): Promise<PullRequestsByBranch> {
@@ -197,6 +203,11 @@ export function createGitLabForge(options: HttpForgeOptions): Forge {
   const headers = (): Record<string, string> => ({ "PRIVATE-TOKEN": options.token ?? "" });
   return {
     name: "GitLab",
+    issueWebBase: options.base,
+    async readIssue(number) {
+      assertIssueNumber(number);
+      return readForgeIssue(await call(options, headers(), "GET", `${api}/issues/${number}`, undefined, AbortSignal.timeout(15_000), "error"), number, "gitlab");
+    },
     reviewChecks: (target, checkOptions) => readGitLabReviewChecks(
       (suffix) => call(options, headers(), "GET", api + suffix, undefined, AbortSignal.timeout(15_000), "error"), options.base, target, checkOptions),
     async pullRequestsByBranch(): Promise<PullRequestsByBranch> {
@@ -308,6 +319,11 @@ export function createGitHubApiForge(options: HttpForgeOptions & { apiBase?: str
   });
   return {
     name: "GitHub",
+    issueWebBase: options.base,
+    async readIssue(number) {
+      assertIssueNumber(number);
+      return readForgeIssue(await call(options, headers(), "GET", `${api}/issues/${number}`, undefined, AbortSignal.timeout(15_000), "error"), number, "github");
+    },
     ...(apiBase === "https://api.github.com" ? {
       githubChecks: (target: GitHubCheckTarget, checkOptions?: ReviewCheckOptions) =>
         readGitHubChecks((suffix) => call(options, headers(), "GET", `${api}${suffix}`,

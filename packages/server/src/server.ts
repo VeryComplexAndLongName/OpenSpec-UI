@@ -25,6 +25,7 @@ import {
   handleArchiveTasksTemplateRequest,
   handleChangeDiffRequest,
   handleChangeEditorCreateRequest,
+  handleIssuePreviewRequest,
   handleChangeEditorReadRequest,
   handleChangeEditorSaveRequest,
   handleChangeTimelineRequest,
@@ -261,6 +262,10 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/change-editor/create") {
       void handleChangeEditorCreateRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/change-editor/issue-preview") {
+      void handleIssuePreviewRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/change-editor/read") {

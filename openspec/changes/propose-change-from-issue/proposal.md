@@ -26,6 +26,6 @@ Core Forge readers, source validation and prompt context; thin REST/native comma
 
 ## Changelog
 
-Affected public deliveries: `openspec-ui-vscode`, `@openspec-ui/server`.
+Affected public deliveries: `openspec-ui-vscode`, `@openspec-ui/server`, and the Workbench bundled with `@openspec-ui/cli` after launch-workbench-from-npm lands.
 
 - Preview a GitHub, GitLab or Gitea issue and create a change with its source attached. The existing Propose stage reads the snapshot; running an agent still requires a separate action. Issues must belong to the workspace repository.

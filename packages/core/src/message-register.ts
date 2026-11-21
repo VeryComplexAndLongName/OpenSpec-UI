@@ -161,6 +161,26 @@ export const MESSAGES = {
     todo: "Allow clipboard access or select the prepared brief and copy it.",
   },
 
+  "OSW-CHG-019": {
+    level: "info",
+    text: "Create {change} from {source}?",
+    why: "An issue snapshot is ready and creation needs explicit confirmation.",
+    todo: "Review the source, then confirm to create and share the change, or cancel.",
+  },
+  "OSW-CHG-020": { level: "error", text: "Enter a positive issue number.", why: "The issue number is not a positive safe integer.", todo: "Use the repository issue number." },
+  "OSW-CHG-021": { level: "error", text: "The forge did not return an issue.", why: "The source response is malformed.", todo: "Check repository credentials and preview again." },
+  "OSW-CHG-022": { level: "error", text: "Use an issue, not a pull request.", why: "The forge returned a pull request.", todo: "Enter an issue number or issue URL." },
+  "OSW-CHG-023": { level: "error", text: "The forge returned a different or invalid issue.", why: "The response identity or title does not match the request.", todo: "Check the issue in the configured repository." },
+  "OSW-CHG-024": { level: "error", text: "The issue body is invalid.", why: "The source body is not text.", todo: "Check the forge response and preview again." },
+  "OSW-CHG-025": { level: "error", text: "The issue exceeds the 256 KiB source limit.", why: "The request is too large to import safely.", todo: "Use a smaller issue with a focused request." },
+  "OSW-CHG-026": { level: "error", text: "The workspace needs an origin repository.", why: "An issue must belong to the workspace repository.", todo: "Configure origin before previewing an issue." },
+  "OSW-CHG-027": { level: "error", text: "This forge cannot read issues. Configure the repository credentials first.", why: "No issue reader is available for this origin.", todo: "Use a supported forge with its existing repository authentication." },
+  "OSW-CHG-028": { level: "error", text: "Enter an issue number or a matching repository issue URL.", why: "The source reference could not be parsed.", todo: "Use a positive issue number or its canonical URL." },
+  "OSW-CHG-029": { level: "error", text: "The issue URL must belong to this workspace's origin repository.", why: "A foreign repository, credentials, query or fragment was supplied.", todo: "Use the workspace repository's canonical issue URL or a number." },
+  "OSW-CHG-030": { level: "error", text: "Enter a repository issue URL without extra path segments.", why: "Only a single issue number may follow the issues path.", todo: "Remove comments, extra paths and trailing separators." },
+  "OSW-CHG-031": { level: "error", text: "Use lowercase letters, numbers and dashes for the change id.", why: "The new change id is unsafe or invalid.", todo: "Choose a lowercase change id such as improve-workbench." },
+  "OSW-CHG-032": { level: "error", text: "The issue changed. Preview it again before creating the change.", why: "The re-read source differs from the confirmed preview.", todo: "Review a fresh preview and confirm again." },
+
   // GIT: git, branches, worktrees, push, pull requests
   // (a-change-is-committed-where-it-is-made).
   "OSW-GIT-001": {
