@@ -1,5 +1,21 @@
 # @openspec-ui/webui
 
+## 1.95.0
+
+### Minor Changes
+
+- a69db83: Prepare CI Repair Task in PR Review gathers available failure details and missing expected checks, keeps their checked commit and source links, and provides a brief to copy to an agent. GitHub annotations and forge-reported messages may be partial; preparing a task does not start a run or modify the change.
+- ff9e81f: PR Review in openspec-ui-vscode and @openspec-ui/server can import JUnit XML and show individual test results for OpenSpec scenarios, including skipped, missing and ambiguous evidence. Commit scenario-tests.json to declare test associations. The imported report's tested commit is user-declared and remains visible, including historical results, in Copy PR summary.
+
+### Patch Changes
+
+- Updated dependencies [10d9059]
+- Updated dependencies [a0e9b22]
+- Updated dependencies [a69db83]
+- Updated dependencies [86a88fd]
+- Updated dependencies [ff9e81f]
+  - @openspec-ui/core@0.151.0
+
 ## 1.94.4
 
 ### Patch Changes
