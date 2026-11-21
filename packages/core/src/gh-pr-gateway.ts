@@ -1,6 +1,6 @@
 import { setTimeout as delay } from "node:timers/promises";
 import crossSpawn from "cross-spawn";
-import { readGitHubChecks, type GitHubCheckTarget, type GitHubChecksReport } from "./github-checks.js";
+import { readGitHubChecks, type GitHubCheckTarget, type GitHubChecksReport, type ReviewCheckOptions } from "./github-checks.js";
 import { say, type MessageCode, type SaidMessage } from "./message-register.js";
 
 /** A pull request's state as `gh` reports it. */
@@ -375,9 +375,9 @@ export interface Forge {
    * merge later by its own rules. */
   checksOf(prNumber: number): Promise<PullRequestCheckStatus>;
   /** Optional, read-only detail for GitHub.com PR Review. */
-  githubChecks?(target: GitHubCheckTarget): Promise<GitHubChecksReport>;
+  githubChecks?(target: GitHubCheckTarget, options?: ReviewCheckOptions): Promise<GitHubChecksReport>;
   /** Commit-specific PR Review evidence on forges with native HTTP APIs. */
-  reviewChecks?(target: OpenPullRequestTarget & { headCommit: string }): Promise<GitHubChecksReport>;
+  reviewChecks?(target: OpenPullRequestTarget & { headCommit: string }, options?: ReviewCheckOptions): Promise<GitHubChecksReport>;
   /** Merges the pull request now, by the given method, and deletes its
    * branch. Throws with the forge's reason where it will not. */
   mergeNow(prNumber: number, method?: MergeMethod): Promise<void>;
@@ -445,13 +445,13 @@ export function createGitHubForge(options: GitHubForgeOptions): Forge {
     name: "GitHub",
     pullRequestsByBranch: () => listPullRequestsByBranch(options),
     ...(githubRepository === undefined ? {} : {
-      githubChecks: (target: GitHubCheckTarget) =>
+      githubChecks: (target: GitHubCheckTarget, checkOptions?: ReviewCheckOptions) =>
         readGitHubChecks(async (suffix) => {
           const requestOptions = { cwd: options.cwd, signal: AbortSignal.timeout(15_000) };
           const { stdout } = await exec(ghBinary, ["api", "--hostname", "github.com",
             `repos/${githubRepository}${suffix}`], requestOptions);
           return JSON.parse(stdout) as unknown;
-        }, target),
+        }, target, checkOptions),
     }),
     async openPullRequest(request) {
       const invocation = buildGhPrCreateWithBodyInvocation(request);

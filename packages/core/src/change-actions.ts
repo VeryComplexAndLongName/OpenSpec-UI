@@ -184,7 +184,7 @@ export const JUNIT_XML_MAX_BYTES = 128 * 1024;
 export interface JUnitImport { head: string; testedCommit: string; xml: string }
 
 export interface ChangeActionInput {
-  prReview?: { refreshGitHubChecks?: true; sinceLastReview?: true; markReviewedCommit?: string; scenarioMapping?: ScenarioMappingRequest; junitImport?: JUnitImport };
+  prReview?: { refreshGitHubChecks?: true; sinceLastReview?: true; markReviewedCommit?: string; scenarioMapping?: ScenarioMappingRequest; junitImport?: JUnitImport; prepareCiRepairTask?: true };
   relation?: { key: string; id: string };
   message?: { kind: "note" | "ask"; words: string };
   stop?: { afterTask?: string; reason: string };

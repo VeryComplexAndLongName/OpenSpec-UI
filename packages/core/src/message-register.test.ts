@@ -26,6 +26,8 @@ const REPOSITORY = path.join(path.dirname(fileURLToPath(import.meta.url)), "..",
  * added here as well as to the register; nothing is ever taken out, so an
  * identifier once given can be neither dropped nor given again. */
 const GIVEN = [
+  "OSW-CHG-017",
+  "OSW-CHG-018",
   "OSW-CHG-014",
   "OSW-CHG-015",
   "OSW-CHG-016",

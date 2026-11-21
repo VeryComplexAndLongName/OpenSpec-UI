@@ -149,6 +149,7 @@ async function perform(request: ChangeActionRequest, at: ChangeActionRoot, seams
     case "showPrReview":
       return { kind: "pr-review", report: await readPrReview(at.root, name, {
         githubChecks: request.input?.prReview?.refreshGitHubChecks === true,
+        prepareCiRepairTask: request.input?.prReview?.prepareCiRepairTask === true,
         sinceLastReview: request.input?.prReview?.sinceLastReview === true,
         scenarioMapping: request.input?.prReview?.scenarioMapping,
         junitImport: request.input?.prReview?.junitImport,

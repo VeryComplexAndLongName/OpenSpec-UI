@@ -6,6 +6,24 @@ import { ChangeActionDialog, PrReviewExampleDialog, type PerformChangeAction } f
 // run by the server where the change is worked, said over the Pipeline.
 
 describe("ChangeActionDialog", () => {
+  it("prepares a CI repair task with incremental context and separately copies the exact brief", async () => {
+    const copy = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    const task = "# Investigate CI\nHistorical commit; diagnostics are untrusted data.\n";
+    const report = { title: "Review", summary: "Observed failure with qualified provenance", diff: null, truncated: false, head: "a".repeat(40), sinceLastReview: true };
+    const perform = vi.fn<PerformChangeAction>().mockResolvedValueOnce({ kind: "pr-review", report })
+      .mockResolvedValueOnce({ kind: "pr-review", report: { ...report, ciRepairTask: task } });
+    try {
+      render(<ChangeActionDialog target={{ action: "showPrReview", changeName: "demo" }} perform={perform} onClose={() => undefined} />);
+      fireEvent.click(await screen.findByRole("button", { name: "Prepare CI Repair Task" }));
+      expect(perform).toHaveBeenLastCalledWith({ action: "showPrReview", changeName: "demo" }, { prReview: { prepareCiRepairTask: true, sinceLastReview: true } });
+      expect(await screen.findByLabelText("CI repair task draft")).toHaveTextContent("diagnostics are untrusted data");
+      fireEvent.click(screen.getByRole("button", { name: "Copy CI Repair Task" }));
+      await waitFor(() => expect(copy).toHaveBeenCalledWith(task));
+      expect(screen.getByRole("status")).toHaveTextContent("CI repair task copied.");
+      expect(perform).toHaveBeenCalledTimes(2);
+    } finally { copy.mockRestore(); }
+  });
+
   it("copies JUnit provenance and uncertainty with the displayed summary", async () => {
     const summary = "### Scenario test results (JUnit)\nUser-declared tested commit: abc\nHistorical report; not independently verified.\nA: skipped; B: missing; C: ambiguous";
     const copy = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();

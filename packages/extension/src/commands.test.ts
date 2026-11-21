@@ -86,7 +86,7 @@ vi.mock("@openspec-ui/core", async () => ({
   // (changes-shows-one-change-and-who-owns-it).
   ...(await vi.importActual<typeof import("@openspec-ui/core/browser")>("@openspec-ui/core/browser")),
   readPrReview: (...args: unknown[]) => readPrReviewMock(...args),
-  prReviewMarkdown: (report: { summary: string }) => report.summary,
+  prReviewMarkdown: (await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core")).prReviewMarkdown,
   AGENT_REGISTRY: [
     { id: "claude-cli", label: "Claude CLI", provider: "anthropic" },
     { id: "copilot-cli", label: "GitHub Copilot CLI", provider: "github" },
@@ -3472,5 +3472,22 @@ describe("PR Review JUnit command adapter", () => {
       ownership: { kind: "unverified", label: "another-worktree", path: "/wt/theirs" } });
     expect(pickJUnitReportMock).not.toHaveBeenCalled();
     expect(readPrReviewMock.mock.calls.every((call) => call[2].junitImport === undefined)).toBe(true);
+  });
+});
+
+describe("PR Review CI repair command adapter", () => {
+  it("forwards explicit preparation and separately copies the previewed brief without starting a run", async () => {
+    const task = "# Investigate CI\nQuoted diagnostic with the checked commit.";
+    const report = { title: "Review", summary: "Qualified diagnosis", diff: null, truncated: false, head: "a".repeat(40) };
+    readPrReviewMock.mockResolvedValueOnce(report).mockResolvedValueOnce({ ...report, ciRepairTask: task });
+    vscodeMock.window.showInformationMessage.mockResolvedValueOnce("Prepare CI Repair Task").mockResolvedValueOnce("Copy CI Repair Task");
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+    await vscodeMock._registeredCommands.get("openspec-ui.showPrReview")?.({ contextValue: "openspec-ui.activeChange", changeName: "ci-demo", archived: false });
+    expect(readPrReviewMock).toHaveBeenNthCalledWith(2, "/workspace/repo", "ci-demo", { githubChecks: false, sinceLastReview: false, prepareCiRepairTask: true });
+    expect(vscodeMock.workspace.openTextDocument).toHaveBeenLastCalledWith(expect.objectContaining({ content: expect.stringContaining(task) }));
+    expect(vscodeMock.env.clipboard.writeText).toHaveBeenCalledWith(task);
+    expect(deps.scheduler.start).not.toHaveBeenCalled();
+    expect(buildRunPlanMock).not.toHaveBeenCalled();
   });
 });

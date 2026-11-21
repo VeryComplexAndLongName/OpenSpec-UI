@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanPrReviewCommit, readPrReview } from "./pr-review.js";
+import { cleanPrReviewCommit, prReviewMarkdown, readPrReview } from "./pr-review.js";
 import type { Forge, PullRequestsByBranch } from "./gh-pr-gateway.js";
 import type { AuditEntry } from "./security.js";
 import { gitIsolationArgs } from "./test-support/git-isolation.js";
@@ -229,5 +229,27 @@ describe("PR review", () => {
       expect(summary).toContain("Verify agent: ` failed ` (unknown revision)");
       expect(summary).not.toContain("raw command output");
     }
+  });
+});
+
+describe("CI repair brief in PR Review", () => {
+  it("forwards explicit diagnosis to the forge and returns a historical-head task to both hosts", async () => {
+    const { root, head, release } = await fixture();
+    const published = "a".repeat(40);
+    const reviewChecks = vi.fn<NonNullable<Forge["reviewChecks"]>>(async () => ({ kind: "checks", head: published,
+      checks: [{ name: "tests", state: "failed", failureDetails: { messages: ["test.ts:42: Assertion failed"], partial: false } }],
+      expected: [], resultsComplete: true, rulesComplete: true,
+    }));
+    const forge: Forge = { name: "GitLab", pullRequestsByBranch: () => openTarget(release, published), reviewChecks,
+      openPullRequest: vi.fn(), checksOf: vi.fn(), mergeNow: vi.fn() };
+    const report = await readPrReview(root, "demo", { forge: async () => forge, prepareCiRepairTask: true });
+    expect(reviewChecks).toHaveBeenCalledWith({ number: 4, baseBranch: "release", baseCommit: release, headCommit: published }, { failureDetails: true });
+    expect(report.ciRepairTask).toContain(head);
+    expect(report.ciRepairTask).toContain(published);
+    expect(report.ciRepairTask).toContain("Historical/different revision");
+    expect(report.summary).toContain("test.ts:42: Assertion failed");
+    expect(prReviewMarkdown(report)).toContain(report.ciRepairTask);
+    expect(await git(root, "status", "--porcelain")).toBe("");
+    expect(forge.openPullRequest).not.toHaveBeenCalled();
   });
 });

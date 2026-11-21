@@ -1,5 +1,5 @@
 import type { OpenPullRequestTarget } from "./gh-pr-gateway.js";
-import type { GitHubChecksReport } from "./github-checks.js";
+import { failureDetails, isFailedCheck, type GitHubChecksReport, type ReviewCheckOptions } from "./github-checks.js";
 
 type Read = (suffix: string) => Promise<unknown>;
 type Target = OpenPullRequestTarget & { headCommit: string };
@@ -39,14 +39,17 @@ function expected(names: string[], checks: Check[], complete: boolean): Result["
   }));
 }
 
-export async function readGiteaReviewChecks(read: Read, base: string, target: Target): Promise<GitHubChecksReport> {
+export async function readGiteaReviewChecks(read: Read, base: string, target: Target, options: ReviewCheckOptions = {}): Promise<GitHubChecksReport> {
   const [statuses, branch] = await Promise.all([
     read(`/commits/${target.headCommit}/status?limit=${PAGE_SIZE}&page=1`).then(object, () => ({} as Record<string, unknown>)),
     read(`/branches/${encodeURIComponent(target.baseBranch)}`).then(object, () => ({} as Record<string, unknown>)),
   ]);
-  const checks = statuses.sha === target.headCommit && Array.isArray(statuses.statuses) ? statuses.statuses.map(object).flatMap((one) =>
-    typeof one.context === "string" && one.context.trim() ? [check(one.context, one.status ?? one.state, one.target_url, base)] : [],
-  ) : [];
+  const checks = statuses.sha === target.headCommit && Array.isArray(statuses.statuses) ? statuses.statuses.map(object).flatMap((one) => {
+    if (typeof one.context !== "string" || !one.context.trim()) return [];
+    const result = check(one.context, one.status ?? one.state, one.target_url, base);
+    if (options.failureDetails && isFailedCheck(result.state)) result.failureDetails = failureDetails([one.description], true);
+    return [result];
+  }) : [];
   const resultsComplete = statuses.sha === target.headCommit && Array.isArray(statuses.statuses)
     && checks.length === statuses.statuses.length && checks.length === statuses.total_count;
   const contexts = branch.enable_status_check === true && Array.isArray(branch.status_check_contexts)
@@ -57,7 +60,7 @@ export async function readGiteaReviewChecks(read: Read, base: string, target: Ta
     expected: expected(contexts, checks, resultsComplete) };
 }
 
-export async function readGitLabReviewChecks(read: Read, base: string, target: Target): Promise<GitHubChecksReport> {
+export async function readGitLabReviewChecks(read: Read, base: string, target: Target, options: ReviewCheckOptions = {}): Promise<GitHubChecksReport> {
   const [pipelines, project] = await Promise.all([
     read(`/merge_requests/${target.number}/pipelines?per_page=${PAGE_SIZE}&page=1`).catch(() => undefined),
     read("").then(object, () => ({} as Record<string, unknown>)),
@@ -69,11 +72,16 @@ export async function readGitLabReviewChecks(read: Read, base: string, target: T
   const checks: Check[] = [];
   let resultsComplete = Array.isArray(pipelines) && pipelines.length < PAGE_SIZE;
   if (pipeline !== undefined) {
-    checks.push(check("Pipeline", pipeline.status, pipeline.web_url, base));
+    const pipelineCheck = check("Pipeline", pipeline.status, pipeline.web_url, base);
+    if (options.failureDetails && isFailedCheck(pipelineCheck.state)) pipelineCheck.failureDetails = failureDetails([], true);
+    checks.push(pipelineCheck);
     const jobs = await read(`/pipelines/${String(pipeline.id)}/jobs?per_page=${PAGE_SIZE}&page=1`).catch(() => undefined);
-    const listedJobs = Array.isArray(jobs) ? jobs.map(object).flatMap((job) =>
-      typeof job.name === "string" && job.name.trim() ? [check(job.name, job.status, job.web_url, base)] : [],
-    ) : [];
+    const listedJobs = Array.isArray(jobs) ? jobs.map(object).flatMap((job) => {
+      if (typeof job.name !== "string" || !job.name.trim()) return [];
+      const result = check(job.name, job.status, job.web_url, base);
+      if (options.failureDetails && isFailedCheck(result.state)) result.failureDetails = failureDetails([job.failure_reason], true);
+      return [result];
+    }) : [];
     checks.push(...listedJobs);
     resultsComplete = resultsComplete && Array.isArray(jobs) && jobs.length < PAGE_SIZE && listedJobs.length === jobs.length;
   }
