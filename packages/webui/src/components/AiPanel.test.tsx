@@ -270,7 +270,7 @@ describe("AiPanel (direct OpenSpec mode)", () => {
         render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" />);
 
         const agentPicker = screen.getByTestId("agent-picker") as HTMLSelectElement;
-        expect(agentPicker.value).toBe("claude-cli");
+        expect(agentPicker.value).toBe("codex-cli-acp");
         expect(agentPicker).toBeDisabled();
         const options = Array.from(agentPicker.querySelectorAll("option")).map((option) => option.value);
         expect(options).toEqual([
@@ -848,16 +848,16 @@ describe("AiPanel Agentic Harness stepAgents pre-fill", () => {
 
         fireEvent.change(screen.getByTestId("command-picker"), { target: { value: "review" } });
 
-        expect((screen.getByTestId("agent-picker") as HTMLSelectElement).value).toBe("claude-cli");
+        expect((screen.getByTestId("agent-picker") as HTMLSelectElement).value).toBe("codex-cli-acp");
     });
 
-    it("behaves exactly as before when no stepAgents prop is supplied", () => {
+    it("uses Codex ACP when no stepAgents prop is supplied", () => {
         const { transport } = createFakeTransport();
         render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" />);
 
         fireEvent.change(screen.getByTestId("command-picker"), { target: { value: "implement" } });
 
-        expect((screen.getByTestId("agent-picker") as HTMLSelectElement).value).toBe("claude-cli");
+        expect((screen.getByTestId("agent-picker") as HTMLSelectElement).value).toBe("codex-cli-acp");
     });
 
     it("sends model on the command when the selected agent matches the stage's configured agent", () => {

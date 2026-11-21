@@ -1,8 +1,8 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { AgentRunner, Command, Event } from "@openspec-ui/core";
+import { DEFAULT_AGENT_ID, type AgentRunner, type Command, type Event } from "@openspec-ui/core";
 
-// Register under DEFAULT_AGENT_ID ("claude-cli", packages/core/src/agents/
+// Register under DEFAULT_AGENT_ID ("codex-cli-acp", packages/core/src/agents/
 // registry.ts) so the AI panel's default agent selection and its
 // undefined-agentId fallback for status/list/show/validate (resolveRunner
 // -> DEFAULT_AGENT_ID, packages/core/src/default-runners.ts) both resolve
@@ -67,4 +67,11 @@ export function createFakeAgentRunner(options: FakeAgentRunnerOptions): AgentRun
       yield { kind: "completed", runId: command.runId, timestamp: nowIso() };
     },
   };
+}
+
+/** The fixtures exercise both the default selection and explicit Claude settings. */
+export function withDefaultAgent(runners: Map<string, AgentRunner>): Map<string, AgentRunner> {
+  const runner = runners.get(DEFAULT_AGENT_ID) ?? runners.get("claude-cli");
+  if (runner) runners.set(DEFAULT_AGENT_ID, runner);
+  return runners;
 }

@@ -38,7 +38,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { gitIsolationArgs } from "@openspec-ui/core/test-support/git-isolation";
 import { createServer } from "../src/server.js";
-import { createFakeAgentRunner } from "./fixtures/fake-agent-runner.js";
+import { createFakeAgentRunner, withDefaultAgent } from "./fixtures/fake-agent-runner.js";
 import { interceptWebSocket } from "./fixtures/intercept-websocket.js";
 import { LIMITS, problemsWith, writeGif, writeWebm, type Photograph } from "./fixtures/tour-recording.js";
 
@@ -156,7 +156,7 @@ test("records the tour: a run started from a card, answered there, and asked to 
     workspaceRoot: runRoot,
     host: "127.0.0.1",
     port: 0,
-    runners: new Map([["claude-cli", createFakeAgentRunner({ changeName: CHANGE_NAME, verifyGate })]]),
+    runners: withDefaultAgent(new Map([["claude-cli", createFakeAgentRunner({ changeName: CHANGE_NAME, verifyGate })]])),
   });
   const address = await server.listen();
   const socket = await interceptWebSocket(page);

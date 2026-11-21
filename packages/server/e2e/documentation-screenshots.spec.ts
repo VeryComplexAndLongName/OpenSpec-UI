@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { createServer, type OpenSpecUiServer } from "../src/server.js";
 import { createLifecycleWorkspace } from "./fixtures/create-lifecycle-workspace.js";
-import { createFakeAgentRunner } from "./fixtures/fake-agent-runner.js";
+import { createFakeAgentRunner, withDefaultAgent } from "./fixtures/fake-agent-runner.js";
 import { interceptWebSocket } from "./fixtures/intercept-websocket.js";
 
 const CHANGE_NAME = "documentation-fixture";
@@ -112,7 +112,7 @@ test.describe("standalone documentation screenshots", () => {
       workspaceRoot,
       host: "127.0.0.1",
       port: 0,
-      runners: new Map([["claude-cli", createFakeAgentRunner({ changeName: CHANGE_NAME })]]),
+      runners: withDefaultAgent(new Map([["claude-cli", createFakeAgentRunner({ changeName: CHANGE_NAME })]])),
     });
     const address = await server.listen();
     // The page keeps its socket open while the AI panel is mounted, and

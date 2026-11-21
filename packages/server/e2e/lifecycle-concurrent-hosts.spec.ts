@@ -3,7 +3,7 @@ import { rm } from "node:fs/promises";
 import { createServer } from "../src/server.js";
 import { loadAndSelectChange } from "./fixtures/ai-panel-actions.js";
 import { createLifecycleWorkspace } from "./fixtures/create-lifecycle-workspace.js";
-import { createFakeAgentRunner } from "./fixtures/fake-agent-runner.js";
+import { createFakeAgentRunner, withDefaultAgent } from "./fixtures/fake-agent-runner.js";
 
 const CHANGE_NAME = "concurrent-hosts-change";
 
@@ -21,13 +21,13 @@ test("a second host's mutating run is blocked by an active workspace lease", asy
     workspaceRoot,
     host: "127.0.0.1",
     port: 0,
-    runners: new Map([["claude-cli", createFakeAgentRunner({ changeName: CHANGE_NAME, implementGate: firstRunGate })]]),
+    runners: withDefaultAgent(new Map([["claude-cli", createFakeAgentRunner({ changeName: CHANGE_NAME, implementGate: firstRunGate })]])),
   });
   const secondServer = createServer({
     workspaceRoot,
     host: "127.0.0.1",
     port: 0,
-    runners: new Map([["claude-cli", createFakeAgentRunner({ changeName: CHANGE_NAME })]]),
+    runners: withDefaultAgent(new Map([["claude-cli", createFakeAgentRunner({ changeName: CHANGE_NAME })]])),
   });
 
   try {

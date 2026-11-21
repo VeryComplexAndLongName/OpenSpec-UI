@@ -86,6 +86,8 @@ vi.mock("@openspec-ui/core", async () => ({
     { id: "claude-cli", label: "Claude CLI", provider: "anthropic" },
     { id: "copilot-cli", label: "GitHub Copilot CLI", provider: "github" },
     { id: "codex-cli", label: "Codex CLI", provider: "openai" },
+    { id: "codex-cli-acp", label: "Codex CLI (ACP)", provider: "openai" },
+    { id: "claude-cli-acp", label: "Claude CLI (ACP)", provider: "anthropic" },
     { id: "gemini-cli", label: "Gemini CLI", provider: "google" },
     { id: "local-llm", label: "Local LLM (OpenAI-compatible)", provider: "local" },
     { id: "local-llm-acp", label: "Local LLM (ACP, OpenAI-compatible)", provider: "local" },
@@ -97,6 +99,8 @@ vi.mock("@openspec-ui/core", async () => ({
     "claude-cli": { effort: ["low", "medium", "high", "xhigh", "max"], budgetField: "maxCostUsd" },
     "copilot-cli": { effort: ["none", "minimal", "low", "medium", "high", "xhigh", "max"], budgetField: "maxAiCredits" },
     "codex-cli": { effort: ["minimal", "low", "medium", "high"] },
+    "codex-cli-acp": { effort: ["low", "medium", "high", "xhigh", "max"] },
+    "claude-cli-acp": { effort: ["low", "medium", "high", "xhigh", "max"], budgetField: "maxCostUsd" },
     "gemini-cli": {},
     "local-llm": { editsFiles: false },
     "local-llm-acp": {},
@@ -1789,6 +1793,52 @@ describe("registerCommands", () => {
     function baseGlobalConfig() {
       return { stepAgents: {}, autonomyLevel: "assisted" as const, reviewGate: { mode: "human-required" as const } };
     }
+
+    it("puts Codex ACP first for new setup and writes the selected Codex assignments", async () => {
+      detectAvailableAgentsDetailedMock.mockResolvedValueOnce({
+        "claude-cli": { detected: true },
+        "claude-cli-acp": { detected: true },
+        "codex-cli-acp": { detected: true },
+      });
+      readGlobalHarnessConfigMock.mockResolvedValueOnce(baseGlobalConfig());
+      vscodeMock.window.showQuickPick
+        .mockResolvedValueOnce({ label: "Codex CLI (ACP)", id: "codex-cli-acp" })
+        .mockResolvedValueOnce({ label: "Codex CLI (ACP)", id: "codex-cli-acp" })
+        .mockResolvedValueOnce(undefined);
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.initializeWorkspaceHarness")?.();
+
+      for (const index of [0, 1]) {
+        const items = vscodeMock.window.showQuickPick.mock.calls[index]?.[0] as Array<{ id: string }>;
+        expect(items[0]?.id).toBe("codex-cli-acp");
+        expect(items.map((item) => item.id)).toEqual(expect.arrayContaining(["claude-cli", "claude-cli-acp"]));
+      }
+      expect(writeGlobalHarnessConfigMock).toHaveBeenLastCalledWith("/workspace/repo", {
+        ...baseGlobalConfig(),
+        stepAgents: {
+          propose: "codex-cli-acp", review: "codex-cli-acp", verify: "codex-cli-acp", apply: "codex-cli-acp",
+        },
+      });
+    });
+
+    it("keeps an existing Claude selection first when Codex ACP is installed", async () => {
+      detectAvailableAgentsDetailedMock.mockResolvedValueOnce({
+        "claude-cli": { detected: true },
+        "codex-cli-acp": { detected: true },
+      });
+      readGlobalHarnessConfigMock.mockResolvedValueOnce({
+        ...baseGlobalConfig(), stepAgents: { propose: { agent: "claude-cli", model: "user-model", effort: "high" } },
+      });
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce(undefined);
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.initializeWorkspaceHarness")?.();
+
+      const items = vscodeMock.window.showQuickPick.mock.calls[0]?.[0] as Array<{ id: string }>;
+      expect(items[0]?.id).toBe("claude-cli");
+      expect(writeGlobalHarnessConfigMock).not.toHaveBeenCalled();
+    });
 
     // the-local-model-is-offered-where-it-is-set: the local agents need
     // nothing installed, so they are offered even where their server does

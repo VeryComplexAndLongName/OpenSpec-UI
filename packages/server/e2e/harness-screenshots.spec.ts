@@ -18,7 +18,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer, type OpenSpecUiServer } from "../src/server.js";
 import { createLifecycleWorkspace } from "./fixtures/create-lifecycle-workspace.js";
-import { createFakeAgentRunner } from "./fixtures/fake-agent-runner.js";
+import { createFakeAgentRunner, withDefaultAgent } from "./fixtures/fake-agent-runner.js";
 import { interceptWebSocket } from "./fixtures/intercept-websocket.js";
 
 const CHANGE_NAME = "harness-docs-fixture";
@@ -97,7 +97,7 @@ test.describe("standalone harness screenshots", () => {
       workspaceRoot,
       host: "127.0.0.1",
       port: 0,
-      runners: new Map([["claude-cli", createFakeAgentRunner({ changeName: CHANGE_NAME })]]),
+      runners: withDefaultAgent(new Map([["claude-cli", createFakeAgentRunner({ changeName: CHANGE_NAME })]])),
     });
     const address = await server.listen();
     // The chain left running at a checkpoint keeps the page's WebSocket

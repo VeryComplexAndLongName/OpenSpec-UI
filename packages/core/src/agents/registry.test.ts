@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AGENT_REGISTRY } from "./registry.js";
+import { AGENT_REGISTRY, DEFAULT_AGENT_ID } from "./registry.js";
 import { ClaudeCliAdapter } from "./claude.js";
 import { ClaudeCliAcpAdapter } from "./claude-acp.js";
 import { CopilotCliAdapter } from "./copilot.js";
@@ -12,6 +12,17 @@ import { LocalLlmAcpAdapter } from "./local-llm-acp.js";
 import { LocalLlmAdapter } from "./local-llm.js";
 
 describe("AGENT_REGISTRY", () => {
+  it("defaults to Codex ACP while keeping both Claude adapters and their settings", () => {
+    expect(DEFAULT_AGENT_ID).toBe("codex-cli-acp");
+    for (const id of ["claude-cli", "claude-cli-acp"]) {
+      expect(AGENT_REGISTRY.find((agent) => agent.id === id)).toMatchObject({
+        provider: "anthropic",
+        modelFlag: "--model",
+        customAgentFlag: "--agent",
+      });
+    }
+  });
+
   // the-supervisor-changes-agents 1.1: a fallback policy asks whether a move
   // changes provider, so every agent says whose it is.
   it("names a provider for every agent", () => {

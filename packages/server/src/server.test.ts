@@ -37,6 +37,7 @@ function mockCliJson(stdout: unknown): void {
   });
 }
 import {
+  DEFAULT_AGENT_ID,
   EnrolmentRefusedError,
   FileAuditLog,
   auditLogPath,
@@ -2317,7 +2318,7 @@ describe("server — WebSocket /api/ws", () => {
       },
     };
     await server.close();
-    await startServer(new Map([["claude-cli", defaultRunner], ["asking-agent", askingRunner]]));
+    await startServer(new Map([[DEFAULT_AGENT_ID, defaultRunner], ["asking-agent", askingRunner]]));
 
     const client = new WebSocket(wsUrl, ["openspec-ui", `openspec-ui-token.${ACCESS_TOKEN}`]);
     await new Promise((resolve) => client.once("open", resolve));
@@ -2373,7 +2374,7 @@ describe("server — WebSocket /api/ws", () => {
       },
     };
     await server.close();
-    await startServer(new Map([["claude-cli", defaultRunner], ["asking-agent", askingRunner]]));
+    await startServer(new Map([[DEFAULT_AGENT_ID, defaultRunner], ["asking-agent", askingRunner]]));
 
     const client = new WebSocket(wsUrl, ["openspec-ui", `openspec-ui-token.${ACCESS_TOKEN}`]);
     await new Promise((resolve) => client.once("open", resolve));
