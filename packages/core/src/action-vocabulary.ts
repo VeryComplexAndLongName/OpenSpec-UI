@@ -88,6 +88,7 @@ export const ACTION_NOUNS: readonly string[] = [
   "Workbench", "Main", "Landed Changes", "Logs", "Path", "Done Tasks", "Example", "OpenSpec Locations",
   "Chain", "Agents", "Command", "Proposal", "Design", "Stage Agents", "Settings", "Templates", "Summary", "Configuration", "Processes",
   "Full PR Diff", "Changes Since Last Review",
+  "Issue", "Change From Issue",
 ];
 
 /** The verb an action is named by. */

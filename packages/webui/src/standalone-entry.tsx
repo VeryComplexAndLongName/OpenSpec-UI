@@ -14,6 +14,7 @@ import { describeRunCompletionNotification } from "./notify-run-completion.js";
 import { ChangeDiff } from "./components/ChangeDiff.js";
 import { loadChangeDiff, type ChangeDiffAnswer } from "./change-diff-client.js";
 import { Icon } from "./components/Icon.js";
+import { IssueChangeForm } from "./components/IssueChangeForm.js";
 import { ChangeTimelineView } from "./components/ChangeTimelineView.js";
 import { ChangePicker, type ChangePickerOption } from "./components/ChangePicker.js";
 import { ChangesList } from "./components/ChangesList.js";
@@ -1747,7 +1748,7 @@ function StandaloneApp() {
     }
   }
 
-  async function handleCreateChange() {
+  async function handleCreateChange(issue?: { reference: string; revision: string }) {
     if (cwd.trim().length === 0) {
       setEditorMessage("Enter workspace root first.");
       return;
@@ -1768,6 +1769,7 @@ function StandaloneApp() {
           cwd,
           changeName,
           description: newChangeDescription.trim().length > 0 ? newChangeDescription : undefined,
+          ...(issue ? { issue } : {}),
         }),
       });
       if (!response.ok) {
@@ -2444,12 +2446,13 @@ function StandaloneApp() {
                     </div>
                   </div>
                   <div className="openspec-panel-foot">
-                    <button className="button primary" type="button" onClick={handleCreateChange} disabled={editorCreating || cwd.trim().length === 0}>
+                    <button className="button primary" type="button" onClick={() => { void handleCreateChange(); }} disabled={editorCreating || cwd.trim().length === 0}>
                       {editorCreating ? "Creating..." : "Create Change"}
                     </button>
                   </div>
                 </section>
 
+                <IssueChangeForm cwd={cwd} changeName={newChangeName} apiFetch={apiFetch} onCreate={handleCreateChange} />
                 <div className="openspec-controls" data-testid="change-editor-toolbar">
 
                   <select

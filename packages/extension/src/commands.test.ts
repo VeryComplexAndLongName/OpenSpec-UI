@@ -31,6 +31,8 @@ const buildSprintReportMock = vi.fn();
 const renderSprintReportPageMock = vi.fn();
 const discoverOpenSpecWorkspaceMock = vi.fn();
 const createChangeMock = vi.fn();
+const previewIssueChangeMock = vi.fn();
+const createChangeFromIssueMock = vi.fn();
 const commitChangeMock = vi.fn();
 const surveyWorktreesMock = vi.fn(async (..._args: unknown[]): Promise<unknown> => ({ directories: [], runsElsewhere: [] }));
 const workflowRulesNeedConsentMock = vi.fn(async (..._args: unknown[]) => [] as string[]);
@@ -138,6 +140,8 @@ vi.mock("@openspec-ui/core", async () => ({
   buildSprintReport: (...args: unknown[]) => buildSprintReportMock(...args),
   checkChangesetReminder: (...args: unknown[]) => checkChangesetReminderMock(...args),
   createChange: (...args: unknown[]) => createChangeMock(...args),
+  previewIssueChange: (...args: unknown[]) => previewIssueChangeMock(...args),
+  createChangeFromIssue: (...args: unknown[]) => createChangeFromIssueMock(...args),
   // A repository with no remote, as these tests' workspace is: the change
   // is made where it always was, through `openspec new change`
   // (agents-are-told-how-work-is-done-here).
@@ -362,6 +366,25 @@ describe("registerCommands", () => {
 
     expect(createChangeMock).toHaveBeenCalledWith("new-workbench-change", { cwd: "/workspace/repo" });
     expect(deps.refreshTrees).toHaveBeenCalled();
+  });
+
+  it("creates from an issue only after preview and separate native confirmation", async () => {
+    const source = { title: "Keep this request", body: "Untrusted request text", number: 12, sourceUrl: "https://github.com/team/repo/issues/12", revision: "b".repeat(64), forge: "GitHub", state: "open", updatedAt: "today", truncated: false };
+    previewIssueChangeMock.mockResolvedValue(source);
+    createChangeFromIssueMock.mockResolvedValue({ directory: "/workspace/repo" });
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+    vscodeMock.window.showInputBox.mockResolvedValueOnce("12").mockResolvedValueOnce("from-issue");
+    vscodeMock.window.showWarningMessage.mockResolvedValueOnce(undefined);
+    await vscodeMock._registeredCommands.get("openspec-ui.createChangeFromIssue")?.();
+    expect(createChangeFromIssueMock).not.toHaveBeenCalled();
+    expect(vscodeMock.workspace.openTextDocument).toHaveBeenCalledWith(expect.objectContaining({ language: "plaintext", content: expect.stringContaining(source.body) }));
+    vscodeMock.window.showInputBox.mockResolvedValueOnce("12").mockResolvedValueOnce("from-issue");
+    vscodeMock.window.showWarningMessage.mockResolvedValueOnce("Create Change From Issue");
+    await vscodeMock._registeredCommands.get("openspec-ui.createChangeFromIssue")?.();
+    expect(createChangeFromIssueMock).toHaveBeenCalledWith({ repositoryRoot: "/workspace/repo", reference: "12", changeName: "from-issue", revision: source.revision });
+    expect(deps.refreshTrees).toHaveBeenCalled();
+    expect(buildRunPlanMock).not.toHaveBeenCalled();
   });
 
   describe("openspec-ui.createTemplate", () => {

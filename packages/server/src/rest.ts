@@ -20,6 +20,8 @@ import {
   UnknownProjectTemplateError,
   buildSprintReport,
   createChangeInItsWorktree,
+  previewIssueChange,
+  createChangeFromIssue,
   sayChangeNotShared,
   withMessageCode,
   customizeTemplate,
@@ -287,6 +289,7 @@ interface ChangeEditorCreateRequest {
   cwd: string;
   changeName: string;
   description?: string;
+  issue?: { reference: string; revision: string };
 }
 
 interface OpenSpecInitRequest {
@@ -403,7 +406,9 @@ function isTemplatesRenderRequest(value: unknown): value is TemplatesRenderReque
 function isChangeEditorCreateRequest(value: unknown): value is ChangeEditorCreateRequest {
   if (!isObjectRecord(value)) return false;
   if (!isNonEmptyString(value.cwd) || !isChangeName(value.changeName)) return false;
-  return value.description === undefined || typeof value.description === "string";
+  return (value.description === undefined || typeof value.description === "string")
+    && (value.issue === undefined || (isObjectRecord(value.issue) && isNonEmptyString(value.issue.reference)
+      && value.issue.reference.length <= 2048 && typeof value.issue.revision === "string" && /^[a-f0-9]{64}$/.test(value.issue.revision)));
 }
 
 function isChangeEditorSaveRequest(value: unknown): value is ChangeEditorSaveRequest {
@@ -467,6 +472,20 @@ async function detectOpenSpecInitialization(cwd: string): Promise<OpenSpecInitia
   };
 }
 
+export async function handleIssuePreviewRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  try {
+    const parsed: unknown = await readJsonBody(req, policy.maxPayloadBytes);
+    if (!isObjectRecord(parsed) || !isNonEmptyString(parsed.cwd) || !isNonEmptyString(parsed.reference) || parsed.reference.length > 2048) {
+      sendJson(res, 400, { error: "body must contain cwd and an issue reference" });
+      return;
+    }
+    if (!authorizeCwd(res, policy, parsed.cwd)) return;
+    sendJson(res, 200, await previewIssueChange({ repositoryRoot: parsed.cwd, reference: parsed.reference }));
+  } catch (error) {
+    sendJson(res, 400, { error: `Issue preview failed: ${error instanceof Error ? error.message : String(error)}` });
+  }
+}
+
 export async function handleChangeEditorCreateRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
   let parsed: unknown;
   try {
@@ -485,7 +504,9 @@ export async function handleChangeEditorCreateRequest(req: IncomingMessage, res:
   try {
     // In a working directory of its own (agents-are-told-how-work-is-done-here,
     // ADR 0043): the page is told where, and works on it there.
-    const made = await createChangeInItsWorktree({
+    const made = parsed.issue ? await createChangeFromIssue({
+      repositoryRoot: parsed.cwd, changeName: parsed.changeName, ...parsed.issue,
+    }) : await createChangeInItsWorktree({
       repositoryRoot: parsed.cwd,
       changeName: parsed.changeName,
       createOptions: { description: parsed.description },

@@ -145,6 +145,12 @@
         "icon": "$(play)"
       },
       {
+        "command": "openspec-ui.createChangeFromIssue",
+        "title": "Create Change From Issue...",
+        "category": "OpenSpec Workbench",
+        "icon": "$(issues)"
+      },
+      {
         "command": "openspec-ui.createChange",
         "title": "Create Change...",
         "icon": "$(add)",
