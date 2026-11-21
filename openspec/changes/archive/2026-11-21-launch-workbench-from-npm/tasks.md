@@ -38,7 +38,7 @@
 
 ## Completion evidence
 
-Full verification is pending in the existing PR CI gates. Use standard filtered post-merge archival with recorded evidence. Remove only this change's clean owned worktree after archived remote main is verified. Public npm availability follows the normal version and trusted-publishing workflow, after implementation checks; do not claim the registry command exists before publication.
+Full verification passed in the implementation PR gates. Use standard filtered post-merge archival with recorded evidence. Remove only this change's clean owned worktree after archived remote main is verified. Public npm availability follows the normal version and trusted-publishing workflow, after implementation checks; do not claim the registry command exists before publication.
 
 ## Recorded local evidence
 
@@ -52,3 +52,8 @@ Node 24.21.0 and npm 10.9.0. Own npm ci completed. Pinned `npm install --package
 - Browser smoke: the built CLI served an owned empty temporary directory on 127.0.0.1:55005. Edge rendered the real shell and footer `core 0.150.1 / server 1.66.0 / webui 1.94.4`. The vscode-local-server embed retained the Pipeline tab and had zero version-footer nodes. No initialization or agent run was requested. The expected read-only missing-root diagnostic in that empty fixture does not indicate launcher failure. The owned server process was stopped and its empty fixture removed. Initial browser-tool tab creation timed out but recovery bound the already-created tab and verified both modes.
 - The new named CI browser regression shows included package versions only in the standalone footer. Its source/e2e typecheck passed; execution remains pending in the existing full CI browser gate, not claimed as a local browser-suite run.
 - Review matched all added/modified scenarios to real lifecycle tests, launcher/routing cases, production artifact smoke and the footer regression. Token/Origin/cwd checks and Core permissions are reused unchanged. Private packages are bundled, ws is declared, metadata comes from the correct manifests, and static chunks use explicit packaged paths. Existing CLI handlers remain independent; no new agent command/event or cancellation policy was introduced. Active agent work is stopped through existing controls before host shutdown. Public npm availability remains pending the normal version/publish workflow.
+
+
+## Full CI evidence before archival
+
+Implementation PR gates passed in https://github.com/VeryComplexAndLongName/OpenSpec-UI/actions/runs/44900660680. The standard Workbench archive pass folds the accepted delta into the current specification after the implementation has landed. Targeted local evidence and tooling limitations remain recorded in tasks.md.
