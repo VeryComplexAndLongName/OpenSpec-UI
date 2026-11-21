@@ -62,7 +62,6 @@ Alternatives / Consequences.
 | [0053](0053-usage-is-accounted-per-invocation.md) | Usage is accounted per agent invocation | Accepted |
 | [0054](0054-release-notes-belong-to-the-product.md) | Release notes belong to the product a person uses | Accepted |
 | [0055](0055-the-harness-authorizes-a-specific-push.md) | The Harness authorizes a specific push | Accepted |
-
 | [0057](0057-the-npm-package-launches-the-workbench.md) | The npm package launches the existing Workbench host | Accepted; amends 0020 decision 2 |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.
