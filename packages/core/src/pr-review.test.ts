@@ -85,6 +85,36 @@ describe("PR review", () => {
     expect((await readPrReview(linked, "demo")).summary).toContain("historical passed");
   });
 
+  it("reviews declared scope from committed mappings with both rename paths and incremental endpoints", async () => {
+    const { root, changeDir, main } = await fixture();
+    const source = { pullRequests: () => openTarget(main, main) };
+    await mkdir(path.join(root, "src")); await mkdir(path.join(root, "outside"));
+    const scope = path.join(changeDir, "change-scope.json");
+    await writeFile(scope, JSON.stringify({ paths: ["src/"] }));
+    await writeFile(path.join(root, "src", "old.ts"), "exported\n");
+    await writeFile(path.join(root, "outside", "old.ts"), "imported\n");
+    await git(root, "add", "."); await git(root, "commit", "-m", "Declare implementation scope");
+    const reviewed = await git(root, "rev-parse", "HEAD");
+    await readPrReview(root, "demo", { ...source, markReviewedCommit: reviewed });
+    await git(root, "mv", "src/old.ts", "outside/exported.ts");
+    await git(root, "mv", "outside/old.ts", "src/imported.ts");
+    await git(root, "commit", "-m", "Move files across the scope boundary");
+    await writeFile(scope, JSON.stringify({ paths: ["src/", "outside/"] }));
+    const dirty = await git(root, "status", "--porcelain");
+    const report = await readPrReview(root, "demo", { ...source, sinceLastReview: true });
+    expect(report.summary).toContain("Outside declared scope: 2 paths");
+    expect(report.summary).toContain("` outside/old.ts `");
+    expect(report.summary).toContain("` outside/exported.ts `");
+    expect(report.summary).not.toContain("` implementation.txt `");
+    expect(report.summary).not.toContain("Review its diff before treating");
+    expect(report.summary).toContain("Advisory comparison of committed paths only");
+    expect(await git(root, "status", "--porcelain")).toBe(dirty);
+    await git(root, "add", "."); await git(root, "commit", "-m", "Broaden the declared scope");
+    const broadened = await readPrReview(root, "demo", { ...source, sinceLastReview: true });
+    expect(broadened.summary).toContain("Outside declared scope: 0 paths");
+    expect(broadened.summary).toContain("Review its diff before treating these paths as agreed scope");
+  });
+
   it("uses the origin forge's check detail and exposes matching scenario choices", async () => {
     const { root, changeDir, release } = await fixture();
     const delta = path.join(changeDir, "specs", "checkout");
