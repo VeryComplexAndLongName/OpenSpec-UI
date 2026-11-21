@@ -17,7 +17,7 @@
 
 ## Evidence and completion
 
-Full verification is pending in the existing PR CI gates. Record scoped local results and actual CI evidence separately. The standard filtered workspace archive pass will fold the accepted delta after this change lands. Cleanup is operational completion after archived remote main and a clean owned worktree are verified.
+Full verification passed in the implementation PR gates. Record scoped local results and actual CI evidence separately. The standard filtered workspace archive pass will fold the accepted delta after this change lands. Cleanup is operational completion after archived remote main and a clean owned worktree are verified.
 
 ## Recorded local verification
 
@@ -31,3 +31,8 @@ Node 24.21.0, npm 10.9.0; isolated npm ci completed without changing the lockfil
 - Review: all four added scenarios are exercised by change-scope.test.ts and the named real-git integration. Path-boundary, rename, missing/invalid scope and zero-outside cases retain qualifications. Reads use committed blobs, bound the declaration before loading it, disable external diff/textconv and do not write. No new API payload or agent command/event was added; the authenticated HTTP smoke verifies the actual unchanged transport junction. Remaining limits are the manual declaration, advisory committed-only check and lack of independent approval attribution described in design.md.
 
 - After implementation PR #998 landed, merge-tree reported real conflicts in README.md and pr-review.test.ts. Rebasing resolved those conflicts by retaining both documentation links and both integration tests. The targeted `pr-review.test.ts -t 'reviews declared scope|imports JUnit'` rerun passed both tests (6 unrelated filtered out). Core typecheck and changed-path ESLint passed again on the combined implementation. No rebase was performed solely because main advanced.
+
+
+## Full CI evidence before archival
+
+Implementation PR gates passed in https://github.com/VeryComplexAndLongName/OpenSpec-UI/actions/runs/44896459688. The standard Workbench archive pass folds the accepted delta into the current specification after the implementation has landed. Targeted local evidence and tooling limitations remain recorded in tasks.md.
