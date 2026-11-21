@@ -31,7 +31,7 @@ describe("ChangeActionDialog", () => {
     Object.defineProperty(file, "text", { value: () => Promise.resolve(xml) });
     fireEvent.change(screen.getByLabelText("JUnit XML report (up to 128 KiB)"), { target: { files: [file] } });
     fireEvent.change(screen.getByLabelText("Tested commit (user-declared)"), { target: { value: testedCommit } });
-    expect(screen.getByRole("button", { name: "Import report" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Import Report" })).toBeEnabled();
     fireEvent.submit(screen.getByRole("form", { name: "Import JUnit report" }));
     await waitFor(() => expect(perform).toHaveBeenLastCalledWith({ action: "showPrReview", changeName: "demo" }, {
       prReview: { junitImport: { head, testedCommit, xml } },

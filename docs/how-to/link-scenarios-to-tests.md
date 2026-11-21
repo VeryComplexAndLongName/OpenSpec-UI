@@ -41,7 +41,7 @@ Export a relevant test suite to JUnit XML. A minimal report is:
 
 1. Open **PR Review** for the change.
 2. In the standalone app, use the upload icon (**Import JUnit XML**), choose
-   the XML file, enter the full tested commit ID and select **Import report**.
+   the XML file, enter the full tested commit ID and select **Import Report**.
    In VS Code, choose **Import JUnit XML** from the review's actions and use
    the native file picker and tested-commit prompt.
 3. Read **Scenario test results (JUnit)** or use **Copy PR summary** to include

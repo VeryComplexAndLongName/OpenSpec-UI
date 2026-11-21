@@ -184,7 +184,7 @@ function JUnitImportForm({ head, onImport }: { head: string; onImport: (value: J
       onChange={(event) => setTestedCommit(event.currentTarget.value)} /></label>
     <p>The report does not prove which commit was tested. Enter its full git commit ID; raw XML and test output are not retained.</p>
     <button className="button" type="submit" disabled={!file || reading || !/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u.test(testedCommit.trim())}>
-      <Upload size={16} aria-hidden="true" /> Import report
+      <Upload size={16} aria-hidden="true" /> Import Report
     </button>
     {error && <p role="alert">{error}</p>}
   </form>;

@@ -11,6 +11,8 @@
 - [x] In docs/how-to/link-scenarios-to-tests.md document the mapping format, import steps, report limits and user-declared provenance with a complete example.
 - [x] In .changeset/show-junit-scenario-results.md record the proposal's product notes for Core, Shared UI, server and extension without changing versions by hand.
 
+- [x] In packages/core/src/action-vocabulary.ts register Import and JUnit XML so the new controls follow ADR 0045; verify action-vocabulary.test.ts and webui control-vocabulary.test.ts.
+
 ## Scoped verification
 
 - [x] In packages/core/src/junit-evidence.test.ts exercise outcomes, nested suites, malformed/DTD/size/depth/count refusal, duplicates and mapping/revision qualifications; run node_modules/vitest/vitest.mjs run --project core packages/core/src/junit-evidence.test.ts.
@@ -54,3 +56,7 @@ Node 24.21.0 and npm 10.9.0. `tsc --noEmit -p` passed for packages/core, package
 - Final review covered every delta scenario: safe import, unsafe/stale rejection preserving old data, six observation states, historical revision and invalid/missing associations. Native and HTTP ownership guards, bounded parse/storage, Markdown escaping and discarded raw output were checked. No architecture invariant or agent event changed. Remaining limits are the explicitly user-declared provenance, manual committed mapping, report bounds and the live browser tooling limits above.
 - CLI bundle build and built --help smoke passed, confirming the new Core dependency does not introduce a runtime require failure. The extension host bundle built successfully; its two existing import.meta/CJS warnings name unchanged version-info/server source. The standalone client also built. Changeset summary validation passed for the exact new file.
 - Strict OpenSpec validation passed. Full CI remains pending until the PR gates report actual results; the archive record will cite those results.
+
+- CI run 44894037628: dependency audit and dependency review passed. Full verification found the new Import report label outside ADR 0045's action vocabulary. Corrected it to Import Report and registered the Import verb / JUnit XML noun rather than exempting the control from the rule. A new CI run is required; this failed run is not claimed as complete verification.
+
+- Action vocabulary correction: Core action-vocabulary.test.ts passed 5 tests; webui control-vocabulary.test.ts plus ChangeActionDialog.test.tsx passed 12 tests. Scoped ESLint passed for the corrected labels and vocabulary.
