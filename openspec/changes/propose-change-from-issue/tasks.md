@@ -42,3 +42,5 @@
 - Final scoped verification: Core/server/webui/extension TypeScript and server e2e TypeScript passed. ESLint passed on every changed/new TypeScript path. Strict OpenSpec validation and git diff whitespace check passed. New test-budget analysis and exact authored changeset parsing passed (Core, webui, server, extension and bundled CLI Workbench). Browser issue/revision forwarding/refusal scenario is created and typechecked; its real execution remains pending in PR CI.
 
 Full verification is pending in the existing PR CI gates.
+
+Actual main conflict: both this change and launch-workbench-from-npm inserted a browser scenario at the same location. git merge-tree reported that conflict, so the branch was rebased onto origin/main and both complete scenarios retained. Server e2e TypeScript, the Core source/message selections (21 passed, one POSIX-only skipped), and authored notes/budgets were rechecked after resolution. No manual rebase was done solely for freshness.
