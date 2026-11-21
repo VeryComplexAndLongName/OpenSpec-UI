@@ -21,7 +21,17 @@ or from a terminal:
 code --install-extension openspec-ui.openspec-ui-vscode
 ```
 
-**As a local web application**, from a clone of this repository:
+**As a local web application**, without cloning or building this repository:
+
+```bash
+npx @openspec-ui/cli open workbench --cwd <workspaceRoot>
+```
+
+Open the printed localhost URL and keep the terminal open; Ctrl+C stops the host.
+Use `--port 0` to select an available local port. See the
+[npm launch guide](docs/how-to/launch-workbench.md) for prerequisites and options.
+
+For development from a clone:
 
 ```bash
 npm install
@@ -141,28 +151,25 @@ product.
 
 ### UI reception and launch
 
-- Standalone web app: start the local standalone app from source, then open
-  the tokenized localhost URL printed by the server. The same two commands
-  as above, with the build step written out:
+- Standalone web app: run the published launcher, then open the tokenized
+  localhost URL printed by the server:
 
   ```bash
-  npm install
-  npm run build --workspace @openspec-ui/server
-  npm run start --workspace @openspec-ui/server -- <workspaceRoot> 4317
+  npx @openspec-ui/cli open workbench --cwd <workspaceRoot>
   ```
 
-  Here, `<workspaceRoot>` is the absolute path to the local project or repo
+  Here, `<workspaceRoot>` is the path to the local project or repo
   that the app should inspect and manage. In practice, this is usually the
   folder you want to open, such as the current repository root or another Git
   working directory on your machine. After startup, the server prints a URL in
   the console similar to:
 
   ```text
-  OpenSpec Workbench server listening on http://127.0.0.1:4317/#token=PU32_AOBt0lG6sHhYQtCMwSU6ZmcXtIJX0-4RUe1FQM (workspaceRoot: ., allowExternalCwd: false)
+  http://127.0.0.1:4317/#token=<temporary-server-token>
   ```
 
   You must open that exact URL in the browser to connect to the server. The
-  URL contains a temporary one-time access token; without it, you cannot access
+  URL contains a temporary per-server access token; without it, you cannot access
   the running server. The default port is `4317`.
 - VS Code extension: install it from the
   [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=openspec-ui.openspec-ui-vscode)

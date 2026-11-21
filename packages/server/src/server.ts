@@ -120,6 +120,8 @@ export interface ServerOptions {
    * embedded into a bundled CJS host (see static.ts, `extension`'s
    * optional-server.ts). */
   staticAssets?: StaticAssetPaths;
+  /** Trusted package versions captured when an embedding delivery is built. */
+  versions?: { core: string; server: string };
   accessToken?: string;
   maxPayloadBytes?: number;
 }
@@ -235,13 +237,13 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "GET" && req.url === "/api/versions") {
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ core: getCoreVersion(), server: getServerVersion() }));
+      res.end(JSON.stringify(options.versions ?? { core: getCoreVersion(), server: getServerVersion() }));
       return;
     }
     if (req.method === "GET" && req.url === "/api/feedback-facts") {
       void detectExecutable("openspec").catch(() => ({ detected: false as const })).then((openspec) => {
         res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify({ workbench: getServerVersion(), platform: process.platform, openspec: "version" in openspec ? openspec.version : undefined }));
+        res.end(JSON.stringify({ workbench: options.versions?.server ?? getServerVersion(), platform: process.platform, openspec: "version" in openspec ? openspec.version : undefined }));
       });
       return;
     }
@@ -506,14 +508,24 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     httpServer,
     accessToken,
     listen(): Promise<AddressInfo> {
-      return new Promise((resolve) => {
-        httpServer.listen(options.port ?? DEFAULT_PORT, options.host ?? DEFAULT_HOST, () => {
+      return new Promise((resolve, reject) => {
+        const cleanup = () => { httpServer.off("error", onError); httpServer.off("listening", onListening); wss.off("error", onError); };
+        const onError = (error: Error) => { cleanup(); reject(error); };
+        const onListening = () => {
+          cleanup();
           resolve(httpServer.address() as AddressInfo);
-        });
+        };
+        // ws forwards HTTP startup errors before this server's own listener.
+        wss.once("error", onError);
+        httpServer.once("error", onError);
+        httpServer.once("listening", onListening);
+        try { httpServer.listen(options.port ?? DEFAULT_PORT, options.host ?? DEFAULT_HOST); }
+        catch (error) { onError(error instanceof Error ? error : new Error(String(error))); }
       });
     },
     close(): Promise<void> {
       return new Promise((resolve, reject) => {
+        for (const socket of wss.clients) socket.terminate();
         wss.close(() => {
           httpServer.close((err) => (err ? reject(err) : resolve()));
         });

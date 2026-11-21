@@ -358,6 +358,12 @@ export const MESSAGES = {
     why: "More than one archived generation uses this change identity, while old audit paths carry no generation id.",
     todo: "Inspect the individual runs with show run; do not merge ambiguous historical spend into one total.",
   },
+  "OSW-CLI-022": {
+    level: "info",
+    text: "Workbench is listening at {url}. Keep this terminal open; press Ctrl+C to stop it.",
+    why: "The npm launcher started the existing authenticated localhost host.",
+    todo: "Open the private launch URL in your browser; do not share its access token.",
+  },
   "OSW-CLI-101": {
     level: "info",
     text: "{name}: {details}",

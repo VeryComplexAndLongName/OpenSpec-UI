@@ -3,6 +3,7 @@
 // openspec/changes/standalone-app/spec.md).
 
 export { createServer, DEFAULT_HOST, DEFAULT_PORT, type OpenSpecUiServer, type ServerOptions } from "./server.js";
+export { createWorkbenchServer } from "./create-workbench-server.js";
 export {
   buildDefaultAllowlist,
   buildDefaultAgentRunners,

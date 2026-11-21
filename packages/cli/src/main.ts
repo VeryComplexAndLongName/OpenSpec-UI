@@ -54,6 +54,7 @@ const USAGE = `openspec-ui-cli — OpenSpec changes from a terminal: validate th
 Every subcommand is a verb and a noun (ADR 0045).
 
 Usage:
+  openspec-ui-cli open workbench [--cwd <path>] [--port <0..65535>] [--format text|json]
   openspec-ui-cli validate changes [--cwd <path>] [--format json|text]
   openspec-ui-cli run change <change> [--cwd <path>] [--format text|json]
   openspec-ui-cli update plan <change> [--note <text>] [--agent <id>] [--cwd <path>]
@@ -120,6 +121,7 @@ Additional commands (all accept --cwd <path> and --format text|json):
 
 Options:
   --cwd <path>        Repository root (default: current directory)
+  --port <number>     Local Workbench port (default 4317; 0 selects an available port)
   --format json|text  Output format. Default json for 'validate changes',
                       whose output is one document made at the end;
                       default text for 'run change' and 'run checks',
@@ -270,6 +272,7 @@ run one stage at a time, and none that answers a confirmation the change
 asked for — see docs/adr/0020-cli-runs-a-change.md.`;
 
 export interface MainOptions {
+  port?: string;
   subjects?: string[];
   cwd?: string;
   format?: "json" | "text";
@@ -321,6 +324,7 @@ export interface MainOptions {
 }
 
 export interface MainDeps {
+  openWorkbenchCommand?: typeof import("./open-workbench.js").openWorkbenchCommand;
   additionalCommand?: (command: string, options: ReportOptions, subjects: string[], io: ReportIo) => Promise<number>;
   validateAll?: (cwd: string, options?: { change?: string; archivedSince?: string }) => Promise<ValidateAllResult>;
   buildManifest?: typeof buildReleaseManifest;
@@ -380,7 +384,11 @@ function parseArgs(argv: string[]): {
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === "--cwd") {
+    if (arg === "--port") {
+      const value = argv[++i];
+      if (!value) return { command: undefined, options, error: say("OSW-CLI-003", { option: "--port" }) };
+      options.port = value;
+    } else if (arg === "--cwd") {
       const value = argv[i + 1];
       if (!value) return { command: undefined, options, error: say("OSW-CLI-003", { option: "--cwd" }) };
       options.cwd = value;
@@ -524,6 +532,16 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
   if (renamed) {
     stderr(formatMessage(say("OSW-CLI-001", { former: renamed.former, replacement: renamed.replacement })));
     return 2;
+  }
+  if (options.port !== undefined && command !== "open-workbench") return reportFailure(command ?? "CLI", Error("--port is supported only by open workbench."), { stdout, stderr });
+  if (command === "open-workbench") {
+    const allowed = new Set(["cwd", "port", "format", "subjects"]);
+    if ((options.subjects?.length ?? 0) > 0 || Object.keys(options).some((key) => !allowed.has(key))) return reportFailure("open workbench", Error("Use only --cwd, --port and --format; see --help."), { stdout, stderr });
+    try {
+      return await (deps.openWorkbenchCommand ?? (await import("./open-workbench.js")).openWorkbenchCommand)(
+        { workspaceRoot: options.cwd ?? process.cwd(), port: options.port, format: options.format ?? "text" },
+        { stdout, stderr }, { untilStopped: deps.untilStopped });
+    } catch (error) { return reportFailure("open workbench", error, { stdout, stderr }); }
   }
   const additionalArgumentCounts: Record<string, number> = {
     "show-changes": 0, "show-agents": 0, "show-tasks": 1, "show-diff": 1,
