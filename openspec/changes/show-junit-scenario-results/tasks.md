@@ -13,7 +13,7 @@
 
 - [x] In packages/core/src/action-vocabulary.ts register Import and JUnit XML so the new controls follow ADR 0045; verify action-vocabulary.test.ts and webui control-vocabulary.test.ts.
 
-- [ ] In packages/server/e2e/junit-review.spec.ts verify real file selection, all six rendered states, persistent reopening and actual copied clipboard provenance in the CI browser job; record the named regression result.
+- [x] In packages/server/e2e/junit-review.spec.ts verify real file selection, all six rendered states, persistent reopening and actual copied clipboard provenance in the CI browser job. Run 44894960042 passed the named test "imports a selected JUnit file and copies qualified scenario results" in 3.8s; all 34 browser tests passed. This closes the local Edge tooling limitation without changing browser permissions.
 
 ## Scoped verification
 
@@ -64,3 +64,6 @@ Node 24.21.0 and npm 10.9.0. `tsc --noEmit -p` passed for packages/core, package
 - Action vocabulary correction: Core action-vocabulary.test.ts passed 5 tests; webui control-vocabulary.test.ts plus ChangeActionDialog.test.tsx passed 12 tests. Scoped ESLint passed for the corrected labels and vocabulary.
 
 - To close the local Edge tool limitation, a dedicated real-file-selection and clipboard Playwright regression is added to the existing CI browser job. This task remains open until CI runs it; no full browser suite is run locally.
+
+- CI evidence for commit 5a894d6bd9e222c6fe85c7f0635a87f8ef298685: https://github.com/VeryComplexAndLongName/OpenSpec-UI/actions/runs/44894960042 . Quality, audit, dependency review, extension integration/package and standalone browser jobs passed. The named JUnit browser regression passed in 3.8s and the browser job reported 34 passed. The OpenSpec gate correctly refused the still-open evidence checkbox, now closed against that actual result. A final CI run must pass all required gates before merge.
+- Static checks for the new browser test passed: `node node_modules/typescript/bin/tsc --noEmit -p packages/server/tsconfig.e2e.json` and scoped ESLint on packages/server/e2e/junit-review.spec.ts.

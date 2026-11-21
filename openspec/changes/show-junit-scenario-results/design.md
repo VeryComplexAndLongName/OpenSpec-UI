@@ -1,5 +1,9 @@
 # Design
 
+## Completed browser contract evidence
+
+CI run https://github.com/VeryComplexAndLongName/OpenSpec-UI/actions/runs/44894960042 passed `e2e/junit-review.spec.ts` ("imports a selected JUnit file and copies qualified scenario results", 3.8s). It covers real file input through the webui/server boundary, all six displayed states, reopening and actual clipboard contents with declared revision qualifications and no raw test output. All 34 browser tests passed. The local Edge upload/clipboard tooling limitations recorded in tasks.md remain historical method limitations, not an unverified product path. Final all-gates CI is still required before merge.
+
 ## Context
 
 See proposal.md and the current pr-review specification. readPrReview already reads scenario deltas and check mappings from the displayed git tree; both hosts render its summary. There is no testcase ingestion path.
