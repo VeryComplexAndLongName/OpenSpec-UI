@@ -36,7 +36,7 @@
 
 ## CI and completion evidence
 
-Full verification is pending in the existing PR CI gates. Record the exact checked commit, run URLs and outcomes here after CI, before the standard workspace sweep archives this landed change. Worktree/branch cleanup follows verified archival in remote main and a clean working copy; it is operational completion, not an unexecuted pre-merge verification checkbox.
+Full verification passed in the implementation PR gates. Record the exact checked commit, run URLs and outcomes here after CI, before the standard workspace sweep archives this landed change. Worktree/branch cleanup follows verified archival in remote main and a clean working copy; it is operational completion, not an unexecuted pre-merge verification checkbox.
 
 ## Recorded local evidence
 
@@ -57,7 +57,7 @@ Node 24.21.0 and npm 10.9.0. `tsc --noEmit -p` passed for packages/core, package
 - Review finding resolved: an import into a change with no ADDED/MODIFIED scenarios previously had no visible JUnit section. The formatter now retains the imported provenance with an explicit no-scenarios note; junit-evidence.test.ts now passes all 17 cases.
 - Final review covered every delta scenario: safe import, unsafe/stale rejection preserving old data, six observation states, historical revision and invalid/missing associations. Native and HTTP ownership guards, bounded parse/storage, Markdown escaping and discarded raw output were checked. No architecture invariant or agent event changed. Remaining limits are the explicitly user-declared provenance, manual committed mapping, report bounds and the live browser tooling limits above.
 - CLI bundle build and built --help smoke passed, confirming the new Core dependency does not introduce a runtime require failure. The extension host bundle built successfully; its two existing import.meta/CJS warnings name unchanged version-info/server source. The standalone client also built. Changeset summary validation passed for the exact new file.
-- Strict OpenSpec validation passed. Full CI remains pending until the PR gates report actual results; the archive record will cite those results.
+- Strict OpenSpec validation passed. Full CI passed before archival; the archive record will cite those results.
 
 - CI run 44894037628: dependency audit and dependency review passed. Full verification found the new Import report label outside ADR 0045's action vocabulary. Corrected it to Import Report and registered the Import verb / JUnit XML noun rather than exempting the control from the rule. A new CI run is required; this failed run is not claimed as complete verification.
 
@@ -67,3 +67,8 @@ Node 24.21.0 and npm 10.9.0. `tsc --noEmit -p` passed for packages/core, package
 
 - CI evidence for commit 5a894d6bd9e222c6fe85c7f0635a87f8ef298685: https://github.com/VeryComplexAndLongName/OpenSpec-UI/actions/runs/44894960042 . Quality, audit, dependency review, extension integration/package and standalone browser jobs passed. The named JUnit browser regression passed in 3.8s and the browser job reported 34 passed. The OpenSpec gate correctly refused the still-open evidence checkbox, now closed against that actual result. A final CI run must pass all required gates before merge.
 - Static checks for the new browser test passed: `node node_modules/typescript/bin/tsc --noEmit -p packages/server/tsconfig.e2e.json` and scoped ESLint on packages/server/e2e/junit-review.spec.ts.
+
+
+## Full CI evidence before archival
+
+Implementation PR gates passed in https://github.com/VeryComplexAndLongName/OpenSpec-UI/actions/runs/44895713020. The standard Workbench archive pass folds the accepted delta into the current specification after the implementation has landed. Targeted local evidence and tooling limitations remain recorded in tasks.md.

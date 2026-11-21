@@ -32,6 +32,11 @@ The declared commit is an operator assertion, not cryptographic CI provenance. A
 
 ## Verification
 
-Passed: targeted parser/storage and PR Review integration tests (17 tests including linked-worktree recovery), standalone authenticated import/ownership contract tests (9), the UI import form tests (8), native VS Code input-collection tests (3) and command forwarding/ownership tests (2), and the message register/parser follow-up (23). Scoped lint, all four affected TypeScript projects and standalone build passed. Actual commands are recorded in tasks.md; full CI is pending.
+Passed: targeted parser/storage and PR Review integration tests (17 tests including linked-worktree recovery), standalone authenticated import/ownership contract tests (9), the UI import form tests (8), native VS Code input-collection tests (3) and command forwarding/ownership tests (2), and the message register/parser follow-up (23). Scoped lint, all four affected TypeScript projects and standalone build passed. Actual commands are recorded in tasks.md; full CI passed before archival.
 
 The live Edge browser displayed all six normalized states after a real authenticated HTTP import and confirmed the copy action. Its extension permissions prevent automated file selection and its clipboard reader returns empty. Those edges are covered by component/HTTP/native-host tests; an end-to-end native file-picker/clipboard-read pass is not claimed. These tooling limits do not change the delivered import behavior.
+
+
+## Full CI evidence before archival
+
+Implementation PR gates passed in https://github.com/VeryComplexAndLongName/OpenSpec-UI/actions/runs/44895713020. The standard Workbench archive pass folds the accepted delta into the current specification after the implementation has landed. Targeted local evidence and tooling limitations remain recorded in tasks.md.
