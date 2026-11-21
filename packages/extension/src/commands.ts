@@ -4,6 +4,7 @@
 
 import path from "node:path";
 import * as vscode from "vscode";
+import { pickJUnitReport } from "./junit-import.js";
 import {
   AGENT_REGISTRY,
   agentForEveryStageToWrite,
@@ -12,6 +13,7 @@ import {
   DEFAULT_HARNESS_CONFIG,
   HARNESS_AGENT_CAPABILITIES,
   PR_REVIEW_EXAMPLE,
+  type JUnitImport,
   DEFAULT_STALE_TASK_THRESHOLD_DAYS,
   TASK_CHECKBOX_LINE_RE,
   VERIFIED_CLAUDE_CLI_VERSION,
@@ -2915,25 +2917,45 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         const copy = "Copy PR summary";
         const refresh = "Refresh PR checks";
         const link = "Link scenario to check";
+        const importReport = "Import JUnit XML";
         const mark = "Mark as reviewed";
         const since = "Show Changes Since Last Review";
         const full = "Show Full PR Diff";
         let refreshChecks = false;
         let sinceLastReview = false;
         let markReviewedCommit: string | undefined;
+        let junitImport: JUnitImport | undefined;
         for (;;) {
           const review = await readPrReview(root, item.changeName, { githubChecks: refreshChecks, sinceLastReview,
+            ...(junitImport === undefined ? {} : { junitImport }),
             ...(markReviewedCommit === undefined ? {} : { markReviewedCommit }) });
           markReviewedCommit = undefined;
+          junitImport = undefined;
           const doc = await vscode.workspace.openTextDocument({
             language: "markdown", content: prReviewMarkdown(review),
           });
           await vscode.window.showTextDocument(doc, { preview: false });
           const actions = [copy, refresh];
+          if (review.head !== undefined) actions.push(importReport);
           if (review.head !== undefined && review.head !== review.lastReviewed) actions.push(mark);
           if (review.lastReviewed !== undefined) actions.push(sinceLastReview ? full : since);
           if (review.mappingChoices !== undefined && review.head !== undefined) actions.push(link);
           const action = await vscode.window.showInformationMessage(review.title, ...actions);
+          if (action === importReport && review.head !== undefined) {
+            if (await refusedAsAnothersChange(item.changeName, item.ownership)) continue;
+            const imported = await pickJUnitReport(review.head, {
+              choose: async () => (await vscode.window.showOpenDialog({ canSelectMany: false, filters: { "JUnit XML": ["xml"] } }))?.[0],
+              size: async (file) => (await vscode.workspace.fs.stat(file)).size,
+              read: (file) => Promise.resolve(vscode.workspace.fs.readFile(file)),
+              commit: () => Promise.resolve(vscode.window.showInputBox({
+                prompt: "Tested commit (user-declared; JUnit XML does not establish git provenance)",
+                validateInput: (value) => /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u.test(value.trim()) ? undefined : say("OSW-CHG-016").text,
+              })),
+            });
+            if (imported === undefined || await refusedAsAnothersChange(item.changeName, item.ownership)) continue;
+            junitImport = imported;
+            continue;
+          }
           if (action === refresh) {
             refreshChecks = true;
             continue;
