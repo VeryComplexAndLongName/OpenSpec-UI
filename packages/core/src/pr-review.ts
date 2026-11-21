@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import type { SimpleGit } from "simple-git";
 import { changeNameOf, isRunEntry, VERIFY_CHECKS_AGENT_NAME } from "./audit-runs.js";
 import { CHANGE_DIFF_MAX_BYTES } from "./change-diff.js";
+import { readScopeSummary } from "./change-scope.js";
 import { isValidChangeName } from "./change-name.js";
 import { forgeFor } from "./forge.js";
 import type { Forge, OpenPullRequestTarget, PullRequestsByBranch } from "./gh-pr-gateway.js";
@@ -280,6 +281,7 @@ export async function readPrReview(root: string, changeName: string, sources: {
     if (comparison.files.length > SUMMARY_FILES) heading.push(`  - ${comparison.files.length - SUMMARY_FILES} more.`);
     if (comparison.truncated) heading.push("- The displayed patch is truncated.");
   }
+  const scopeLines = await readScopeSummary(git, changeName, head, comparison.kind === "diff" ? comparison.mergeBase : undefined);
   const entries = await readRepositoryAuditEntries({ git: createGitWrapper({ cwd: root }), workspaceRoot: path.resolve(root) });
   const scenarioLines: string[] = [];
   let mappingChoices: ScenarioMappingChoices | undefined;
@@ -314,6 +316,7 @@ export async function readPrReview(root: string, changeName: string, sources: {
   }
   const summary = [...heading, "", ...evidence(entries, changeName, head),
     ...(refreshChecks ? ["", `### ${forgeName} checks`, "", ...checks] : []),
+    ...scopeLines,
     ...scenarioLines,
   ].join("\n");
   return { title, summary, diff: comparison.kind === "diff" ? comparison.diff : null,
