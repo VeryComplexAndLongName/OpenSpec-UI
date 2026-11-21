@@ -29,7 +29,7 @@
     "@agentclientprotocol/sdk": "^1.9.0",
     "cheerio": "1.0.0",
     "cross-spawn": "^7.0.6",
-    "simple-git": "^4.0.2",
+    "simple-git": "^4.1.0",
     "turndown": "^7.2.5",
     "turndown-plugin-gfm": "^1.0.2",
     "undici": "^7.30.1",
