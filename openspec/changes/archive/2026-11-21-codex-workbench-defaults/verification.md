@@ -20,3 +20,10 @@ Focused local checks
 
 The repository's pinned OpenSpec 1.7.0 strict validation passed for all 23 items.
 Full CI is pending on the pull request.
+
+## Pull-request outcome
+
+https://github.com/VeryComplexAndLongName/OpenSpec-UI/pull/999
+
+Merged commit c8ba6d5965e0ede8b9405f6e0dde47d83ab72422.
+All applicable pull-request checks passed for the merged head.
