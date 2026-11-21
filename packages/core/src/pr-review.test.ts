@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -54,6 +54,37 @@ function openTarget(base: string, head: string): Promise<PullRequestsByBranch> {
 }
 
 describe("PR review", () => {
+  it("imports JUnit for committed scenario mappings, retains it across reviews and rejects stale or invalid replacements", async () => {
+    const { root, changeDir, main } = await fixture();
+    const delta = path.join(changeDir, "specs", "checkout");
+    await mkdir(delta, { recursive: true });
+    await writeFile(path.join(delta, "spec.md"), "## ADDED Requirements\n### Requirement: Shipping\n#### Scenario: Address changes\n");
+    await writeFile(path.join(changeDir, "scenario-tests.json"), JSON.stringify({ scenarios: [{
+      capability: "checkout", requirement: "Shipping", scenario: "Address changes", tests: [{ classname: "ShippingTest", name: "updates address" }],
+    }] }));
+    await git(root, "add", "."); await git(root, "commit", "-m", "Map scenario to testcase");
+    const head = await git(root, "rev-parse", "HEAD");
+    const sources = { pullRequests: () => openTarget(main, head) };
+    const xml = '<testsuite><testcase classname="ShippingTest" name="updates address"><system-out>private-output</system-out></testcase></testsuite>';
+    const imported = await readPrReview(root, "demo", { ...sources, junitImport: { head, testedCommit: head, xml } });
+    expect(imported.summary).toContain("Scenario test results (JUnit)");
+    expect(imported.summary).toContain("updates address `: passed");
+    expect(imported.summary).toContain("User-declared tested commit");
+    expect((await readPrReview(root, "demo", sources)).summary).toContain("updates address `: passed");
+    expect(await git(root, "status", "--porcelain")).toBe("");
+    const store = path.join(root, ".git", "openspec-ui", "junit");
+    const files = await readdir(store);
+    expect(await readFile(path.join(store, files[0]!), "utf8")).not.toContain("private-output");
+    await expect(readPrReview(root, "demo", { ...sources, junitImport: { head, testedCommit: head, xml: "<!DOCTYPE testsuite><testsuite/>" } })).rejects.toThrow("OSW-CHG-014");
+    await expect(readPrReview(root, "demo", { ...sources, junitImport: { head, testedCommit: "c".repeat(40), xml } })).rejects.toThrow("OSW-CHG-016");
+    await git(root, "commit", "--allow-empty", "-m", "Later revision");
+    await expect(readPrReview(root, "demo", { ...sources, junitImport: { head, testedCommit: head, xml } })).rejects.toThrow("OSW-CHG-015");
+    expect((await readPrReview(root, "demo", sources)).summary).toContain("historical passed");
+    const linked = path.join(root, "linked");
+    await git(root, "worktree", "add", "--detach", linked, "HEAD");
+    expect((await readPrReview(linked, "demo")).summary).toContain("historical passed");
+  });
+
   it("uses the origin forge's check detail and exposes matching scenario choices", async () => {
     const { root, changeDir, release } = await fixture();
     const delta = path.join(changeDir, "specs", "checkout");

@@ -15,6 +15,9 @@ import {
 const vscodeMock = createVscodeMock();
 vi.mock("vscode", () => vscodeMock);
 
+const readPrReviewMock = vi.fn();
+const pickJUnitReportMock = vi.fn();
+vi.mock("./junit-import.js", () => ({ pickJUnitReport: (...args: unknown[]) => pickJUnitReportMock(...args) }));
 const listChangesMock = vi.fn();
 const listSpecsMock = vi.fn();
 const showChangeMock = vi.fn();
@@ -82,6 +85,8 @@ vi.mock("@openspec-ui/core", async () => ({
   // Whose a change is: core's own reading, which touches no repository
   // (changes-shows-one-change-and-who-owns-it).
   ...(await vi.importActual<typeof import("@openspec-ui/core/browser")>("@openspec-ui/core/browser")),
+  readPrReview: (...args: unknown[]) => readPrReviewMock(...args),
+  prReviewMarkdown: (report: { summary: string }) => report.summary,
   AGENT_REGISTRY: [
     { id: "claude-cli", label: "Claude CLI", provider: "anthropic" },
     { id: "copilot-cli", label: "GitHub Copilot CLI", provider: "github" },
@@ -3442,5 +3447,30 @@ describe("openspec-ui.sendMessage (the-operator-can-say-something-to-a-run)", ()
 
     expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining("no live run reports itself"));
     expect(vscodeMock.window.showInformationMessage).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("PR Review JUnit command adapter", () => {
+  const head = "a".repeat(40);
+  const imported = { head, testedCommit: "b".repeat(40), xml: "<testsuite/>" };
+  const report = { title: "Review", summary: "Qualified JUnit evidence", diff: null, truncated: false, head };
+  it("forwards native input to readPrReview with the displayed head", async () => {
+    readPrReviewMock.mockResolvedValue(report);
+    pickJUnitReportMock.mockResolvedValue(imported);
+    vscodeMock.window.showInformationMessage.mockResolvedValueOnce("Import JUnit XML").mockResolvedValueOnce(undefined);
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+    await vscodeMock._registeredCommands.get("openspec-ui.showPrReview")?.({ contextValue: "openspec-ui.activeChange", changeName: "junit-demo", archived: false });
+    expect(pickJUnitReportMock).toHaveBeenCalledWith(head, expect.objectContaining({ choose: expect.any(Function), commit: expect.any(Function), read: expect.any(Function) }));
+    expect(readPrReviewMock).toHaveBeenNthCalledWith(2, "/workspace/repo", "junit-demo", { githubChecks: false, sinceLastReview: false, junitImport: imported });
+  });
+  it("refuses import ownership before collecting a report", async () => {
+    readPrReviewMock.mockResolvedValue(report);
+    vscodeMock.window.showInformationMessage.mockResolvedValueOnce("Import JUnit XML").mockResolvedValueOnce(undefined);
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+    await vscodeMock._registeredCommands.get("openspec-ui.showPrReview")?.({ contextValue: "openspec-ui.activeChange", changeName: "junit-demo", archived: false,
+      ownership: { kind: "unverified", label: "another-worktree", path: "/wt/theirs" } });
+    expect(pickJUnitReportMock).not.toHaveBeenCalled();
+    expect(readPrReviewMock.mock.calls.every((call) => call[2].junitImport === undefined)).toBe(true);
   });
 });

@@ -180,8 +180,11 @@ export type ChangeActionAnswer =
   | { kind: "relations"; keys: readonly string[]; changes: string[]; stated: Array<{ key: string; id: string }> };
 
 /** What a person gave an action that asks first. */
+export const JUNIT_XML_MAX_BYTES = 128 * 1024;
+export interface JUnitImport { head: string; testedCommit: string; xml: string }
+
 export interface ChangeActionInput {
-  prReview?: { refreshGitHubChecks?: true; sinceLastReview?: true; markReviewedCommit?: string; scenarioMapping?: ScenarioMappingRequest };
+  prReview?: { refreshGitHubChecks?: true; sinceLastReview?: true; markReviewedCommit?: string; scenarioMapping?: ScenarioMappingRequest; junitImport?: JUnitImport };
   relation?: { key: string; id: string };
   message?: { kind: "note" | "ask"; words: string };
   stop?: { afterTask?: string; reason: string };

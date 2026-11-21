@@ -115,6 +115,30 @@ Why: The overlap report compares committed delta specifications.
 
 What to do: Commit the proposed delta if it is ready to review.
 
+### OSW-CHG-014
+
+> error: JUnit import requires well-formed testsuite/testsuites XML without DTDs, at most 128 KiB, 64 nesting levels and 2,000 named tests.
+
+Why: The report or import fields did not satisfy the bounded evidence format.
+
+What to do: Export a smaller JUnit report and provide full git commit identifiers.
+
+### OSW-CHG-015
+
+> warning: The displayed checkout head changed. Reopen PR Review before importing JUnit evidence.
+
+Why: The import no longer belongs to the revision displayed when it was requested.
+
+What to do: Review the current commit and import the report again with its actual tested revision.
+
+### OSW-CHG-016
+
+> error: The declared tested commit is not available in this repository.
+
+Why: JUnit XML does not establish git provenance, so a declared local commit is required.
+
+What to do: Fetch the tested commit and supply its complete git identifier.
+
 ## RUN: runs, chains, stages, checkpoints, limits
 
 ### OSW-RUN-001

@@ -129,6 +129,25 @@ export const MESSAGES = {
     todo: "Commit the proposed delta if it is ready to review.",
   },
 
+  "OSW-CHG-014": {
+    level: "error",
+    text: "JUnit import requires well-formed testsuite/testsuites XML without DTDs, at most 128 KiB, 64 nesting levels and 2,000 named tests.",
+    why: "The report or import fields did not satisfy the bounded evidence format.",
+    todo: "Export a smaller JUnit report and provide full git commit identifiers.",
+  },
+  "OSW-CHG-015": {
+    level: "warning",
+    text: "The displayed checkout head changed. Reopen PR Review before importing JUnit evidence.",
+    why: "The import no longer belongs to the revision displayed when it was requested.",
+    todo: "Review the current commit and import the report again with its actual tested revision.",
+  },
+  "OSW-CHG-016": {
+    level: "error",
+    text: "The declared tested commit is not available in this repository.",
+    why: "JUnit XML does not establish git provenance, so a declared local commit is required.",
+    todo: "Fetch the tested commit and supply its complete git identifier.",
+  },
+
   // GIT: git, branches, worktrees, push, pull requests
   // (a-change-is-committed-where-it-is-made).
   "OSW-GIT-001": {
