@@ -8,6 +8,7 @@ import {
   AGENT_REGISTRY,
   agentForEveryStageToWrite,
   COPILOT_MIN_AI_CREDITS,
+  DEFAULT_AGENT_ID,
   DEFAULT_HARNESS_CONFIG,
   HARNESS_AGENT_CAPABILITIES,
   PR_REVIEW_EXAMPLE,
@@ -790,7 +791,7 @@ async function promptAgentForRole(
   currentId: string | undefined,
   detected: Readonly<Record<string, DetectedAgent>> = {},
 ): Promise<string | undefined> {
-  const items = orderWithCurrentFirst(offeredAgents, currentId).map((agent) => {
+  const items = orderWithCurrentFirst(offeredAgents, currentId ?? DEFAULT_AGENT_ID).map((agent) => {
     // A local agent is offered whether or not its server answers now, and
     // says which (the-local-model-is-offered-where-it-is-set).
     const notAnswering = agent.provider === "local" && detected[agent.id]?.detected !== true

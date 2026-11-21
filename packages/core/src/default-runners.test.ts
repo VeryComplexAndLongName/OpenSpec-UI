@@ -300,7 +300,10 @@ describe("buildDefaultAgentRunners / resolveRunner", () => {
 
   it("resolveRunner falls back to DEFAULT_AGENT_ID when agentId is undefined", () => {
     const runners = buildDefaultAgentRunners({ workspaceRoot: "/workspace/repo" });
-    expect(resolveRunner(runners, undefined)).toBe(runners.get(DEFAULT_AGENT_ID));
+    expect(DEFAULT_AGENT_ID).toBe("codex-cli-acp");
+    expect(resolveRunner(runners, undefined)).toBe(runners.get("codex-cli-acp"));
+    expect(resolveRunner(runners, "claude-cli")).toBe(runners.get("claude-cli"));
+    expect(resolveRunner(runners, "claude-cli-acp")).toBe(runners.get("claude-cli-acp"));
   });
 
   it("resolveRunner returns undefined for an unknown agentId", () => {

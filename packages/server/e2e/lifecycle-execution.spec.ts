@@ -3,7 +3,7 @@ import { rm } from "node:fs/promises";
 import { createServer, type OpenSpecUiServer } from "../src/server.js";
 import { loadAndSelectChange } from "./fixtures/ai-panel-actions.js";
 import { createLifecycleWorkspace } from "./fixtures/create-lifecycle-workspace.js";
-import { createFakeAgentRunner } from "./fixtures/fake-agent-runner.js";
+import { createFakeAgentRunner, withDefaultAgent } from "./fixtures/fake-agent-runner.js";
 import { interceptWebSocket } from "./fixtures/intercept-websocket.js";
 
 const CHANGE_NAME = "lifecycle-run";
@@ -27,7 +27,7 @@ test.describe("standalone lifecycle: execution", () => {
       workspaceRoot,
       host: "127.0.0.1",
       port: 0,
-      runners: new Map([["claude-cli", createFakeAgentRunner({ changeName: CHANGE_NAME })]]),
+      runners: withDefaultAgent(new Map([["claude-cli", createFakeAgentRunner({ changeName: CHANGE_NAME })]])),
     });
     const address = await server.listen();
     const socket = await interceptWebSocket(page);
@@ -75,12 +75,12 @@ test.describe("standalone lifecycle: execution", () => {
     const fallback = createFakeAgentRunner({ changeName: CHANGE_NAME });
     const server = createServer({
       workspaceRoot, host: "127.0.0.1", port: 0,
-      runners: new Map([["claude-cli", {
+      runners: withDefaultAgent(new Map([["claude-cli", {
         async *run(command) {
           if (command.kind !== "implement") yield* fallback.run(command);
           else yield { kind: "failed", runId: command.runId, timestamp: new Date().toISOString(), reason: "private command output", diagnosis: { cause: "not-signed-in", repeatHelps: "no" } };
         },
-      }]]),
+      }]])),
     });
     const address = await server.listen();
     const socket = await interceptWebSocket(page);
@@ -113,10 +113,10 @@ test.describe("standalone lifecycle: execution", () => {
       workspaceRoot,
       host: "127.0.0.1",
       port: 0,
-      runners: new Map([["claude-cli", createFakeAgentRunner({
+      runners: withDefaultAgent(new Map([["claude-cli", createFakeAgentRunner({
         changeName: CHANGE_NAME,
         implementGate: new Promise(() => undefined), // never resolves: run stays in progress
-      })]]),
+      })]])),
     });
     const address = await server.listen();
     const socket = await interceptWebSocket(page);
@@ -158,10 +158,10 @@ test.describe("standalone lifecycle: execution", () => {
       workspaceRoot,
       host: "127.0.0.1",
       port: 0,
-      runners: new Map([["claude-cli", createFakeAgentRunner({
+      runners: withDefaultAgent(new Map([["claude-cli", createFakeAgentRunner({
         changeName: CHANGE_NAME,
         implementGate: new Promise(() => undefined), // never resolves: the run is still "in progress" when killed
-      })]]),
+      })]])),
     });
     const address = await server.listen();
     const socket = await interceptWebSocket(page);
@@ -187,7 +187,7 @@ test.describe("standalone lifecycle: execution", () => {
         workspaceRoot,
         host: "127.0.0.1",
         port: 0,
-        runners: new Map([["claude-cli", createFakeAgentRunner({ changeName: CHANGE_NAME })]]),
+        runners: withDefaultAgent(new Map([["claude-cli", createFakeAgentRunner({ changeName: CHANGE_NAME })]])),
       });
       const restartedAddress = await restarted.listen();
       try {

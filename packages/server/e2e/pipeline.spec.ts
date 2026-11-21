@@ -22,7 +22,7 @@ import { promisify } from "node:util";
 import { agentStatusDirectory } from "@openspec-ui/core";
 import { gitIsolationArgs } from "@openspec-ui/core/test-support/git-isolation";
 import { createServer, type OpenSpecUiServer } from "../src/server.js";
-import { createFakeAgentRunner } from "./fixtures/fake-agent-runner.js";
+import { createFakeAgentRunner, withDefaultAgent } from "./fixtures/fake-agent-runner.js";
 import { interceptWebSocket } from "./fixtures/intercept-websocket.js";
 
 const IMAGES_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "docs", "images", "standalone");
@@ -528,7 +528,7 @@ test("starts a chain from its card, answers it there, and asks it to stop", asyn
     workspaceRoot: runRoot,
     host: "127.0.0.1",
     port: 0,
-    runners: new Map([["claude-cli", createFakeAgentRunner({ changeName, verifyGate })]]),
+    runners: withDefaultAgent(new Map([["claude-cli", createFakeAgentRunner({ changeName, verifyGate })]])),
   });
   const address = await runServer.listen();
   // The chain keeps the page's WebSocket open, and `close()` waits for
