@@ -1,3 +1,6 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { gitIsolationArgs } from "@openspec-ui/core/test-support/git-isolation";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { createServer as createHttpServer } from "node:http";
@@ -39,7 +42,7 @@ async function withServer(test: (post: (body: unknown) => Promise<Response>, wor
 }
 
 describe("a change's actions, for the standalone app's cards", () => {
-  it("uses the worktree write guard for a PR Review save", async () => {
+  it.each([{ scenarioMapping: { mode: "save" } }, { junitImport: { head: "a".repeat(40), testedCommit: "a".repeat(40), xml: "<testsuite/>" } }])("uses the worktree write guard for a PR Review write %j", async (prReview) => {
     const workspace = os.tmpdir();
     const refusal = "The worktree records do not check out.";
     const server = createHttpServer((req, res) => void handleChangeActionRequest(req, res, {
@@ -57,12 +60,34 @@ describe("a change's actions, for the standalone app's cards", () => {
       const { port } = server.address() as AddressInfo;
       const result = await fetch(`http://127.0.0.1:${port}/api/change-action`, { method: "POST", headers: HEADERS,
         body: JSON.stringify({ cwd: workspace, changeName: "demo", action: "showPrReview",
-          input: { prReview: { scenarioMapping: { mode: "save" } } } }) });
+          input: { prReview } }) });
       expect(result.status).toBe(409);
       expect(await result.json()).toEqual({ error: refusal });
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
+  });
+
+  it("imports JUnit through the authenticated HTTP action and returns committed scenario results", async () => {
+    await withServer(async (post, workspace) => {
+      const exec = promisify(execFile);
+      const git = async (...args: string[]) => (await exec("git", [...await gitIsolationArgs(), "-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", ...args], { cwd: workspace })).stdout.trim();
+      const directory = path.join(workspace, "openspec", "changes", "demo");
+      await mkdir(path.join(directory, "specs", "auth"), { recursive: true });
+      await writeFile(path.join(directory, "specs", "auth", "spec.md"), "## ADDED Requirements\n### Requirement: Session\n#### Scenario: Expiry\n");
+      await writeFile(path.join(directory, "scenario-tests.json"), JSON.stringify({ scenarios: [{ capability: "auth", requirement: "Session", scenario: "Expiry", tests: [{ classname: "Session", name: "expires" }] }] }));
+      await git("init", "-b", "main"); await git("add", "."); await git("commit", "-m", "Fixture");
+      const head = await git("rev-parse", "HEAD");
+      const reply = await post({ cwd: workspace, changeName: "demo", action: "showPrReview", input: { prReview: { junitImport: {
+        head, testedCommit: head, xml: '<testsuite><testcase classname="Session" name="expires"><skipped/></testcase></testsuite>',
+      } } } });
+      expect(reply.status).toBe(200);
+      const result = await reply.json();
+      expect(result.report.summary).toContain("User-declared tested commit");
+      expect(result.report.summary).toContain("expires `: skipped");
+      const reopened = await (await post({ cwd: workspace, changeName: "demo", action: "showPrReview" })).json();
+      expect(reopened.report.summary).toContain("expires `: skipped");
+    });
   });
 
   it("returns the PR review and preserves unavailable comparison and evidence", async () => {

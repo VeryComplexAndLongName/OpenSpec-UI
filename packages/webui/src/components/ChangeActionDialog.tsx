@@ -7,7 +7,8 @@
 // This file draws and asks; what each action does is the server's and core's.
 
 import { useEffect, useState } from "react";
-import { changeAction, PR_REVIEW_EXAMPLE, say, type ChangeActionAnswer, type ChangeActionId, type ChangeActionInput } from "@openspec-ui/core/browser";
+import { changeAction, JUNIT_XML_MAX_BYTES, PR_REVIEW_EXAMPLE, say, type ChangeActionAnswer, type ChangeActionId, type ChangeActionInput, type JUnitImport } from "@openspec-ui/core/browser";
+import { Upload } from "lucide-react";
 import { renderMarkdown } from "../markdown.js";
 import { ChangeHarnessSettingsView } from "./ChangeHarnessSettingsView.js";
 import type { HarnessSettingsApi } from "./harness-settings-parts.js";
@@ -86,7 +87,7 @@ export function ChangeActionDialog({ target, perform, harnessApi, onClose }: {
           onReviewAction={(selection) => {
             setCopyStatus("");
             send({ prReview: { ...selection, ...(checksRequested ? { refreshGitHubChecks: true } : {}),
-              ...(step.answer.kind === "pr-review" && step.answer.report.sinceLastReview && selection.scenarioMapping
+              ...(step.answer.kind === "pr-review" && step.answer.report.sinceLastReview && (selection.scenarioMapping || selection.junitImport)
                 ? { sinceLastReview: true } : {}) } });
           }} />
       ) : step.answer.kind === "done" ? (
@@ -128,10 +129,17 @@ function PrReview({ review, onCopy, copyStatus, onRefresh, onReviewAction }: {
 }): JSX.Element {
   const head = review.head;
   const preview = review.mappingPreview;
+  const [importing, setImporting] = useState(false);
   return (
     <>
       <button className="button primary" type="button" onClick={() => void onCopy(review.summary)}>Copy PR summary</button>
       {onRefresh !== undefined && <button className="button" type="button" onClick={onRefresh}>Refresh PR checks</button>}
+      {onReviewAction !== undefined && head !== undefined && <button className="button" type="button"
+        title="Import JUnit XML" aria-label="Import JUnit XML" aria-expanded={importing} onClick={() => setImporting(!importing)}>
+        <Upload size={16} aria-hidden="true" />
+      </button>}
+      {importing && onReviewAction !== undefined && head !== undefined &&
+        <JUnitImportForm head={head} onImport={(junitImport) => onReviewAction({ junitImport })} />}
       {onReviewAction !== undefined && head !== undefined && head !== review.lastReviewed &&
         <button className="button" type="button" onClick={() => onReviewAction({ markReviewedCommit: head })}>Mark as reviewed</button>}
       {onReviewAction !== undefined && review.lastReviewed !== undefined &&
@@ -154,6 +162,32 @@ function PrReview({ review, onCopy, copyStatus, onRefresh, onReviewAction }: {
       </details> : <p>{review.truncated ? "The patch exceeds the display limit." : "No committed changes in this comparison."}</p>)}
     </>
   );
+}
+
+function JUnitImportForm({ head, onImport }: { head: string; onImport: (value: JUnitImport) => void }): JSX.Element {
+  const [file, setFile] = useState<File>();
+  const [testedCommit, setTestedCommit] = useState("");
+  const [error, setError] = useState("");
+  const [reading, setReading] = useState(false);
+  return <form aria-label="Import JUnit report" onSubmit={(event) => {
+    event.preventDefault();
+    if (!file || reading) return;
+    if (file.size > JUNIT_XML_MAX_BYTES) { setError(say("OSW-CHG-014").text); return; }
+    setReading(true);
+    setError("");
+    file.text().then((xml) => onImport({ head, testedCommit: testedCommit.trim(), xml }),
+      () => { setError(say("OSW-CHG-014").text); setReading(false); });
+  }}>
+    <label>JUnit XML report (up to 128 KiB)<input type="file" accept=".xml,application/xml,text/xml" required
+      onChange={(event) => setFile(event.currentTarget.files?.[0])} /></label>
+    <label>Tested commit (user-declared)<input value={testedCommit} required pattern="[a-f0-9]{40}([a-f0-9]{24})?"
+      onChange={(event) => setTestedCommit(event.currentTarget.value)} /></label>
+    <p>The report does not prove which commit was tested. Enter its full git commit ID; raw XML and test output are not retained.</p>
+    <button className="button" type="submit" disabled={!file || reading || !/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u.test(testedCommit.trim())}>
+      <Upload size={16} aria-hidden="true" /> Import report
+    </button>
+    {error && <p role="alert">{error}</p>}
+  </form>;
 }
 
 function ScenarioCheckPicker({ head, choices, onReviewAction }: {

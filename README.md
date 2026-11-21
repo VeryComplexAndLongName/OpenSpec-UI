@@ -106,6 +106,7 @@ Both hosts also carry, beyond the views above:
   comparison of every change on a grid of days.
 - **PR Review** - review committed changes against the PR target and
   [link OpenSpec scenarios to GitHub checks](docs/how-to/link-scenarios-to-checks.md).
+  [Import JUnit testcase evidence](docs/how-to/link-scenarios-to-tests.md) to review named test outcomes with their declared revision.
 - **What waits on somebody** - every task marked human-only or delegated
   to a named agent, with the run offered where this build carries that
   agent. A panel of the Summary in the standalone app; a view of its own

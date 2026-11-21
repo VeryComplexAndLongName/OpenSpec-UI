@@ -28,4 +28,6 @@ The declared commit is an operator assertion, not cryptographic CI provenance. A
 
 ## Verification
 
-Pending: targeted parser/storage tests, PR Review integration tests, standalone input transport/ownership tests, UI import test, VS Code host test and live browser smoke. Actual commands, outcomes and CI identifiers will be recorded in tasks.md before archiving.
+Passed: targeted parser/storage and PR Review integration tests (17 tests including linked-worktree recovery), standalone authenticated import/ownership contract tests (9), the UI import form tests (8), native VS Code input-collection tests (3) and command forwarding/ownership tests (2), and the message register/parser follow-up (23). Scoped lint, all four affected TypeScript projects and standalone build passed. Actual commands are recorded in tasks.md; full CI is pending.
+
+The live Edge browser displayed all six normalized states after a real authenticated HTTP import and confirmed the copy action. Its extension permissions prevent automated file selection and its clipboard reader returns empty. Those edges are covered by component/HTTP/native-host tests; an end-to-end native file-picker/clipboard-read pass is not claimed. These tooling limits do not change the delivered import behavior.

@@ -6,6 +6,38 @@ import { ChangeActionDialog, PrReviewExampleDialog, type PerformChangeAction } f
 // run by the server where the change is worked, said over the Pipeline.
 
 describe("ChangeActionDialog", () => {
+  it("copies JUnit provenance and uncertainty with the displayed summary", async () => {
+    const summary = "### Scenario test results (JUnit)\nUser-declared tested commit: abc\nHistorical report; not independently verified.\nA: skipped; B: missing; C: ambiguous";
+    const copy = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    try {
+      const perform = vi.fn<PerformChangeAction>().mockResolvedValue({ kind: "pr-review", report: { title: "Review", summary, diff: null, truncated: false } });
+      render(<ChangeActionDialog target={{ action: "showPrReview", changeName: "demo" }} perform={perform} onClose={() => undefined} />);
+      fireEvent.click(await screen.findByRole("button", { name: "Copy PR summary" }));
+      await waitFor(() => expect(copy).toHaveBeenCalledWith(summary));
+      expect(screen.getByRole("status")).toHaveTextContent("PR summary copied.");
+    } finally { copy.mockRestore(); }
+  });
+
+  it("imports the chosen JUnit XML with an explicit tested revision and displayed head", async () => {
+    const head = "a".repeat(40);
+    const testedCommit = "b".repeat(40);
+    const report = { title: "PR Review", summary: "Scenario evidence", diff: null, truncated: false, head };
+    const perform = vi.fn<PerformChangeAction>().mockResolvedValue({ kind: "pr-review", report });
+    render(<ChangeActionDialog target={{ action: "showPrReview", changeName: "demo" }} perform={perform} onClose={() => undefined} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Import JUnit XML" }));
+    expect(screen.getByLabelText("Tested commit (user-declared)")).toHaveValue("");
+    const xml = '<testsuite><testcase name="test"/></testsuite>';
+    const file = new File([xml], "junit.xml", { type: "application/xml" });
+    Object.defineProperty(file, "text", { value: () => Promise.resolve(xml) });
+    fireEvent.change(screen.getByLabelText("JUnit XML report (up to 128 KiB)"), { target: { files: [file] } });
+    fireEvent.change(screen.getByLabelText("Tested commit (user-declared)"), { target: { value: testedCommit } });
+    expect(screen.getByRole("button", { name: "Import report" })).toBeEnabled();
+    fireEvent.submit(screen.getByRole("form", { name: "Import JUnit report" }));
+    await waitFor(() => expect(perform).toHaveBeenLastCalledWith({ action: "showPrReview", changeName: "demo" }, {
+      prReview: { junitImport: { head, testedCommit, xml } },
+    }));
+  });
+
   it("marks the displayed SHA then switches between the incremental and full review", async () => {
     const head = "a".repeat(40);
     const shown = { title: "Review", summary: "Proposal", diff: "+Full", truncated: false, head };

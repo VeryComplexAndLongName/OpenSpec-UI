@@ -10,6 +10,7 @@ import type { GitHubChecksReport } from "./github-checks.js";
 import { openGit } from "./git-client.js";
 import { createGitWrapper } from "./git.js";
 import { say } from "./message-register.js";
+import { importJUnit, readJUnitScenarioSummary } from "./junit-evidence.js";
 import { readRepositoryAuditEntries } from "./repository-audit.js";
 import { readScenarioEvidence, scenarioCheckState } from "./scenario-evidence.js";
 import { editScenarioMapping, type ScenarioMappingChoices, type ScenarioMappingPreview } from "./scenario-mapping-edit.js";
@@ -182,6 +183,7 @@ export async function readPrReview(root: string, changeName: string, sources: {
   sinceLastReview?: boolean;
   markReviewedCommit?: string;
   scenarioMapping?: unknown;
+  junitImport?: unknown;
 } = {}): Promise<PrReviewReport> {
   if (!isValidChangeName(changeName)) throw new Error("Choose an active OpenSpec change.");
   const workspace = await discoverOpenSpecWorkspace(root, { changes: "active", names: [changeName] });
@@ -191,6 +193,7 @@ export async function readPrReview(root: string, changeName: string, sources: {
   const title = `PR Review for ${changeName}`;
   const git = openGit(root);
   const head = await resolveCommit(git, "HEAD");
+  if (sources.junitImport !== undefined) await importJUnit(root, changeName, sources.junitImport, head);
   const marker = `refs/openspec-ui/reviewed/${createHash("sha256").update(changeName).digest("hex")}`;
   if (sources.markReviewedCommit !== undefined) {
     if (head === undefined || sources.markReviewedCommit !== head) {
@@ -295,6 +298,7 @@ export async function readPrReview(root: string, changeName: string, sources: {
           : entry.checks.map((check) => `  - ${literal(check)}: ${literal(scenarioCheckState(check, head, forgeReport, forgeName))}.`)));
       }
     }
+    scenarioLines.push(...await readJUnitScenarioSummary(root, changeName, head, linked.scenarios));
     if (linked.scenarios.length > 0 && forgeReport?.kind === "checks" && forgeReport.head === head && forgeReport.resultsComplete) {
       const counts = new Map<string, number>();
       for (const check of forgeReport.checks) counts.set(check.name, (counts.get(check.name) ?? 0) + 1);
