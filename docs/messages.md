@@ -3278,6 +3278,14 @@ Why: More than one archived generation uses this change identity, while old audi
 
 What to do: Inspect the individual runs with show run; do not merge ambiguous historical spend into one total.
 
+### OSW-CLI-022
+
+> info: Workbench is listening at {url}. Keep this terminal open; press Ctrl+C to stop it.
+
+Why: The npm launcher started the existing authenticated localhost host.
+
+What to do: Open the private launch URL in your browser; do not share its access token.
+
 ### OSW-CLI-101
 
 > info: {name}: {details}

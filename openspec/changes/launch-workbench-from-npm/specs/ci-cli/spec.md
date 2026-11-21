@@ -15,7 +15,7 @@ The public CLI SHALL offer `open workbench` using the existing standalone host w
 - **WHEN** cwd or port is invalid or the requested port is occupied
 - **THEN** the command reports the startup error and exits 2 without silently choosing an external bind or leaving a usable host running
 
-#### Scenario: The terminal stops the host
+#### Scenario: The terminal stops the host after active agent work has ended
 
-- **WHEN** the launcher receives an orderly stop signal
+- **WHEN** no agent run is active and the launcher receives an orderly stop signal
 - **THEN** it closes the local HTTP and browser socket server and exits 0

@@ -75,6 +75,8 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - run: npm run verify
       - run: npm run build
+      - name: Verify the production Workbench tarball
+        run: npm run smoke:package --workspace @openspec-ui/cli
 
   # Deliberately declares no `needs`, and nothing declares `needs` on it:
   # a pull request's other checks gate on `quality`, so while the
@@ -210,6 +212,8 @@ jobs:
       - name: Validate authored product release notes
         run: node --import tsx packages/cli/scripts/write-release-notes.ts --check
       - run: npm run build
+      - name: Verify the versioned production Workbench tarball
+        run: npm run smoke:package --workspace @openspec-ui/cli
       - run: npm run package --workspace openspec-ui-vscode
 
   version-packages:

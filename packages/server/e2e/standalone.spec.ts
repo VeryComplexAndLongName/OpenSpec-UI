@@ -39,6 +39,20 @@ test.afterAll(async () => {
   if (workspaceRoot) await rm(workspaceRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 });
 
+test("shows included package versions only in the standalone footer", async ({ page, request }) => {
+  const response = await request.get(`${baseUrl}/api/versions`, { headers: { "x-openspec-ui-token": server.accessToken } });
+  expect(response.status()).toBe(200);
+  const versions = await response.json();
+  await page.goto(`${baseUrl}/#token=${encodeURIComponent(server.accessToken)}`);
+  const footer = page.getByTestId("version-footer");
+  await expect(footer).toContainText(`core ${versions.core}`);
+  await expect(footer).toContainText(`server ${versions.server}`);
+  await expect(footer).toContainText("webui");
+  await page.goto(`${baseUrl}/?embed=vscode-local-server#token=${encodeURIComponent(server.accessToken)}`);
+  await expect(page.getByRole("tab", { name: "Pipeline", exact: true })).toBeVisible();
+  await expect(page.getByTestId("version-footer")).toHaveCount(0);
+});
+
 test("opens the read-only PR Review example and copies it", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto(`${baseUrl}/#token=${encodeURIComponent(server.accessToken)}`);

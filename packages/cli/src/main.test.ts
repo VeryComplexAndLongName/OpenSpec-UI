@@ -280,3 +280,24 @@ describe("runMain — run and check", () => {
     expect(io.errLines[0]).toContain("check");
   });
 });
+
+describe("open workbench routing", () => {
+  it("forwards cwd port and output format to the explicit launcher", async () => {
+    const io = collectingIo(), openWorkbenchCommand = vi.fn().mockResolvedValue(0);
+    expect(await runMain(["open", "workbench", "--cwd", "/project", "--port", "0", "--format", "json"], { ...io, openWorkbenchCommand })).toBe(0);
+    expect(openWorkbenchCommand).toHaveBeenCalledWith({ workspaceRoot: "/project", port: "0", format: "json" }, expect.objectContaining({ stdout: io.stdout }), { untilStopped: undefined });
+  });
+  it("refuses extra permissions and positionals without invoking a launcher", async () => {
+    for (const args of [["--host", "0.0.0.0"], ["--base", "main"], ["extra"], ["--allow-external-cwd"]]) {
+      const openWorkbenchCommand = vi.fn(), io = collectingIo();
+      expect(await runMain(["open", "workbench", ...args], { ...io, openWorkbenchCommand })).toBe(2);
+      expect(openWorkbenchCommand).not.toHaveBeenCalled();
+    }
+  });
+  it("does not accept launcher flags on existing commands or start a server from help", async () => {
+    const io = collectingIo(), openWorkbenchCommand = vi.fn(), validateAll = vi.fn();
+    expect(await runMain(["validate", "changes", "--port", "0"], { ...io, openWorkbenchCommand, validateAll })).toBe(2);
+    expect(await runMain(["--help"], { ...io, openWorkbenchCommand })).toBe(0);
+    expect(openWorkbenchCommand).not.toHaveBeenCalled(); expect(validateAll).not.toHaveBeenCalled();
+  });
+});

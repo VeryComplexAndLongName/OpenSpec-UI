@@ -16,6 +16,7 @@ interface Route {
 
 /** Every subcommand, as a pair, and the handler it runs. */
 export const SUBCOMMANDS: readonly Route[] = [
+  { verb: "open", noun: "workbench", handler: ["open-workbench"] },
   { verb: "show", noun: "changes", handler: ["show-changes"] },
   { verb: "show", noun: "tasks", handler: ["show-tasks"] },
   { verb: "show", noun: "diff", handler: ["show-diff"] },
