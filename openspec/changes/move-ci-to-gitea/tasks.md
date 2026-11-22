@@ -5,6 +5,13 @@
 - [ ] 0.1 Record an actual CircleCI Free hosted job without a payment card,
   the exact organization/project/pipeline/context identifiers and a successful
   OIDC exchange for @openspec-ui/cli in publication-preflight.md.
+- [ ] 0.1a Add an authentication-only .circleci/config.yml and
+  scripts/check-circleci-npm-access.mjs. Before pushing, run only
+  node --test scripts/check-circleci-npm-access.test.mjs, scoped ESLint on
+  those two scripts, YAML parsing and strict OpenSpec validation. Initial
+  identity discovery may use the dedicated circleci-project-setup branch;
+  exchange requires an exact approved context bound to that same branch.
+  No application build/test suite or registry version is run/published there.
 - [x] 0.2 Add scripts/check-marketplace-entra-access.mjs and its named test.
   Verify the approved certificate, actual Marketplace profile, direct
   Contributor role and unchanged publisher/extension ids. Evidence on

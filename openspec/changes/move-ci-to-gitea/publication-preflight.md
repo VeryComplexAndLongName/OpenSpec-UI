@@ -20,10 +20,12 @@ deletion. See ADR 0059, now named
   Organization UUID: `3d5db94d-4a2c-499e-82f5-af1f9fd28d49`, observed in
   its usage report URL. Plan overview explicitly shows `Current plan: Free`
   and 30,000 credits per month; paid checkout was not entered.
-  Project `OpenSpec npm publisher` / pipeline `npm-publication` is being
-  prepared. Exact ids, a hosted run and npm exchange remain pending. The
-  GitHub App draft selects only OpenSpec-UI and awaits confirmation of its
-  displayed repository write scopes.
+  Project `OpenSpec npm publisher` has id
+  `1bee6918-ef0a-424e-9775-cfd25745b0cd`; pipeline `npm-publication` has
+  definition id `ff640ebf-283f-4f8a-b58d-5ab8acc9494e`. The owner approved
+  CircleCI App installation only for OpenSpec-UI; setup now lists that repo
+  and installation `184623029`. The initial trigger is default-branch pushes.
+  Actual hosted execution and npm exchange remain pending.
 - The owner added certificate thumbprint
   `490FD4FE9CB6A31479EC3D1572D79A2EE55C2603` to the existing Entra app.
   Credential id: `d1b5a10d-f669-4355-ac93-df9b6c1e9981`.

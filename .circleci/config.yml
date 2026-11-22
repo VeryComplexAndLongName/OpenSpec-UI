@@ -1,0 +1,24 @@
+version: 2.1
+
+parameters:
+  access-probe:
+    type: enum
+    enum: [identity, exchange]
+    default: identity
+
+jobs:
+  publication-access:
+    docker:
+      - image: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+    resource_class: small
+    steps:
+      - checkout
+      - run:
+          name: Verify hosted identity without publishing
+          command: node scripts/check-circleci-npm-access.mjs "<< pipeline.parameters.access-probe >>"
+          no_output_timeout: 2m
+
+workflows:
+  publication-access:
+    jobs:
+      - publication-access
