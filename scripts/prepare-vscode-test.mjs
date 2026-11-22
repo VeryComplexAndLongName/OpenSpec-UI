@@ -14,6 +14,51 @@ export function metadata(value) {
   return value;
 }
 
+export async function downloadRange(url, start, end, total, fetcher = fetch) {
+  const response = await fetcher(url, { headers: { Range: `bytes=${start}-${end}` }, redirect: 'error', signal: AbortSignal.timeout(30_000) });
+  const match = /^bytes (\d+)-(\d+)\/(\d+)$/u.exec(response.headers.get('content-range') || '');
+  const actualTotal = Number(match?.[3]);
+  if (response.status !== 206 || !match || Number(match[1]) !== start || Number(match[2]) !== end
+      || !Number.isSafeInteger(actualTotal) || actualTotal <= end || actualTotal > 500_000_000
+      || (total !== null && actualTotal !== total)) {
+    await response.body?.cancel();
+    throw new Error('Official editor range differs from the requested bytes');
+  }
+  const chunks = []; let size = 0;
+  for await (const chunk of response.body) {
+    size += chunk.length;
+    if (size > end - start + 1) throw new Error('Official editor range exceeds limit');
+    chunks.push(chunk);
+  }
+  if (size !== end - start + 1) throw new Error('Official editor range is incomplete');
+  return { data: Buffer.concat(chunks), total: actualTotal };
+}
+
+async function archiveBytes(value) {
+  const { total } = await downloadRange(value.url, 0, 0, null);
+  const step = 1024 * 1024;
+  const parts = Array(Math.ceil(total / step));
+  let next = 0; let completed = 0;
+  await Promise.all(Array.from({ length: 12 }, async () => {
+    for (;;) {
+      const index = next++;
+      if (index >= parts.length) return;
+      let failure;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          parts[index] = (await downloadRange(value.url, index * step, Math.min(total - 1, (index + 1) * step - 1), total)).data;
+          failure = undefined; break;
+        } catch (error) { failure = error; }
+      }
+      if (failure) throw failure;
+      if (++completed % 40 === 0) console.log(`Verified range lengths: ${completed}/${parts.length}`);
+    }
+  }));
+  const data = Buffer.concat(parts);
+  if (createHash('sha256').update(data).digest('hex') !== value.sha256hash) throw new Error('Official editor SHA-256 differs');
+  return data;
+}
+
 export async function main(mode) {
   const file = path.join(process.env.RUNNER_TEMP, 'openspec-vscode.json');
   if (mode === 'metadata') {
@@ -29,8 +74,7 @@ export async function main(mode) {
   const directory = path.resolve('packages/extension/.vscode-test', `vscode-linux-x64-${value.productVersion}`);
   try { await access(path.join(directory, 'is-complete')); console.log('Restored the exact editor cache; integration tests still run.'); return; } catch { /* Cold editor cache. */ }
   const archive = path.join(process.env.RUNNER_TEMP, 'openspec-vscode.tar.gz');
-  execFileSync('curl', ['--http1.1', '--fail', '--location', '--connect-timeout', '15', '--max-time', '240', '--retry', '2', '--retry-max-time', '600', '--silent', '--show-error', '--output', archive, value.url], { stdio: 'inherit', timeout: 650_000 });
-  if (createHash('sha256').update(await readFile(archive)).digest('hex') !== value.sha256hash) throw new Error('Official editor SHA-256 differs');
+  await writeFile(archive, await archiveBytes(value));
   // This path is fixed under the test cache and its version has been validated.
   await rm(directory, { recursive: true, force: true });
   await mkdir(directory, { recursive: true });
