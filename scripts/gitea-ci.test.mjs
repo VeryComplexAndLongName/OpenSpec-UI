@@ -32,6 +32,7 @@ test('actual workflow includes every gate and refuses credentials or removed gat
   checkWorkflow(source);
   assert.throws(() => checkWorkflow(source + '\nextra: ${{ secrets.PRODUCTION_KEY }}'));
   assert.throws(() => checkWorkflow(source.replace('openspec-ci', 'ubuntu-latest')));
+  assert.throws(() => checkWorkflow(source.replace('name: Dependency audit', "name: Dependency audit\n    if: github.event_name == 'pull_request'")), /audit/u);
 });
 test('runner refuses privileged execution, Docker socket mounts and unbounded jobs', () => {
   const source = readFileSync('.gitea/runner/config.yaml', 'utf8');
