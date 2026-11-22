@@ -9,7 +9,7 @@ services:
       HOME: /data
     extra_hosts:
       - hppiigit:192.168.137.34
-    dns: [1.1.1.1, 8.8.8.8]
+    dns: [192.168.137.6, 192.168.137.3]
     volumes:
       - ./state:/data
       - ./config.yaml:/config.yaml:ro

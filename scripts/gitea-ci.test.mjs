@@ -45,9 +45,7 @@ test('runner refuses privileged execution, Docker socket mounts and unbounded jo
 });
 test('every workflow shell step parses before any command is executed', () => {
   const workflow = createRequire(import.meta.url)('yaml').parse(readFileSync('.gitea/workflows/quality.yml', 'utf8'));
-  for (const job of Object.values(workflow.jobs)) for (const step of job.steps) {
-    if (!step.run) continue;
-    const parsed = spawnSync(process.env.OPENSPEC_TEST_BASH || 'bash', ['-n'], { input: step.run, encoding: 'utf8' });
-    assert.equal(parsed.status, 0, parsed.stderr || parsed.error?.message);
-  }
+  const input = Object.values(workflow.jobs).flatMap((job) => job.steps.filter((step) => step.run).map((step) => step.run)).join('\n\n');
+  const parsed = spawnSync(process.env.OPENSPEC_TEST_BASH || 'bash', ['-n'], { input, encoding: 'utf8' });
+  assert.equal(parsed.status, 0, parsed.stderr || parsed.error?.message);
 });
