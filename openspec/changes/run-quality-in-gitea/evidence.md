@@ -11,3 +11,5 @@ Full product, extension, browser and accessibility results remain pending Gitea.
 No complete verification suite ran locally. No registry or deployment write ran.
 
 Dedicated owner-scoped runner id 24 is online. Gitea job 8857 uses openspec-ci; live Docker inspection shows no bind mounts, no privileged mode, 6 GiB memory and 2 CPUs. Production credentials and the Docker socket are absent from the job.
+
+Run 6713 reached every application check but the native job timed out before launching VS Code: test-electron's streaming download stalled on the official 395 MB distribution. Added bounded curl, Microsoft SHA-256 verification and exact editor caching. Seven selected policy/metadata tests and changed-file ESLint passed. Native integration is still pending replacement CI; this is not a passing native result.

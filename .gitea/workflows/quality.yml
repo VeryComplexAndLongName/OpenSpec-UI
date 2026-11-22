@@ -162,6 +162,15 @@ jobs:
           timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
           npm ci
           OPENSPEC_STEP
+      - name: Resolve the official editor and its SHA-256
+        id: editor
+        run: timeout 45 node scripts/prepare-vscode-test.mjs metadata
+      - uses: https://github.com/actions/cache@v4
+        with:
+          path: packages/extension/.vscode-test/vscode-linux-x64-${{ steps.editor.outputs.version }}
+          key: openspec-editor-linux-x64-${{ steps.editor.outputs.sha256 }}
+      - name: Download and verify the editor without the stalled streaming path
+        run: timeout 780 node scripts/prepare-vscode-test.mjs download
       - run: |
           timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
           xvfb-run -a npm run test:integration --workspace openspec-ui-vscode

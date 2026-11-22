@@ -19,6 +19,11 @@
 
 ## Delivery evidence
 
+- [x] In scripts/prepare-vscode-test.mjs, download the official editor through
+  bounded curl, verify Microsoft's SHA-256 and retain its real test-electron
+  cache. Run its named metadata refusal tests and scoped ESLint. The native
+  test suite must still execute in Gitea; a cached editor is not a test result.
+
 - [x] In .gitea/runner/config.yaml and compose.yaml, provide a dedicated
   capacity-one OpenSpec runner scoped to the root owner. Pin both images,
   bound job CPU/memory, refuse arbitrary volumes/privilege and do not mount
