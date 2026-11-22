@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { checkWorkflow, requireResults } from './gitea-ci.mjs';
+import { checkRunner, checkWorkflow, requireResults } from './gitea-ci.mjs';
 
 const jobs = ['quality', 'dependency-audit', 'dependency-review', 'changeset',
   'openspec-validate', 'extension-integration', 'browser-e2e', 'version-pr'];
@@ -29,5 +29,15 @@ test('actual workflow includes every gate and refuses credentials or removed gat
   const source = readFileSync('.gitea/workflows/quality.yml', 'utf8');
   checkWorkflow(source);
   assert.throws(() => checkWorkflow(source + '\nextra: ${{ secrets.PRODUCTION_KEY }}'));
-  assert.throws(() => checkWorkflow(source.replace('hppmcp-pr', 'ubuntu-latest')));
+  assert.throws(() => checkWorkflow(source.replace('openspec-ci', 'ubuntu-latest')));
+});
+test('runner refuses privileged execution, Docker socket mounts and unbounded jobs', () => {
+  const source = readFileSync('.gitea/runner/config.yaml', 'utf8');
+  checkRunner(source);
+  for (const changed of [source.replace('privileged: false', 'privileged: true'),
+    source.replace("docker_host: '-'", "docker_host: ''"),
+    source.replace('valid_volumes: []', "valid_volumes: ['**']"),
+    source.replace('--memory=6g', '')]) {
+    assert.throws(() => checkRunner(changed));
+  }
 });

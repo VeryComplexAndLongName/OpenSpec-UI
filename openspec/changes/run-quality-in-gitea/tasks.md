@@ -19,6 +19,11 @@
 
 ## Delivery evidence
 
+- [ ] In .gitea/runner/config.yaml and compose.yaml, provide a dedicated
+  capacity-one OpenSpec runner scoped to the root owner. Pin both images,
+  bound job CPU/memory, refuse arbitrary volumes/privilege and do not mount
+  Docker's socket into jobs. Record its actual online registration and run.
+
 Full Gitea checks, required review, main merge and the separate archive remain
 required. Record run links in evidence.md. This section does not claim them
 complete based on local policy tests. Do not disable GitHub or remove this

@@ -11,7 +11,7 @@ on the shared host, or duplicating the Publication Center queue.
 
 ## Decisions
 
-Use the existing internal hppmcp-pr Docker runners for trusted authors only.
+Use the existing internal openspec-ci Docker runners for trusted authors only.
 Separate labels are not host isolation; externally supplied code needs a
 separate ephemeral VM. Do not give these quality jobs production secrets.
 

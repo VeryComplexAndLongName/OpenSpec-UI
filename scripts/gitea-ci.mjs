@@ -22,7 +22,7 @@ export function checkWorkflow(source) {
   const required = ['quality', 'dependency-audit', 'dependency-review', 'changeset',
     'openspec-validate', 'extension-integration', 'browser-e2e', 'version-pr'];
   for (const id of required) {
-    if (!jobs[id] || jobs[id]['runs-on'] !== 'hppmcp-pr') throw new Error(`Missing internal quality job ${id}`);
+    if (!jobs[id] || jobs[id]['runs-on'] !== 'openspec-ci') throw new Error(`Missing internal quality job ${id}`);
     if (!jobs['ci-ready']?.needs?.includes(id)) throw new Error(`Aggregate gate omits ${id}`);
   }
   if (/secrets\./u.test(source)) throw new Error('Quality may not receive production secrets');
@@ -31,12 +31,26 @@ export function checkWorkflow(source) {
   }
 }
 
+export function checkRunner(source) {
+  const config = createRequire(import.meta.url)('yaml').parse(source);
+  if (config.runner?.capacity !== 1 || config.runner?.insecure !== false
+      || config.container?.privileged !== false || config.container?.docker_host !== '-'
+      || !Array.isArray(config.container?.valid_volumes) || config.container.valid_volumes.length
+      || !config.container.options?.includes('--memory=6g')
+      || !config.container.options?.includes('--cpus=2')) {
+    throw new Error('OpenSpec CI runner must bound jobs without privileged host mounts');
+  }
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     if (process.argv[2] === 'results') {
       const results = Object.fromEntries(Object.entries(JSON.parse(process.env.CI_RESULTS)).map(([id, job]) => [id, job.result]));
       requireResults(results, { event: process.env.CI_EVENT, head: process.env.CI_HEAD });
-    } else checkWorkflow(readFileSync('.gitea/workflows/quality.yml', 'utf8'));
+    } else {
+      checkWorkflow(readFileSync('.gitea/workflows/quality.yml', 'utf8'));
+      checkRunner(readFileSync('.gitea/runner/config.yaml', 'utf8'));
+    }
     console.log('Gitea quality policy passed.');
   } catch (error) { console.error(error.message); process.exitCode = 1; }
 }

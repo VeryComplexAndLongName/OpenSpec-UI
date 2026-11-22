@@ -1,0 +1,23 @@
+log:
+  level: info
+runner:
+  file: /data/.runner
+  capacity: 1
+  timeout: 1h
+  shutdown_timeout: 5m
+  insecure: false
+  fetch_timeout: 5s
+  fetch_interval: 2s
+  labels:
+    - openspec-ci:docker://docker.gitea.com/runner-images@sha256:b96ba465021b1a4c6a1c9e79220c2b9bfad0f29b09dbb528bbfb35411443a3a4
+cache:
+  enabled: false
+container:
+  privileged: false
+  options: --cpus=2 --memory=6g --pids-limit=2048 --add-host=hppiigit:192.168.137.34
+  valid_volumes: []
+  docker_host: '-'
+  force_pull: false
+  force_rebuild: false
+host:
+  workdir_parent: /data/cache/act

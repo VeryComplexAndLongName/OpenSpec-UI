@@ -18,7 +18,7 @@ jobs:
     outputs:
       playwright-version: ${{ steps.playwright.outputs.version }}
     if: github.head_ref != 'changeset-release/main'
-    runs-on: hppmcp-pr
+    runs-on: openspec-ci
     steps:
       - uses: https://github.com/actions/checkout@v4
         with:
@@ -58,7 +58,7 @@ jobs:
   dependency-audit:
     name: Dependency audit
     if: github.event_name == 'pull_request'
-    runs-on: hppmcp-pr
+    runs-on: openspec-ci
     steps:
       - uses: https://github.com/actions/checkout@v4
         with:
@@ -104,7 +104,7 @@ jobs:
     name: OpenSpec change validation (merge gate)
     needs: quality
     if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
-    runs-on: hppmcp-pr
+    runs-on: openspec-ci
     steps:
       - uses: https://github.com/actions/checkout@v4
         with:
@@ -142,7 +142,7 @@ jobs:
     name: Extension integration and package
     needs: quality
     if: github.head_ref != 'changeset-release/main'
-    runs-on: hppmcp-pr
+    runs-on: openspec-ci
     steps:
       - uses: https://github.com/actions/checkout@v4
         with:
@@ -179,7 +179,7 @@ jobs:
   version-pr:
     name: Version pull request installs, builds and packages
     if: github.event_name == 'pull_request' && github.head_ref == 'changeset-release/main'
-    runs-on: hppmcp-pr
+    runs-on: openspec-ci
     steps:
       - uses: https://github.com/actions/checkout@v4
         with:
@@ -218,7 +218,7 @@ jobs:
     name: Standalone browser and accessibility
     needs: quality
     if: github.head_ref != 'changeset-release/main'
-    runs-on: hppmcp-pr
+    runs-on: openspec-ci
     container:
       image: mcr.microsoft.com/playwright:v1.65.1-noble
       options: --ipc=host
@@ -259,7 +259,7 @@ jobs:
   dependency-review:
     name: Dependency review
     if: github.event_name == 'pull_request'
-    runs-on: hppmcp-pr
+    runs-on: openspec-ci
     steps:
       - uses: https://github.com/actions/checkout@v4
         with:
@@ -284,7 +284,7 @@ jobs:
   changeset:
     name: Require authored changeset
     if: github.event_name == 'pull_request'
-    runs-on: hppmcp-pr
+    runs-on: openspec-ci
     steps:
       - uses: https://github.com/actions/checkout@v4
         with:
@@ -314,7 +314,7 @@ jobs:
       - dependency-review
       - changeset
     if: ${{ always() }}
-    runs-on: hppmcp-pr
+    runs-on: openspec-ci
     steps:
       - uses: https://github.com/actions/checkout@v4
         with:
