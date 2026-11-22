@@ -26,8 +26,13 @@
   scripts/check-marketplace-entra-access.test.mjs. Neither file is TypeScript.
 - [ ] 0.3 Record the first legitimate release's remote identities and exact
   assets. Never publish a disposable test version to activate a trust.
-- [ ] 0.4 Supersede the abandoned GitLab MR/preflight and review exact unused
-  GitLab grants for cleanup after replacement access works.
+- [x] 0.4 Supersede the abandoned GitLab MR/preflight and review exact unused
+  GitLab grants for cleanup after replacement access works. GitLab MR !1 is
+  closed unmerged. After hosted npm exchange, the owner-approved federation
+  gitlab-main-marketplace and npm connection GitLab release publisher were
+  deleted. Entra retains its certificate and passes the strict live role
+  probe; npm lists only the preserved GitHub and new CircleCI trusts, both
+  Valid. The UI confirms successful deletion; no package was published.
 
 ## 1. Preservation and final architecture
 

@@ -106,10 +106,15 @@ All 5 named offline CircleCI probe tests, changed-path ESLint, YAML parsing
 and strict OpenSpec validation passed before these runs. The two hosted jobs
 perform only authentication checks, not development/build/test CI.
 
-**First-publish deadline:** npm still shows `Pending validation`; a real
-successful publish is required before **2026-11-24 10:58 UTC** (13:58 Moscow).
-Token exchange does not satisfy that condition. Recreate an expired connection
-instead of manufacturing a disposable package version. CircleCI does not
+**Observed validation state:** immediately after saving, npm showed
+`Pending validation` and a first-publish deadline of 2026-11-24 10:58 UTC.
+After the successful package-token exchange, a fresh settings-page load on
+2026-11-22 showed `Status: Valid` for `CircleCI npm publisher`, with no pending
+deadline. The package remains 0.33.0 with 9 versions, last published 13 days
+earlier. No publish command ran. This corrects the earlier assumption that
+the displayed connection could only become valid after a registry write;
+the observed UI state is authoritative for this connection. A first legitimate
+release is still required for end-to-end publication proof. CircleCI does not
 currently provide npm automatic provenance attestations.
 
 ## Superseded grant cleanup
@@ -118,9 +123,12 @@ After the successful CircleCI exchange, the approved Entra federation
 `gitlab-main-marketplace` was deleted. The portal now shows zero federated
 credentials and retains one certificate. A fresh live certificate identity,
 Contributor role and exact publisher/extension check passed after deletion.
-The npm deletion of only `GitLab release publisher` is awaiting a second
-owner security-key authentication. Neither GitHub trust nor the new CircleCI
-trust is a cleanup target. Do not declare npm cleanup complete until observed.
+The initial npm security-key attempt failed with `Something went wrong` and
+did not remove the connection. A fresh attempt and owner authentication
+succeeded; npm reported `Trusted Publisher connection successfully deleted.`
+The resulting list contains only the existing GitHub connection and new
+`CircleCI npm publisher`, both `Status: Valid`. The package owner, version
+and existing publishing-access setting remain unchanged. Cleanup is complete.
 
 ## Owner priority
 
