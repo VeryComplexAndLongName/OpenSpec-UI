@@ -13,6 +13,8 @@ import {
   DEFAULT_HARNESS_CONFIG,
   HARNESS_AGENT_CAPABILITIES,
   PR_REVIEW_EXAMPLE,
+  previewIssueChange,
+  createChangeFromIssue,
   type JUnitImport,
   DEFAULT_STALE_TASK_THRESHOLD_DAYS,
   TASK_CHECKBOX_LINE_RE,
@@ -1994,6 +1996,34 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       } catch (error) {
         await showCommandError("generate subtype instructions", error);
       }
+    }),
+    vscode.commands.registerCommand("openspec-ui.createChangeFromIssue", async () => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      const reference = await vscode.window.showInputBox({ title: "Show Issue", prompt: "Issue number or URL in this workspace's repository" });
+      if (!reference) return;
+      try {
+        const preview = await previewIssueChange({ repositoryRoot: workspaceRoot, reference });
+        const document = await vscode.workspace.openTextDocument({ language: "plaintext", content:
+          `${preview.forge} #${preview.number}\n${preview.sourceUrl}\n${preview.title}\nState: ${preview.state}\nUpdated: ${preview.updatedAt}\n`
+          + (preview.truncated ? "SOURCE TRUNCATED: read the original issue for the complete request.\n" : "")
+          + `\n${preview.body}\n\nReference data only. Use Run Change separately to run Propose.` });
+        await vscode.window.showTextDocument(document, { preview: true });
+        const changeName = await vscode.window.showInputBox({ title: "Create Change From Issue", prompt: "Enter a lowercase change id", validateInput:
+          (value) => /^[a-z0-9][a-z0-9-]*$/.test(value) ? undefined : "Use lowercase letters, numbers and dashes." });
+        if (!changeName) return;
+        const confirm = "Create Change From Issue";
+        const chosen = await vscode.window.showWarningMessage(say("OSW-CHG-019", { change: changeName, source: preview.sourceUrl }).text, {
+          modal: true, detail: `${preview.title}\nThe existing create workflow makes a working directory and may commit and push its branch. Requirements are not approved and no agent starts.`,
+        }, confirm);
+        if (chosen !== confirm) return;
+        let made: ChangeMade | undefined;
+        await runTrackedProcess(deps.implementationSessions, workspaceRoot, { operation: "create", changeName, mutating: true,
+          execute: async () => { made = await createChangeFromIssue({ repositoryRoot: workspaceRoot, reference, revision: preview.revision, changeName }); },
+        });
+        deps.refreshTrees();
+        announceChangeMade(changeName, made, workspaceRoot);
+      } catch (error) { await showCommandError("create change from issue", error); }
     }),
     vscode.commands.registerCommand("openspec-ui.createChange", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
