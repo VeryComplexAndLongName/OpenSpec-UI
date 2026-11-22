@@ -28,6 +28,6 @@ jobs:
           GITEA_REPOSITORY: ${{ github.repository }}
           GITEA_REF: ${{ github.ref }}
           GITHUB_APP_ID: ${{ vars.MIRROR_APP_ID }}
-          GITHUB_APP_PRIVATE_KEY: ${{ secrets.MIRROR_APP_PRIVATE_KEY }}
-          RELEASE_SIGNING_PRIVATE_KEY: ${{ secrets.RELEASE_SIGNING_PRIVATE_KEY }}
+          GITHUB_APP_PRIVATE_KEY_BASE64: ${{ secrets.MIRROR_APP_PRIVATE_KEY }}
+          RELEASE_SIGNING_PRIVATE_KEY_BASE64: ${{ secrets.RELEASE_SIGNING_PRIVATE_KEY }}
         run: timeout 600 node scripts/mirror-tested-release.mjs

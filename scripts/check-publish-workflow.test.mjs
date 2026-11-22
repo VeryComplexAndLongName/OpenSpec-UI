@@ -29,5 +29,7 @@ test('retired GitHub jobs and a second Gitea registry writer are refused', async
     await writeFile(path.join(directory, '.github/workflows/publish.yml'), 'on: workflow_dispatch');
     await writeFile(path.join(directory, '.gitea/workflows/bypass.yml'), 'run: npm publish');
     assert.equal((await checkOtherWorkflows(directory)).length, 2);
+    await writeFile(path.join(directory, '.gitea/workflows/release.yml'), 'env:\n  GITHUB_APP_PRIVATE_KEY: fixture\n');
+    assert.equal((await checkOtherWorkflows(directory)).length, 3);
   } finally { await rm(directory, { recursive: true }); }
 });

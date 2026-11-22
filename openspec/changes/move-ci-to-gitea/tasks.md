@@ -44,6 +44,14 @@
   changes and @types/vscode above 1.90. Deliberate pins and majors remain review.
 - [x] 2.4 Record the exact required checks/protection and actual Gitea delivery
   of preserved GitHub PR #1009 through Gitea PR 2. Merge only its passing head.
+- [x] 2.5 In .gitea/workflows/version.yml, use the restricted maintenance
+  account for checkout/push and PR API so proposal events trigger actual CI.
+  Its grants were verified as write/non-admin on exactly these two repositories;
+  the selected proposal/policy tests and strict OpenSpec passed. Record the
+  actual automatic PR check run during post-merge acceptance.
+- [x] 2.6 In .gitea/workflows/dependencies.yml, use that same restricted
+  maintenance identity only for reviewed proposals. The policy refuses this
+  credential in registry executors and unrelated Gitea jobs.
 
 ## 3. Approved bytes and independent executors
 
@@ -73,6 +81,12 @@
 - [x] 3.5 Prepare removal of all GitHub workflows/Dependabot configuration;
   the policy refuses active GitHub YAML. Actual repository Actions disablement
   and mirror cutover occur only after replacement CI and credentials work.
+- [x] 3.6 In scripts/publication-transport.mjs, decode single-line App key
+  material only inside Node. The named JWT fixture test verifies its actual
+  RSA signature, exact one-repository grant and refusal before any network call.
+- [x] 3.7 In scripts/mirror-tested-release.mjs, decode the single-line signing
+  key only at signing. The named receipt/mirror/policy tests and changed-file
+  ESLint passed. The policy refuses raw PEM environment property names.
 
 ## 4. Selected local verification
 

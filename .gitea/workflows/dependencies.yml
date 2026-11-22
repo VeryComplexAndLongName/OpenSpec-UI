@@ -1,11 +1,10 @@
 name: Propose compatible dependencies
 on:
   schedule:
-    - cron: '37 4 * * 1'
+    - cron: 37 4 * * 1
   workflow_dispatch: {}
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 concurrency:
   group: dependency-proposal
   cancel-in-progress: false
@@ -18,12 +17,14 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+          token: ${{ secrets.MAINTENANCE_TOKEN }}
+          persist-credentials: true
       - uses: https://github.com/actions/setup-node@v4
         with:
           node-version: 24.21.0
       - run: timeout 120 npm install --global npm@10.9.0
       - run: timeout 300 node scripts/gitea-proposal.mjs dependencies
         env:
-          GITEA_TOKEN: ${{ github.token }}
+          GITEA_TOKEN: ${{ secrets.MAINTENANCE_TOKEN }}
           GITEA_REPOSITORY: ${{ github.repository }}
           GITEA_REF: ${{ github.ref }}

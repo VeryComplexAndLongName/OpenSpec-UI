@@ -50,6 +50,15 @@ extension integration, browser/accessibility and installed CLI package smoke.
 Version PRs retain their distinct install/build/package path and authored notes.
 Homepage retains Python 3.12/3.14 and the exact deployed dependency lock.
 
+Gitea 1.26.4 intentionally suppresses workflow events from its built-in Actions
+user. Use the restricted `openspec-maintenance` service account only for version,
+dependency and article proposal checkout/push/API operations. Its token has
+write:repository scope and the account has write grants only on these two
+repositories, no admin rights or repository/organization creation. Main remains
+protected and proposals never auto-merge. Keep `MAINTENANCE_TOKEN` out of test,
+deployment and registry executor jobs. This replaces the initial built-in-token
+assumption after the first real version PR created no required check run.
+
 ## Release and retry path
 
 1. Gitea Quality packs one CLI tarball, installs and exercises that exact file,
@@ -87,6 +96,11 @@ Gitea release preparation needs `MIRROR_APP_ID`, `MIRROR_APP_PRIVATE_KEY` and
 with Contents write and mandatory Metadata read. It obtains short installation
 tokens. It does not publish to npm or Marketplace. Retire GitHub workflows
 before the one-time mirror bootstrap; future mirrors need no Workflows write.
+Store both private-key secrets as canonical single-line base64 of their PEM
+bytes. The producer decodes them only inside Node. Do not expose multiline PEM
+in action inputs or environment values: Gitea's escaped environment logging can
+miss multiline masking. The Homepage mirror uses the same encoded transport,
+and its short installation token is revoked after the fast-forward attempt.
 
 CircleCI uses organization `3d5db94d-4a2c-499e-82f5-af1f9fd28d49`, project
 `1bee6918-ef0a-424e-9775-cfd25745b0cd`, pipeline definition
