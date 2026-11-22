@@ -1,5 +1,13 @@
 # Migration evidence
 
+Actual main version workflow 6762 succeeded and created PR 4, but that head had
+no CI run. Gitea v1.26.4 services/actions/notifier_helper.go explicitly ignores
+events whose actor IsGiteaActions. The replacement maintenance account is
+restricted, non-admin, has zero repository/organization creation and write grants
+only on these two repositories. Its write:repository token is confined to
+proposal checkout/push/API jobs, so normal PR events can create required checks.
+The first automatic proposal run with that identity remains acceptance evidence.
+
 Production watch run 6760 revealed that Gitea escaped multiline environment
 values before masking and disclosed the dedicated SSH key. That key was
 replaced, the new key's actual SSH probe passed and only the exposed old key

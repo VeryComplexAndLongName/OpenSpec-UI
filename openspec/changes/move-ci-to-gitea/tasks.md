@@ -44,6 +44,14 @@
   changes and @types/vscode above 1.90. Deliberate pins and majors remain review.
 - [x] 2.4 Record the exact required checks/protection and actual Gitea delivery
   of preserved GitHub PR #1009 through Gitea PR 2. Merge only its passing head.
+- [x] 2.5 In .gitea/workflows/version.yml, use the restricted maintenance
+  account for checkout/push and PR API so proposal events trigger actual CI.
+  Its grants were verified as write/non-admin on exactly these two repositories;
+  the selected proposal/policy tests and strict OpenSpec passed. Record the
+  actual automatic PR check run during post-merge acceptance.
+- [x] 2.6 In .gitea/workflows/dependencies.yml, use that same restricted
+  maintenance identity only for reviewed proposals. The policy refuses this
+  credential in registry executors and unrelated Gitea jobs.
 
 ## 3. Approved bytes and independent executors
 

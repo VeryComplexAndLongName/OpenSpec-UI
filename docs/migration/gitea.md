@@ -50,6 +50,15 @@ extension integration, browser/accessibility and installed CLI package smoke.
 Version PRs retain their distinct install/build/package path and authored notes.
 Homepage retains Python 3.12/3.14 and the exact deployed dependency lock.
 
+Gitea 1.26.4 intentionally suppresses workflow events from its built-in Actions
+user. Use the restricted `openspec-maintenance` service account only for version,
+dependency and article proposal checkout/push/API operations. Its token has
+write:repository scope and the account has write grants only on these two
+repositories, no admin rights or repository/organization creation. Main remains
+protected and proposals never auto-merge. Keep `MAINTENANCE_TOKEN` out of test,
+deployment and registry executor jobs. This replaces the initial built-in-token
+assumption after the first real version PR created no required check run.
+
 ## Release and retry path
 
 1. Gitea Quality packs one CLI tarball, installs and exercises that exact file,

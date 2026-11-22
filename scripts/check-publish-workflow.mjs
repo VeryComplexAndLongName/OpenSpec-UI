@@ -22,7 +22,7 @@ export function checkPublishWorkflow(source) {
   const commands = (job?.steps ?? []).filter((one) => one.run).map((one) => one.run.command ?? one.run).join('\n');
   if (!commands.includes('npm@12.1.0') || !commands.includes('timeout 300 node scripts/publication-worker.mjs npm')) problems.push('Use the pinned client and Homepage queue worker');
   if (/npm ci|npm run build|vsce |npm publish|changeset publish|--provenance=true/u.test(commands)) problems.push('Publisher must not rebuild or bypass the queue');
-  if (/VSCE_PAT|NPM_TOKEN|NODE_AUTH_TOKEN|GITHUB_TOKEN|GITHUB_APP_PRIVATE_KEY/u.test(executable(source))) problems.push('No persistent registry or mirror credentials in CircleCI');
+  if (/VSCE_PAT|NPM_TOKEN|NODE_AUTH_TOKEN|GITHUB_TOKEN|GITHUB_APP_PRIVATE_KEY|MAINTENANCE_TOKEN/u.test(executable(source))) problems.push('No persistent registry or mirror credentials in CircleCI');
   return problems;
 }
 
@@ -37,6 +37,7 @@ export async function checkOtherWorkflows(directory = root) {
     const source = executable(await readFile(path.join(workflows, file), 'utf8'));
     if (/VSCE_PAT|NPM_TOKEN|NODE_AUTH_TOKEN|npm publish|vsce publish|changeset publish/u.test(source)) problems.push(`${file}: Gitea prepares artifacts, never registry writes`);
     if (file !== 'release.yml' && /MIRROR_APP_PRIVATE_KEY|RELEASE_SIGNING_PRIVATE_KEY/u.test(source)) problems.push(`${file}: production producer keys belong only to checked release preparation`);
+    if (!['version.yml', 'dependencies.yml'].includes(file) && /MAINTENANCE_TOKEN/u.test(source)) problems.push(`${file}: maintenance credentials belong only to reviewed proposal jobs`);
     if (file === 'release.yml' && /^\s*(?:GITHUB_APP_PRIVATE_KEY|RELEASE_SIGNING_PRIVATE_KEY):/mu.test(source)) problems.push('Use single-line encoded producer keys; multiline environment logging can disclose PEM');
   }
   const service = await readFile(path.join(directory, 'deploy/publication/marketplace.service'), 'utf8');
