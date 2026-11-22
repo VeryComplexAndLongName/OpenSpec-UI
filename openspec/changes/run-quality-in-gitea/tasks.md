@@ -19,10 +19,10 @@
 
 ## Delivery evidence
 
-- [ ] In .gitea/runner/config.yaml and compose.yaml, provide a dedicated
+- [x] In .gitea/runner/config.yaml and compose.yaml, provide a dedicated
   capacity-one OpenSpec runner scoped to the root owner. Pin both images,
   bound job CPU/memory, refuse arbitrary volumes/privilege and do not mount
-  Docker's socket into jobs. Record its actual online registration and run.
+  Docker's socket into jobs. Observed runner id 24 online; job 8857 in run 6701 uses it. Live Docker inspection confirms Binds=[], privileged=false, memory=6442450944 and NanoCpus=2000000000.
 
 Full Gitea checks, required review, main merge and the separate archive remain
 required. Record run links in evidence.md. This section does not claim them
