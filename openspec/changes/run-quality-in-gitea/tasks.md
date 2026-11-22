@@ -20,7 +20,7 @@
 ## Delivery evidence
 
 - [x] In scripts/prepare-vscode-test.mjs, download the official editor through
-  bounded curl, verify Microsoft's SHA-256 and retain its real test-electron
+  bounded range requests, verify Microsoft's SHA-256 and retain its real test-electron
   cache. Run its named metadata refusal tests and scoped ESLint. The native
   test suite must still execute in Gitea; a cached editor is not a test result.
 
