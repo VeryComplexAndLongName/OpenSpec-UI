@@ -1,5 +1,14 @@
 # Migration evidence
 
+Production watch run 6760 revealed that Gitea escaped multiline environment
+values before masking and disclosed the dedicated SSH key. That key was
+replaced, the new key's actual SSH probe passed and only the exposed old key
+was removed from authorized_keys. Existing user keys were preserved. Before
+the first producer run, its signing secret was converted to canonical
+single-line base64; all producer key decoding now happens inside Node, not in
+logged action parameters. The same representation is required for the mirror
+App key when approved. Selected JWT/receipt/mirror/policy tests and ESLint pass.
+
 ## Preserved feature and actual artifact API
 
 Release and deployment eligibility query Gitea with both `event=push` and the

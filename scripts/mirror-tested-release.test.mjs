@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { createHash, generateKeyPairSync } from 'node:crypto';
+import { createHash, generateKeyPairSync, verify } from 'node:crypto';
 import test from 'node:test';
 import { assetIdentity, reconcileAsset, zipEntries, mergeManifests, tagAt, alreadyPrepared } from './mirror-tested-release.mjs';
-import { mirrorGit, bytes } from './publication-transport.mjs';
+import { mirrorGit, bytes, githubToken } from './publication-transport.mjs';
 import { signReceipt, signRuntime, RUNTIME_FILES } from './publication-receipt.mjs';
 
 test('release identities fix package, stable version, source and public destination', () => {
@@ -10,6 +10,26 @@ test('release identities fix package, stable version, source and public destinat
   assert.equal(item.filename, 'openspec-ui-cli-1.2.3.tgz');
   assert.equal(item.artifact_url, 'https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-cli@1.2.3/openspec-ui-cli-1.2.3.tgz');
   for (const args of [['evil', '1.2.3', item.commit], ['npm', '1.2.3-beta', item.commit], ['npm', '1.2.3', 'main']]) assert.throws(() => assetIdentity(...args));
+});
+
+test('single-line mirror credentials mint a valid JWT and only one repository grant', async () => {
+  const keys = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const env = { GITHUB_APP_ID: '123', GITHUB_APP_PRIVATE_KEY_BASE64:
+    Buffer.from(keys.privateKey.export({ type: 'pkcs8', format: 'pem' })).toString('base64') };
+  const calls = [];
+  const call = async (url, options) => {
+    calls.push(url);
+    const [header, claims, signature] = options.token.split('.');
+    assert.ok(verify('RSA-SHA256', Buffer.from(`${header}.${claims}`), keys.publicKey, Buffer.from(signature, 'base64url')));
+    assert.equal(JSON.parse(Buffer.from(claims, 'base64url')).iss, '123');
+    if (url.endsWith('/installation')) return { id: 456 };
+    assert.deepEqual(JSON.parse(options.body), { repositories: ['OpenSpec-UI'], permissions: { contents: 'write' } });
+    return { token: 'fixture-installation-token', permissions: { contents: 'write' } };
+  };
+  assert.equal(await githubToken('OpenSpec-UI', { env, call }), 'fixture-installation-token');
+  assert.equal(calls.length, 2);
+  await assert.rejects(githubToken('OpenSpec-UI', { env: { ...env, GITHUB_APP_PRIVATE_KEY_BASE64: 'invalid' }, call }));
+  assert.equal(calls.length, 2);
 });
 
 test('existing immutable asset must match both filename and actual bytes', () => {

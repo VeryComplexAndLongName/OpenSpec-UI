@@ -7,7 +7,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { mainQualityProof, signReceipt, verifyReceipt, signRuntime, verifyRuntime, RUNTIME_FILES } from './publication-receipt.mjs';
 import { validatePackage } from './publication-worker.mjs';
-import { SOURCE, PUBLIC, INTERNAL, bytes, json, gitea, githubToken, mirrorGit } from './publication-transport.mjs';
+import { SOURCE, PUBLIC, INTERNAL, bytes, json, gitea, githubToken, mirrorGit, decodeKey } from './publication-transport.mjs';
 
 const digest = (value) => createHash('sha256').update(value).digest('hex');
 const gh = (route, token, options = {}) => json(`https://api.github.com/repos/${PUBLIC}${route}`, {
@@ -86,7 +86,7 @@ export async function stage(item, quality, file, baseProduct, token) {
     if (approved.channel !== item.channel || approved.version !== item.version) throw new Error('Staged release identity differs');
   } else {
     approved = { ...item, sha256: digest(file) };
-    approved.receipt = signReceipt(approved, quality, process.env.RELEASE_SIGNING_PRIVATE_KEY);
+    approved.receipt = signReceipt(approved, quality, decodeKey(process.env.RELEASE_SIGNING_PRIVATE_KEY_BASE64));
     const existingTag = await gitea(`/tags/${encodeURIComponent(item.tag)}`, { missing: true });
     if (existingTag && existingTag.commit?.id !== item.commit) throw new Error('Existing Gitea tag differs from approved source');
     // Persist approval before the first external asset write. Recovery reuses it.
@@ -214,7 +214,7 @@ export async function main() {
     }
     const previous = await json(`https://raw.githubusercontent.com/${PUBLIC}/release-manifest/releases.json`);
     const files = Object.fromEntries(await Promise.all(RUNTIME_FILES.map(async (name) => [name, digest(await readFile(name))])));
-    const workerSource = signRuntime(current, quality, files, process.env.RELEASE_SIGNING_PRIVATE_KEY);
+    const workerSource = signRuntime(current, quality, files, decodeKey(process.env.RELEASE_SIGNING_PRIVATE_KEY_BASE64));
     await publishManifest(mergeManifests(base, previous, accepted, prior?.publications || [], undefined, workerSource), token, current, directory);
   } finally { await rm(directory, { recursive: true }); }
 }

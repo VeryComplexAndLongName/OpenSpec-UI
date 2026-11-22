@@ -47,17 +47,22 @@ export function gitea(route, options = {}) {
     { token: process.env.GITEA_TOKEN, ...options, body: options.body === undefined ? undefined : JSON.stringify(options.body) });
 }
 
-export async function githubToken(repository) {
+export function decodeKey(value) {
+  if (typeof value !== 'string' || !value || Buffer.from(value, 'base64').toString('base64') !== value) throw new Error('Expected a canonical base64-encoded private key');
+  return Buffer.from(value, 'base64');
+}
+
+export async function githubToken(repository, { env: configuration = process.env, call = json } = {}) {
   if (!['OpenSpec-UI', 'OpenSpec-UI-Homepage'].includes(repository)) throw new Error('Unapproved mirror repository');
-  const { GITHUB_APP_ID: app, GITHUB_APP_PRIVATE_KEY: pem, GITHUB_APP_PRIVATE_KEY_FILE: file } = process.env;
+  const { GITHUB_APP_ID: app, GITHUB_APP_PRIVATE_KEY_BASE64: encoded, GITHUB_APP_PRIVATE_KEY_FILE: file } = configuration;
   if (!/^\d+$/u.test(app || '')) throw new Error('Mirror App id is missing');
-  const key = createPrivateKey(pem || readFileSync(file));
+  const key = createPrivateKey(encoded ? decodeKey(encoded) : readFileSync(file));
   const now = Math.floor(Date.now() / 1000);
   const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
   const unsigned = `${encode({ alg: 'RS256', typ: 'JWT' })}.${encode({ iat: now - 30, exp: now + 300, iss: app })}`;
   const jwt = `${unsigned}.${sign('RSA-SHA256', Buffer.from(unsigned), key).toString('base64url')}`;
-  const installation = await json(`https://api.github.com/repos/VeryComplexAndLongName/${repository}/installation`, { token: jwt });
-  const issued = await json(`https://api.github.com/app/installations/${installation.id}/access_tokens`, {
+  const installation = await call(`https://api.github.com/repos/VeryComplexAndLongName/${repository}/installation`, { token: jwt });
+  const issued = await call(`https://api.github.com/app/installations/${installation.id}/access_tokens`, {
     token: jwt, method: 'POST', body: JSON.stringify({ repositories: [repository], permissions: { contents: 'write' } }) });
   if (!issued.token || issued.permissions?.contents !== 'write') throw new Error('Mirror App lacks scoped contents write');
   return issued.token;

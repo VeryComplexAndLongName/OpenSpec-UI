@@ -87,6 +87,11 @@ Gitea release preparation needs `MIRROR_APP_ID`, `MIRROR_APP_PRIVATE_KEY` and
 with Contents write and mandatory Metadata read. It obtains short installation
 tokens. It does not publish to npm or Marketplace. Retire GitHub workflows
 before the one-time mirror bootstrap; future mirrors need no Workflows write.
+Store both private-key secrets as canonical single-line base64 of their PEM
+bytes. The producer decodes them only inside Node. Do not expose multiline PEM
+in action inputs or environment values: Gitea's escaped environment logging can
+miss multiline masking. The Homepage mirror uses the same encoded transport,
+and its short installation token is revoked after the fast-forward attempt.
 
 CircleCI uses organization `3d5db94d-4a2c-499e-82f5-af1f9fd28d49`, project
 `1bee6918-ef0a-424e-9775-cfd25745b0cd`, pipeline definition

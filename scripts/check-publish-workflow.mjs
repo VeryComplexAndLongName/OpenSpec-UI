@@ -37,6 +37,7 @@ export async function checkOtherWorkflows(directory = root) {
     const source = executable(await readFile(path.join(workflows, file), 'utf8'));
     if (/VSCE_PAT|NPM_TOKEN|NODE_AUTH_TOKEN|npm publish|vsce publish|changeset publish/u.test(source)) problems.push(`${file}: Gitea prepares artifacts, never registry writes`);
     if (file !== 'release.yml' && /MIRROR_APP_PRIVATE_KEY|RELEASE_SIGNING_PRIVATE_KEY/u.test(source)) problems.push(`${file}: production producer keys belong only to checked release preparation`);
+    if (file === 'release.yml' && /^\s*(?:GITHUB_APP_PRIVATE_KEY|RELEASE_SIGNING_PRIVATE_KEY):/mu.test(source)) problems.push('Use single-line encoded producer keys; multiline environment logging can disclose PEM');
   }
   const service = await readFile(path.join(directory, 'deploy/publication/marketplace.service'), 'utf8');
   for (const boundary of ['User=openspec-publisher', 'ProtectSystem=strict', 'NoNewPrivileges=yes',

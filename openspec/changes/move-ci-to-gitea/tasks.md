@@ -73,6 +73,12 @@
 - [x] 3.5 Prepare removal of all GitHub workflows/Dependabot configuration;
   the policy refuses active GitHub YAML. Actual repository Actions disablement
   and mirror cutover occur only after replacement CI and credentials work.
+- [x] 3.6 In scripts/publication-transport.mjs, decode single-line App key
+  material only inside Node. The named JWT fixture test verifies its actual
+  RSA signature, exact one-repository grant and refusal before any network call.
+- [x] 3.7 In scripts/mirror-tested-release.mjs, decode the single-line signing
+  key only at signing. The named receipt/mirror/policy tests and changed-file
+  ESLint passed. The policy refuses raw PEM environment property names.
 
 ## 4. Selected local verification
 
