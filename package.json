@@ -40,7 +40,7 @@
     "lint:articles": "node scripts/check-articles.mjs",
     "test:articles": "node --test scripts/check-articles.test.mjs",
     "lint:gitea-ci": "node scripts/gitea-ci.mjs",
-    "test:gitea-ci": "node --test scripts/gitea-ci.test.mjs scripts/review-dependency-diff.test.mjs"
+    "test:gitea-ci": "node --test scripts/gitea-ci.test.mjs scripts/review-dependency-diff.test.mjs scripts/prepare-vscode-test.test.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.3",
