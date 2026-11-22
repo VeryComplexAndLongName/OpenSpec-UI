@@ -83,16 +83,14 @@ for new work and never justifies rebuilding an old version's artifact.
   never runs `changeset publish`, so `access: "restricted"` in
   `config.json` is never exercised; the workflow passes `--access public`
   itself.
-- **CI prepares immutable artifacts.** CI (`release-extension`
-  job in `.github/workflows/quality.yml`) tags the commit and publishes a
-  GitHub Release with the built `.vsix` once `package.json`'s version has
-  no matching git tag yet — changesets only produces the version bump and
-  changelog entry that trigger that existing pipeline; it does not replace
-  it. A matching `release-cli` job prepares the CLI tarball. Short jobs in
-  `.github/workflows/publish.yml` automatically pull approved Homepage work,
-  verify the artifact checksum, reconcile existing registry versions and
-  publish through OIDC. Homepage retains confirmations and finite retry
-  budgets; registry writes do not run in Quality.
+- **Gitea prepares immutable artifacts.** `.gitea/workflows/quality.yml`
+  tests the prepared CLI archive and native extension. After successful main
+  Quality, `.gitea/workflows/release.yml` mirrors source and uploads those exact
+  files to GitHub Releases with signed receipts. Changesets only proposes the
+  version bump and authored notes. CircleCI's npm worker and the isolated Entra
+  Marketplace service consume Homepage leases, verify receipts/checksums and
+  reconcile existing registry versions. Homepage retains confirmations and
+  finite retry budgets; registry writes never run in Quality or GitHub Actions.
 - **`openspec-ui`** (the private workspace root, always `0.0.0`) is
   listed in `config.json`'s `ignore` array — it is a workspace
   container, never a release artifact, and was never bumped by hand

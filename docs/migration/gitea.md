@@ -66,6 +66,10 @@ Homepage retains Python 3.12/3.14 and the exact deployed dependency lock.
    versions retain their dates and historical links. `publications.json` holds
    at most 100 signed candidates; previously published baseline versions are not
    turned into newly approved builds.
+   A signed worker-source receipt binds the Marketplace runtime's exact commit
+   and fixed file hashes to the same successful Gitea run. Homepage verifies it
+   before deploying privileged code. A verified producer checkpoint prevents
+   repeated scheduled asset downloads from inflating the public download totals.
 5. Homepage polls the contract, retains its verified Ed25519 receipt and leases
    eligible work. Workers verify the signature, fixed URL, inner product identity
    and SHA-256 before a registry write. They reconcile the registry before retry.

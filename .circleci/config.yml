@@ -15,7 +15,7 @@ jobs:
           command: |
             set -eu
             test "$CIRCLE_BRANCH" = main
-            npm install --prefix /tmp/openspec-registry-client npm@12.1.0 --ignore-scripts --no-audit --no-fund
+            timeout 120 npm install --prefix /tmp/openspec-registry-client npm@12.1.0 --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org
           no_output_timeout: 2m
       - run:
           name: Consume the approved Homepage queue without rebuilding

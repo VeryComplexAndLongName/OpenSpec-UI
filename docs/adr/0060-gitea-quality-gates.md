@@ -1,6 +1,6 @@
 # 0060: Complete quality gates in Gitea
 
-Status: Proposed
+Status: Accepted
 
 Date: 2026-11-22
 

@@ -1,110 +1,121 @@
 # Tasks
 
-## 0. Publication feasibility before cutover
+## 0. Access and preservation
 
-- [x] 0.1 Record an actual CircleCI Free hosted job without a payment card,
-  the exact organization/project/pipeline/context identifiers and a successful
-  OIDC exchange for @openspec-ui/cli in publication-preflight.md. Hosted
-  runs #1/#2 succeeded; run #2 exchanged a package token without publishing.
-- [x] 0.1a Add an authentication-only .circleci/config.yml and
-  scripts/check-circleci-npm-access.mjs. Before pushing, run only
-  node --test scripts/check-circleci-npm-access.test.mjs, scoped ESLint on
-  those two scripts, YAML parsing and strict OpenSpec validation. Initial
-  identity discovery may use the dedicated circleci-project-setup branch;
-  exchange requires an exact approved context bound to that same branch.
-  No application build/test suite or registry version is run/published there.
-  Five offline tests, changed-path ESLint, YAML parsing and strict validation
-  passed; hosted identity and package exchange passed on 2026-11-22.
-- [x] 0.2 Add scripts/check-marketplace-entra-access.mjs and its named test.
-  Verify the approved certificate, actual Marketplace profile, direct
-  Contributor role and unchanged publisher/extension ids. Evidence on
-  2026-11-22: 5 offline tests passed; live identity and strict role probes
-  passed; installed vsce 3.9.2 verify-pat with --azure-credential passed.
-  No registry version was published. Remote executor deployment is separate.
-  Scoped static check: run the installed ESLint CLI with the original root's
-  eslint.config.js only on scripts/check-marketplace-entra-access.mjs and
-  scripts/check-marketplace-entra-access.test.mjs. Neither file is TypeScript.
-- [ ] 0.3 Record the first legitimate release's remote identities and exact
-  assets. Never publish a disposable test version to activate a trust.
-- [x] 0.4 Supersede the abandoned GitLab MR/preflight and review exact unused
-  GitLab grants for cleanup after replacement access works. GitLab MR !1 is
-  closed unmerged. After hosted npm exchange, the owner-approved federation
-  gitlab-main-marketplace and npm connection GitLab release publisher were
-  deleted. Entra retains its certificate and passes the strict live role
-  probe; npm lists only the preserved GitHub and new CircleCI trusts, both
-  Valid. The UI confirms successful deletion; no package was published.
+- [x] 0.1 In publication-preflight.md, record actual CircleCI Free runs #1/#2,
+  exact project/pipeline/context identity and successful npm token exchange
+  without a card or package write. The npm trust is Valid; preserve GitHub trust.
+- [x] 0.2 In scripts/check-marketplace-entra-access.mjs, verify certificate,
+  actual profile, direct Contributor and unchanged publisher/extension ids.
+  Five named tests and scoped ESLint passed. Actual certificate/native vsce
+  probes passed locally and on the isolated production server without a write.
+- [x] 0.4 In publication-preflight.md, record closed GitLab MR !1 and the
+  owner-approved removal of its unused npm trust and Entra federation after
+  replacement exchange succeeded. Preserve the working Entra certificate.
 
-## 1. Preservation and final architecture
+## 1. Preservation and authority
 
-- [ ] 1.1 Inventory refs, tags, release metadata/assets/hashes, open PR heads
-  and dirty user branches in docs/migration/gitea.md. Preserve PR #1009 and
-  unrelated active work. Verify recoverable backups before conflicting writes.
-- [ ] 1.2 Integrate the final Publication Center commits/manifest contract;
-  reconcile its release-quality and worker specs with ADR 0059. Do not edit
-  another worktree or claim the unfinished draft is deployed.
-- [ ] 1.3 Accept docs/adr/0059-gitea-ci-and-independent-publication.md only
-  after actual publisher and Gitea runner evidence. Keep both GitHub repos
-  permanently as public mirrors/Release hosts; there is no retirement date.
+- [x] 1.1 In docs/migration/gitea.md, retain ref/tag/release/PR inventory and
+  recoverable backups. The complete product bundle restored and passed fsck;
+  production SQLite integrity and private code/service archive were verified.
+  Preserve PR #1009 and the original dirty Homepage checkout, including raw diff.
+- [x] 1.2 Integrate the prepared Publication Center in this owned worktree;
+  reconcile provider choices through ADR 0059 and the publication-center delta.
+  Do not edit its original worktree or create another queue.
+- [x] 1.3 Accept docs/adr/0059-gitea-ci-and-independent-publication.md after
+  real Gitea full run 6734, hosted CircleCI exchange and server Entra probes.
+  Preserve both mirrors' current visibility and all existing public identities.
 
-## 2. All CI in Gitea
+## 2. Gitea checks and proposals
 
-- [ ] 2.1 Port the complete named Quality inventory into
-  .gitea/workflows/quality.yml, including independent security/review,
-  OpenSpec validation, real extension, browser/accessibility and package smoke.
-- [ ] 2.2 Implement version PRs, lockfile consistency, stable tags, immutable
-  artifacts and serialized release preparation in .gitea/workflows/release.yml.
-- [ ] 2.3 Implement dependency proposals in .gitea/workflows/dependencies.yml,
-  retaining independent audit semantics and deliberate major upgrades.
-- [ ] 2.4 Record exact required checks, protection and run URLs. Finish the
-  preserved issue-to-Propose PR through real Gitea CI rather than billing bypass.
+- [x] 2.1 In .gitea/workflows/quality.yml, preserve complete quality, audit,
+  dependency review, OpenSpec, native, browser/accessibility and version-PR
+  gates. Bootstrap PR 1 passed full run 6734 and merged as ef91b62a. Its
+  standard OpenSpec archive is prepared separately after that merge.
+- [x] 2.1a In .gitea/runner/config.yaml and compose.yaml, enable authenticated
+  per-repository cache only on private 192.168.137.34:8095, retaining job CPU,
+  memory, privilege and socket boundaries. Selected gitea-ci tests/ESLint passed;
+  an unauthenticated request returned 401 and native job 8958 saved the cache.
+- [x] 2.2 In scripts/gitea-proposal.mjs, propose package versions and refreshed
+  lockfile together, using an explicit lease on only changeset-release/main.
+  Its named test refuses application-source or workflow edits. Do not auto-merge.
+- [x] 2.3 In .gitea/workflows/dependencies.yml, propose compatible lockfile
+  updates through the same scoped helper. Its named test refuses manifest
+  changes and @types/vscode above 1.90. Deliberate pins and majors remain review.
+- [ ] 2.4 Record the exact required checks/protection and actual Gitea delivery
+  of preserved GitHub PR #1009 through Gitea PR 2. Merge only its passing head.
 
-## 3. Mirror and publication executors
+## 3. Approved bytes and independent executors
 
 - [ ] 3.0 In packages/cli/scripts/smoke-package.mjs, accept the exact prepared
-  CLI archive and check its installed package identity. Feed that archive and
-  releases-base.json through the quality job artifact in quality.yml. Use
-  changed-file ESLint and syntax checks locally; the real prepared-tarball
-  smoke and native VSIX artifact must pass in Gitea before completion.
-- [ ] 3.0a In scripts/publication-receipt.mjs, bind signed artifact metadata
-  to all actual successful main Quality results. Run the named receipt and
-  publication-worker tests plus changed-file ESLint, with no registry write.
+  archive and verify installed package identity. Its changed-file ESLint and
+  syntax checks passed. Before completion, require the actual Gitea prepared
+  tarball smoke and both v4 REST artifacts, including the native VSIX.
+- [x] 3.0a In scripts/publication-receipt.mjs, bind artifact approval and each
+  fixed worker-source file to successful actual main Quality metadata. Named
+  receipt/worker/mirror tests pass and refuse changed source, purpose or bytes.
+- [x] 3.1 In scripts/mirror-tested-release.mjs, preserve immutable tags/assets,
+  recover original staged receipts/bytes and append manifest history. Seven
+  named mirror tests cover conflicts, source allowlists and producer checkpoint
+  refusal. Repeated schedules must not inflate GitHub self-download counters.
+- [x] 3.2 In .circleci/config.yml, configure a main-only publication worker
+  using the approved context, pinned isolated npm client and serial group.
+  Policy tests refuse rebuilds, permanent tokens and another channel writer.
+  Main context/trigger activation and the first real release remain acceptance.
+- [x] 3.3 In deploy/publication/marketplace.service and marketplace.timer,
+  define a bounded isolated certificate executor consuming Homepage leases.
+  Its account/tools/private certificate are provisioned and server identity,
+  Contributor and native vsce probes passed. Keep Flask unable to read the PEM.
+  Runtime deployment, API probe and timer activation remain required acceptance.
+- [x] 3.4 In scripts/check-publish-workflow.mjs, enforce independent executors,
+  exact main/context, serialization, no persistent-token fallback, no rebuild
+  and no Gitea/GitHub registry writer. Nine named mutation tests passed.
+- [x] 3.5 Prepare removal of all GitHub workflows/Dependabot configuration;
+  the policy refuses active GitHub YAML. Actual repository Actions disablement
+  and mirror cutover occur only after replacement CI and credentials work.
 
-- [ ] 3.1 Add scripts/mirror-tested-release.mjs and named tests for exact
-  source/tag matching, target allowlists, existing assets and hash conflicts.
-  Upload GitHub Releases through REST API without GitHub Actions.
-- [ ] 3.2 Add publication-only .circleci/config.yml consuming eligible
-  Homepage jobs and authenticated Gitea receipts. Reject foreign refs, altered
-  hashes, arbitrary URLs and duplicate version writes. No application rebuild.
-- [ ] 3.3 Add the isolated Entra Marketplace worker against the accepted
-  Homepage lease/completion API. Deploy the certificate only to that executor,
-  verify service networking and document expiry/rotation. Keep the Flask
-  process and untrusted PR jobs without access to the private key.
-- [ ] 3.4 Adapt scripts/check-publish-workflow.mjs and its named tests to the
-  independent executors and accepted Homepage eligibility. Enforce one writer
-  per channel, no permanent npm token fallback and no untrusted artifact input.
-- [ ] 3.5 Replace GitHub quality/publish/homepage-dispatch jobs with disabled
-  transition notices only after replacement CI, mirror and publishers pass.
-  Keep public source/docs/feedback URLs unchanged.
+## 4. Selected local verification
 
-## 4. Verification and delivery
+- [x] 4.1 Record exact selected files and results in evidence.md. Only named
+  Node tests, changed-file ESLint, YAML/shell parsing and strict OpenSpec ran
+  locally. Application TypeScript did not change; no local full suite ran.
+- [x] 4.2 Validate move-ci-to-gitea strictly and review source/target, signature,
+  package, history and credential boundaries before the PR. Full required CI
+  remains an explicit merge prerequisite, recorded separately after it runs.
+- [x] 4.4 Preserve existing authored delivery notes and pending Changesets.
+  This migration changes CI/deployment helpers, not delivered product behavior,
+  and requires no invented package bump or disposable registry version.
 
-- [ ] 4.1 Record the exact selected local tests, lint paths and TypeScript
-  projects before implementing each part. Never run full verification locally.
-- [ ] 4.2 Validate move-ci-to-gitea strictly and review changed paths before
-  the Gitea PR. Complete full required checks in Gitea and record their links.
-- [ ] 4.3 Verify the deployed Homepage queue, lost-notification recovery,
-  retries, duplicate refusal, unchanged historical downloads and install ids.
-- [ ] 4.4 Assess final public behavior for Changesets to extension/server/CLI;
-  record why infrastructure-only portions do not need a product bump.
-  Preserve authored notes from the accepted Publication Center change.
-- [ ] 4.5 Merge only after required checks, archive with standard OpenSpec
-  commands and land the archive in authoritative main. Mirror accepted main.
-- [ ] 4.6 Confirm remote main contains every needed commit and owned worktrees
-  have no needed unsaved/untracked work; remove only this task's completed
-  worktrees and local branches with normal git worktree remove.
+## Required post-merge acceptance and cleanup
+
+These ordered delivery actions are not pre-merge implementation checkboxes.
+They remain mandatory and block final archival until their real evidence exists:
+
+1. Record the migration PR's full Gitea checks/review and merge. Configure the
+   scoped mirror App and final main-only CircleCI context/checkout/config refs.
+   Disable actual GitHub Actions, bootstrap the checked fast-forward mirror and
+   retain main/tag protections. Preserve existing GitHub source and release URLs.
+2. Deploy the checked Homepage revision with the signed worker-source contract.
+   Confirm its real API, unchanged historical records, installed public ids,
+   loss-of-notification recovery, finite retries and duplicate refusal.
+3. Probe both real executors without claiming work; then enable their recovery
+   schedules and observe the first automatic successful runs. For the first
+   legitimate version release, retain exact source/asset hashes and independently
+   verify Marketplace, npm latest and the versions visible on openspec-ui.dev.
+   Never create a disposable version or social test post.
+4. Archive Publication Center first, then this migration, with standard OpenSpec
+   so modified specs have their accepted base. Land synchronized specs/archive
+   in authoritative main, pass required checks and mirror accepted main.
+5. Verify every needed commit is in remote main and owned worktrees contain no
+   needed unsaved/untracked or other-agent work. Detach only owned dependency
+   junctions, remove owned worktrees with normal git worktree remove and delete
+   merged local branches. Keep original user/peer worktrees and private backups.
+
+Record actual outcomes and any remaining acceptance in evidence.md; do not claim
+completion from the access probes or these configuration checks alone.
 
 ## Scope correction
 
 The owner withdrew GitLab publication/public links and GitHub deletion on
-2026-11-22. Earlier draft paths/branch names are historical workspace names,
-not permission to retire GitHub. CircleCI/Entra replace that publication trial.
+2026-11-22. Earlier directory names are historical workspace names, not
+permission to retire GitHub. CircleCI/Entra replace that abandoned trial.

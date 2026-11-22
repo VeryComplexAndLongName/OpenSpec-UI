@@ -4,6 +4,11 @@
 
 Accepted. Supersedes the manual publication decisions in ADR 0048 and the archived changes the-marketplace-publish-is-a-manual-step and one-dispatch-publishes-to-both-channels.
 
+ADR 0059 supersedes this document's GitHub-only execution and identity choices.
+The durable Homepage queue, automatic eligibility, finite retries and independent
+confirmation remain authoritative. Gitea now prepares checked signed artifacts;
+CircleCI publishes npm and the isolated Entra executor publishes Marketplace.
+
 ## Context
 
 The owner requests automatic publication with a durable queue, confirmations, status and finite retries in Homepage. Article credentials already live on that server. Registry trusted publishing belongs on GitHub-hosted runners: npm supports this today and Marketplace supports vsce --oidc from 4.0.2.

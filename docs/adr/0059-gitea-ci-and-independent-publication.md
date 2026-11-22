@@ -1,6 +1,6 @@
 # 0059: Gitea CI and independent publication
 
-Status: Proposed
+Status: Accepted
 
 Date: 2026-11-22
 
@@ -15,7 +15,13 @@ GitHub Actions is unavailable due to account billing. GitLab hosted runners requ
 3. Prove actual CircleCI Free hosted execution without a card and package-specific npm OIDC authorization before selecting that executor. It claims eligible Homepage jobs and publishes exact checked tarballs without rebuilding or running duplicate application CI.
 4. Prove certificate authentication for the existing Entra application and its actual Contributor role on `openspec-ui`. Keep its bounded-lifetime private key only on the isolated executor, with a rotation path, outside the public Homepage process. Sign-in and Reader access are not proof of update permission.
 5. Homepage owns eligibility, holds, leases, finite retries, durable outcomes and registry reconciliation. Integrate its accepted Publication Center contract; do not create an independent publisher.
-6. Keep both GitHub repositories as public mirrors and release hosts without a deletion date. The earlier GitLab public-home and one-month GitHub retirement plan is superseded. Review unused GitLab trust cleanup only after replacement authorization works.
+6. Keep both GitHub repositories as code mirrors and release hosts without a deletion date. The earlier GitLab public-home and one-month GitHub retirement plan is superseded. Review unused GitLab trust cleanup only after replacement authorization works.
+
+Preserve each mirror's existing visibility: OpenSpec-UI is public and
+OpenSpec-UI-Homepage is private. This migration grants no permission to expose
+the private site's source or configuration. Runtime code copied from storage
+must carry a separate Gitea-signed source receipt with exact file hashes; the
+mirror App's write permission is not code approval.
 
 ## Rejected Alternatives
 
@@ -30,3 +36,10 @@ GitHub Actions is unavailable due to account billing. GitLab hosted runners requ
 ## Consequences
 
 CircleCI currently lacks npm automatic provenance attestations; document this material limitation if it is selected. Hosted Free runs and a package-specific npm exchange succeeded on 2026-11-22 without a payment card; certificate authentication and the actual Marketplace Contributor role also passed. npm subsequently displayed the CircleCI connection as Valid without a registry write. These are access evidence, not registry-write or production-cutover evidence. Certificate authentication requires private-key protection and rotation. Reconcile the final Publication Center specs before apply rather than retaining conflicting GitHub/manual-publishing rules. Existing Gitea runner labels share a Docker host and are suitable only for trusted internal authors; untrusted public contributions need an isolated ephemeral VM. No agent protocol, public repository destination or shared-Core delivery architecture changes. See the change's publication-preflight.md for run links and remaining deployment gates.
+
+Gitea full run 6734 passed all product gates, including 23 real native tests.
+The dedicated runner's authenticated per-repository cache is bound to the
+private LAN, without a Docker socket or host mounts in jobs. The controlled
+Marketplace server passed the actual identity/Contributor and native vsce
+certificate probes. Cutover, first real publication and cleanup remain distinct
+delivery acceptance and must be recorded after execution.
