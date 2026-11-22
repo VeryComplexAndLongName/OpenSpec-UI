@@ -3,7 +3,7 @@ Description=Recover eligible Marketplace publications without a CI notification
 
 [Timer]
 OnBootSec=5min
-OnUnitActiveSec=5min
+OnUnitInactiveSec=5min
 Persistent=true
 RandomizedDelaySec=30
 

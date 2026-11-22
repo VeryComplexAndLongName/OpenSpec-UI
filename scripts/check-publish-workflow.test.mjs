@@ -11,6 +11,7 @@ test('publication-only CircleCI configuration passes', () => assert.deepEqual(ch
 for (const [name, mutate] of [
   ['non-main context', (w) => { w.workflows['npm-publication'].when = 'true'; }],
   ['foreign context', (w) => { w.workflows['npm-publication'].jobs[0]['npm-publication'].context = 'other'; }],
+  ['concurrent channel writers', (w) => { delete w.workflows['npm-publication'].jobs[0]['npm-publication']['serial-group']; }],
   ['extra publisher', (w) => { w.jobs.extra = w.jobs['npm-publication']; }],
   ['rebuild', (w) => { w.jobs['npm-publication'].steps.push({ run: 'npm ci && npm run build' }); }],
   ['direct publication', (w) => { w.jobs['npm-publication'].steps.push({ run: 'npm publish' }); }],

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { createHash, generateKeyPairSync } from 'node:crypto';
 import test from 'node:test';
-import { assetIdentity, reconcileAsset, zipEntries, mergeManifests, tagAt } from './mirror-tested-release.mjs';
+import { assetIdentity, reconcileAsset, zipEntries, mergeManifests, tagAt, alreadyPrepared } from './mirror-tested-release.mjs';
 import { mirrorGit, bytes } from './publication-transport.mjs';
-import { signReceipt } from './publication-receipt.mjs';
+import { signReceipt, signRuntime, RUNTIME_FILES } from './publication-receipt.mjs';
 
 test('release identities fix package, stable version, source and public destination', () => {
   const item = assetIdentity('npm', '1.2.3', 'a'.repeat(40));
@@ -63,4 +63,16 @@ test('release manifest keeps historical dates, links and unsigned old versions o
   assert.deepEqual(unchanged.releases.products, result.releases.products);
   assert.equal(unchanged.publications.publications.length, 1);
   assert.throws(() => mergeManifests(base, previous, [{ ...item, sha256: 'c'.repeat(64) }], [], keys.publicKey));
+});
+
+test('a verified producer checkpoint prevents scheduled self-downloads and still refuses mirror drift', () => {
+  const keys = generateKeyPairSync('ed25519');
+  const commit = 'a'.repeat(40);
+  const quality = { id: 12, head_sha: commit, event: 'push', conclusion: 'success', workflow: 'quality.yml' };
+  const worker = signRuntime(commit, quality, Object.fromEntries(RUNTIME_FILES.map((name) => [name, 'b'.repeat(64)])), keys.privateKey.export({ type: 'pkcs8', format: 'pem' }));
+  const document = { schema_version: 1, repository: 'VeryComplexAndLongName/OpenSpec-UI', producer_commit: commit, worker_source: worker, publications: [] };
+  assert.equal(alreadyPrepared(document, commit, commit, keys.publicKey), true);
+  assert.equal(alreadyPrepared(document, commit, 'c'.repeat(40), keys.publicKey), false);
+  assert.equal(alreadyPrepared(null, commit, commit, keys.publicKey), false);
+  assert.throws(() => alreadyPrepared({ ...document, worker_source: null }, commit, commit, keys.publicKey));
 });

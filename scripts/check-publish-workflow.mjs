@@ -16,6 +16,7 @@ export function checkPublishWorkflow(source) {
   const run = workflow.workflows?.['npm-publication'];
   if (run?.when !== 'pipeline.git.branch == "main"' || run?.jobs?.length !== 1
       || run.jobs[0]?.['npm-publication']?.context !== 'npm-publication') problems.push('Exact main and approved context are required');
+  if (run?.jobs?.[0]?.['npm-publication']?.['serial-group'] !== '<< pipeline.project.slug >>/npm-publication') problems.push('Serialize the npm channel across push and scheduled pipelines');
   const job = workflow.jobs?.['npm-publication'];
   if (!job?.docker?.[0]?.image?.startsWith('node:24.21.0-bookworm@sha256:') || job.resource_class !== 'small') problems.push('Pin the hosted runtime and bounded executor');
   const commands = (job?.steps ?? []).filter((one) => one.run).map((one) => one.run.command ?? one.run).join('\n');

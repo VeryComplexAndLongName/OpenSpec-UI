@@ -1,11 +1,11 @@
 // Gitea prepares releases; Homepage alone decides registry eligibility.
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { mainQualityProof, signReceipt, verifyReceipt } from './publication-receipt.mjs';
+import { mainQualityProof, signReceipt, verifyReceipt, signRuntime, verifyRuntime, RUNTIME_FILES } from './publication-receipt.mjs';
 import { validatePackage } from './publication-worker.mjs';
 import { SOURCE, PUBLIC, INTERNAL, bytes, json, gitea, githubToken, mirrorGit } from './publication-transport.mjs';
 
@@ -119,7 +119,7 @@ export async function stage(item, quality, file, baseProduct, token) {
   return { ...approved, released_at: release.published_at, size_bytes: file.length };
 }
 
-export function mergeManifests(base, previous, accepted, priorPublications, receiptKey) {
+export function mergeManifests(base, previous, accepted, priorPublications, receiptKey, workerSource) {
   if (base.schema_version !== 1 || previous.schema_version !== 1) throw new Error('Manifest schema differs');
   const products = base.products.map((product) => {
     const old = previous.products.find((one) => one.id === product.id);
@@ -134,7 +134,16 @@ export function mergeManifests(base, previous, accepted, priorPublications, rece
   });
   const publications = [...accepted, ...priorPublications.filter((old) => !accepted.some((one) => one.channel === old.channel && one.version === old.version))].slice(0, 100);
   for (const item of publications) verifyReceipt(item, receiptKey);
-  return { releases: { ...base, products }, publications: { schema_version: 1, repository: PUBLIC, publications } };
+  return { releases: { ...base, products }, publications: { schema_version: 1, repository: PUBLIC,
+    producer_commit: base.commit, worker_source: workerSource, publications } };
+}
+
+export function alreadyPrepared(document, commit, mirrored, receiptKey) {
+  if (document?.producer_commit !== commit || mirrored !== commit) return false;
+  if (document.schema_version !== 1 || document.repository !== PUBLIC || !Array.isArray(document.publications)) throw new Error('Invalid existing producer checkpoint');
+  if (verifyRuntime(document.worker_source, receiptKey).commit !== commit) throw new Error('Worker source checkpoint differs');
+  for (const item of document.publications) verifyReceipt(item, receiptKey);
+  return true;
 }
 
 async function publishManifest(documents, token, commit, directory) {
@@ -168,13 +177,18 @@ export async function main() {
   if (!run) { console.log('Current main Quality has not completed; no mirror or release write.'); return; }
   const quality = mainQualityProof(run, (await gitea(`/actions/runs/${run.id}/jobs`)).jobs, current);
   if (execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim() !== current) throw new Error('Checkout no longer matches authoritative main');
+  const prior = await json(`https://raw.githubusercontent.com/${PUBLIC}/release-manifest/publications.json`, { missing: true });
+  const token = await githubToken('OpenSpec-UI');
+  const mirrored = await gh('/git/ref/heads/main', token);
+  if (alreadyPrepared(prior, current, mirrored.object.sha)) {
+    console.log('Checked main is already prepared; no repeated artifact downloads or registry work.'); return;
+  }
   const directory = await mkdtemp(path.join(tmpdir(), 'openspec-approved-'));
   try {
     const cli = await artifact(run.id, 'openspec-cli-artifact', directory);
     const vsix = await artifact(run.id, 'openspec-ui-vsix', directory);
     const base = JSON.parse(await cli('releases-base.json'));
     if (base.commit !== current || base.repository !== PUBLIC) throw new Error('Typed release contract source differs');
-    const token = await githubToken('OpenSpec-UI');
     mirrorGit('OpenSpec-UI', current, token);
     const accepted = [];
     for (const [channel, id, get] of [['npm', 'ci-cli', cli], ['marketplace', 'vscode-extension', vsix]]) {
@@ -199,8 +213,9 @@ export async function main() {
       if (result) accepted.push(result);
     }
     const previous = await json(`https://raw.githubusercontent.com/${PUBLIC}/release-manifest/releases.json`);
-    const prior = await json(`https://raw.githubusercontent.com/${PUBLIC}/release-manifest/publications.json`, { missing: true });
-    await publishManifest(mergeManifests(base, previous, accepted, prior?.publications || []), token, current, directory);
+    const files = Object.fromEntries(await Promise.all(RUNTIME_FILES.map(async (name) => [name, digest(await readFile(name))])));
+    const workerSource = signRuntime(current, quality, files, process.env.RELEASE_SIGNING_PRIVATE_KEY);
+    await publishManifest(mergeManifests(base, previous, accepted, prior?.publications || [], undefined, workerSource), token, current, directory);
   } finally { await rm(directory, { recursive: true }); }
 }
 

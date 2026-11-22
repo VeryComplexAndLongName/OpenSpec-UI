@@ -31,3 +31,4 @@ workflows:
     jobs:
       - npm-publication:
           context: npm-publication
+          serial-group: '<< pipeline.project.slug >>/npm-publication'

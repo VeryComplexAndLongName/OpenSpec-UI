@@ -1,11 +1,13 @@
 import { createPrivateKey, sign, verify } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
-export function validateProof(data) {
+export const RUNTIME_FILES = Object.freeze(['scripts/publication-worker.mjs', 'scripts/publication-receipt.mjs',
+  'scripts/check-marketplace-entra-access.mjs', '.gitea/release-signing-public.pem',
+  'deploy/publication/marketplace.service', 'deploy/publication/marketplace.timer']);
+
+function validateSource(data) {
   if (data.schema_version !== 1 || data.repository !== 'root/OpenSpec-Workbench'
       || data.ref !== 'refs/heads/main' || !/^[a-f0-9]{40}$/u.test(data.commit)
-      || !['npm', 'marketplace'].includes(data.channel)
-      || !/^\d+\.\d+\.\d+$/u.test(data.version) || !/^[a-f0-9]{64}$/u.test(data.sha256)
       || !Number.isSafeInteger(data.quality?.id) || data.quality.id < 1
       || data.quality.head_sha !== data.commit || data.quality.event !== 'push'
       || data.quality.conclusion !== 'success' || data.quality.workflow !== 'quality.yml') {
@@ -13,19 +15,48 @@ export function validateProof(data) {
   }
 }
 
-export function signReceipt(item, quality, privateKey) {
-  const data = { schema_version: 1, repository: 'root/OpenSpec-Workbench', ref: 'refs/heads/main',
-    channel: item.channel, version: item.version, commit: item.commit,
-    artifact_url: item.artifact_url, sha256: item.sha256, quality };
-  validateProof(data);
+export function validateProof(data) {
+  validateSource(data);
+  if (!['npm', 'marketplace'].includes(data.channel) || !/^\d+\.\d+\.\d+$/u.test(data.version)
+      || !/^[a-f0-9]{64}$/u.test(data.sha256)) throw new Error('Invalid registry artifact proof');
+}
+
+function signed(data, privateKey) {
   const key = createPrivateKey(privateKey);
   if (key.asymmetricKeyType !== 'ed25519') throw new Error('Expected the approved Ed25519 producer key');
   const payload = Buffer.from(JSON.stringify(data));
   return { payload: payload.toString('base64'), signature: sign(null, payload, key).toString('base64') };
 }
 
-export function verifyReceipt(item, publicKey = readFileSync(new URL('../.gitea/release-signing-public.pem', import.meta.url))) {
-  const envelope = item.receipt;
+function runtimeProof(data) {
+  validateSource(data);
+  if (data.purpose !== 'marketplace-worker-runtime' || !data.files
+      || Object.keys(data.files).sort().join(',') !== [...RUNTIME_FILES].sort().join(',')
+      || !Object.values(data.files).every((value) => /^[a-f0-9]{64}$/u.test(value))) throw new Error('Invalid checked worker source');
+}
+
+export function signRuntime(commit, quality, files, privateKey) {
+  const data = { schema_version: 1, purpose: 'marketplace-worker-runtime', repository: 'root/OpenSpec-Workbench',
+    ref: 'refs/heads/main', commit, quality, files };
+  runtimeProof(data);
+  return signed(data, privateKey);
+}
+
+export function verifyRuntime(envelope, publicKey = readFileSync(new URL('../.gitea/release-signing-public.pem', import.meta.url))) {
+  const data = verified(envelope, publicKey);
+  runtimeProof(data);
+  return data;
+}
+
+export function signReceipt(item, quality, privateKey) {
+  const data = { schema_version: 1, repository: 'root/OpenSpec-Workbench', ref: 'refs/heads/main',
+    channel: item.channel, version: item.version, commit: item.commit,
+    artifact_url: item.artifact_url, sha256: item.sha256, quality };
+  validateProof(data);
+  return signed(data, privateKey);
+}
+
+function verified(envelope, publicKey) {
   if (!envelope || Object.keys(envelope).sort().join(',') !== 'payload,signature'
       || !Object.values(envelope).every((value) => typeof value === 'string' && value.length < 8000)) {
     throw new Error('A signed Gitea build receipt is required');
@@ -34,7 +65,11 @@ export function verifyReceipt(item, publicKey = readFileSync(new URL('../.gitea/
   const signature = Buffer.from(envelope.signature, 'base64');
   if (payload.toString('base64') !== envelope.payload || signature.toString('base64') !== envelope.signature
       || !verify(null, payload, publicKey, signature)) throw new Error('Gitea receipt signature is invalid');
-  const data = JSON.parse(payload);
+  return JSON.parse(payload);
+}
+
+export function verifyReceipt(item, publicKey = readFileSync(new URL('../.gitea/release-signing-public.pem', import.meta.url))) {
+  const data = verified(item.receipt, publicKey);
   validateProof(data);
   for (const field of ['channel', 'version', 'commit', 'artifact_url', 'sha256']) {
     if (data[field] !== item[field]) throw new Error('Gitea receipt differs from its immutable artifact');

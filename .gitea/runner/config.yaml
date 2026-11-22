@@ -11,7 +11,10 @@ runner:
   labels:
     - openspec-ci:docker://docker.gitea.com/runner-images@sha256:b96ba465021b1a4c6a1c9e79220c2b9bfad0f29b09dbb528bbfb35411443a3a4
 cache:
-  enabled: false
+  enabled: true
+  dir: /data/cache/artifacts
+  host: 192.168.137.34
+  port: 8095
 container:
   privileged: false
   options: --init --cpus=2 --memory=6g --pids-limit=2048 --dns=192.168.137.6 --dns=192.168.137.3 --add-host=hppiigit:192.168.137.34

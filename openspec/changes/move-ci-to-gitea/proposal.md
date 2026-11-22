@@ -21,6 +21,8 @@ GitHub Actions cannot start because the account is locked for billing. The owner
 ### Modified Capabilities
 
 - `release-quality`: Gitea checks/builds and distinct publisher evidence, reconciled with the final Publication Center before apply.
+- `publication-center`: replace the prepared GitHub-only worker arrangement
+  with exact CircleCI and Entra identities and signed Gitea receipts.
 
 ## Impact
 
