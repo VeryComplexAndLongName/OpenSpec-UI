@@ -307,9 +307,8 @@ jobs:
   # on it beyond needing the release to exist: a failure here must not
   # skip the merge gate or the suite, the shape ci-audit-own-job
   # established after an npm outage took the whole pipeline down.
-  release-manifest:
-    name: Publish release manifest
-    needs: release-extension
+  release-cli:
+    name: Prepare immutable CLI artifact
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -317,6 +316,34 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm install --global npm@${NPM_VERSION}
+      - run: npm ci
+      - name: Prepare the CLI release without registry writes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          node scripts/release-cli.mjs
+
+  release-manifest:
+    name: Publish release manifest
+    needs: [release-extension, release-cli]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -356,6 +383,8 @@ jobs:
       # files the previous step wrote. The shell redirections below are
       # the step's own and stay relative to the repository root.
       - name: Build the manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           # --silent, because this redirects stdout into the published
           # file: without it npm prefixes its own two banner lines
@@ -366,6 +395,7 @@ jobs:
           MANIFEST_ARGS="--cwd $GITHUB_WORKSPACE --repository $GITHUB_REPOSITORY"
           npm run start --silent --workspace @openspec-ui/cli -- write manifest $MANIFEST_ARGS --commit "$GITHUB_SHA" --releases "$GITHUB_WORKSPACE/releases-input.json" > releases.json
           npm run start --silent --workspace @openspec-ui/cli -- write manifest $MANIFEST_ARGS --fingerprint > fingerprint.new
+          node scripts/publication-manifest.mjs
           # Refuse to carry anything but a usable document to the publish
           # step. Anything that reaches the branch is what the site
           # fetches, and a manifest it cannot parse leaves it showing its
@@ -405,7 +435,8 @@ jobs:
           else
             echo "(no published manifest)" > fingerprint.old
           fi
-          if diff -q fingerprint.old fingerprint.new > /dev/null; then
+          git show FETCH_HEAD:publications.json > publications.old.json 2>/dev/null || echo '{}' > publications.old.json
+          if diff -q fingerprint.old fingerprint.new > /dev/null && diff -q publications.old.json publications.json > /dev/null; then
             echo "::notice::no version changed; the manifest is already current"
             echo "published=false" >> "$GITHUB_OUTPUT"
             exit 0
@@ -442,7 +473,8 @@ jobs:
             git checkout -q -b release-manifest
           fi
           cp "$GITHUB_WORKSPACE/releases.json" releases.json
-          git add releases.json
+          cp "$GITHUB_WORKSPACE/publications.json" publications.json
+          git add releases.json publications.json
           git commit -q -m "Release manifest for ${GITHUB_SHA}"
           # No --force. Force is the mechanism of the defect above, and a
           # plain push additionally fails loudly if two publishes race —

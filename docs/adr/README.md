@@ -54,7 +54,7 @@ Alternatives / Consequences.
 | [0045](0045-every-action-is-a-verb-and-a-noun.md) | Every action is a verb and a noun | Accepted |
 | [0046](0046-every-message-has-an-identifier.md) | Every message has an identifier | Accepted |
 | [0047](0047-what-waits-for-a-person-is-a-dialog.md) | What waits for a person is a dialog | Accepted |
-| [0048](0048-npm-is-published-by-trusted-publishing-from-the-dispatch.md) | npm is published by Trusted Publishing, from the same dispatch as the Marketplace | Accepted; completes 0009 decision 5 |
+| [0048](0048-npm-is-published-by-trusted-publishing-from-the-dispatch.md) | npm is published by Trusted Publishing, from the same dispatch as the Marketplace | Superseded by 0058 |
 | [0049](0049-workbench-compliance-runs-only-when-idle.md) | Cache-first Compliance reuses observations and checks only in bounded idle steps | Proposed |
 | [0050](0050-process-ledger-identifies-spawned-processes.md) | A process ledger identifies spawned processes by OS snapshot | Proposed |
 | [0051](0051-codex-runs-in-a-named-sandbox.md) | Codex runs in a named sandbox, by what its stage does | Accepted |
@@ -63,5 +63,6 @@ Alternatives / Consequences.
 | [0054](0054-release-notes-belong-to-the-product.md) | Release notes belong to the product a person uses | Accepted |
 | [0055](0055-the-harness-authorizes-a-specific-push.md) | The Harness authorizes a specific push | Accepted |
 | [0057](0057-the-npm-package-launches-the-workbench.md) | The npm package launches the existing Workbench host | Accepted; amends 0020 decision 2 |
+| [0058](0058-homepage-publication-center.md) | Automatic publication coordinated by Homepage | Accepted; supersedes 0048 |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.
