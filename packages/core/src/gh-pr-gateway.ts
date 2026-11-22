@@ -2,6 +2,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import crossSpawn from "cross-spawn";
 import { readGitHubChecks, type GitHubCheckTarget, type GitHubChecksReport, type ReviewCheckOptions } from "./github-checks.js";
 import { say, type MessageCode, type SaidMessage } from "./message-register.js";
+import { assertIssueNumber, readForgeIssue, type ForgeIssue } from "./forge-issue.js";
 
 /** A pull request's state as `gh` reports it. */
 export type BranchPullRequestState = "OPEN" | "CLOSED" | "MERGED";
@@ -365,6 +366,8 @@ export function createPullRequestGateway(options: PullRequestGatewayOptions): Pu
  * merge once its checks pass. Implemented for GitHub through `gh`; GitLab
  * and Gitea implement the same, and nothing that uses it changes. */
 export interface Forge {
+  readonly issueWebBase?: string;
+  readIssue?(number: number): Promise<ForgeIssue>;
   /** What the forge is called, for a sentence that names it. */
   readonly name: string;
   pullRequestsByBranch(): Promise<PullRequestsByBranch>;
@@ -443,8 +446,15 @@ export function createGitHubForge(options: GitHubForgeOptions): Forge {
   const githubRepository = options.githubRepository?.split("/").map(encodeURIComponent).join("/");
   return {
     name: "GitHub",
+    issueWebBase: "https://github.com",
     pullRequestsByBranch: () => listPullRequestsByBranch(options),
     ...(githubRepository === undefined ? {} : {
+      async readIssue(number: number) {
+        assertIssueNumber(number);
+        const { stdout } = await exec(ghBinary, ["api", "--hostname", "github.com", `repos/${githubRepository}/issues/${number}`],
+          { cwd: options.cwd, signal: AbortSignal.timeout(15_000) });
+        return readForgeIssue(JSON.parse(stdout) as unknown, number, "github");
+      },
       githubChecks: (target: GitHubCheckTarget, checkOptions?: ReviewCheckOptions) =>
         readGitHubChecks(async (suffix) => {
           const requestOptions = { cwd: options.cwd, signal: AbortSignal.timeout(15_000) };

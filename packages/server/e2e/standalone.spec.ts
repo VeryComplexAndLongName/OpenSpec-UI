@@ -53,6 +53,28 @@ test("shows included package versions only in the standalone footer", async ({ p
   await expect(page.getByTestId("version-footer")).toHaveCount(0);
 });
 
+test("confirms an issue preview and retains a changed-source refusal", async ({ page }) => {
+  const source = { title: "Issue source preview", body: "Untrusted request", number: 12, sourceUrl: "https://github.com/team/repo/issues/12", revision: "c".repeat(64), forge: "GitHub", state: "open", updatedAt: "today", truncated: false };
+  await page.route("**/api/change-editor/issue-preview", (route) => route.fulfill({ json: source }));
+  let submitted: unknown;
+  await page.route("**/api/change-editor/create", async (route) => {
+    submitted = route.request().postDataJSON();
+    await route.fulfill({ status: 500, json: { error: "The issue changed. Preview it again." } });
+  });
+  await page.goto(`${baseUrl}/#token=${encodeURIComponent(server.accessToken)}`);
+  await page.getByRole("tab", { name: "Change Editor" }).click();
+  await page.getByLabel("New change id").fill("from-issue");
+  await page.getByLabel("Issue number or URL").fill("12");
+  await expect(page.getByRole("button", { name: "Create Change From Issue" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Show Issue", exact: true }).click();
+  await expect(page.getByRole("heading", { name: source.title })).toBeVisible();
+  expect(submitted).toBeUndefined();
+  await page.getByRole("button", { name: "Create Change From Issue", exact: true }).click();
+  await expect(page.getByText("Create failed: The issue changed. Preview it again.", { exact: true })).toBeVisible();
+  expect(submitted).toEqual({ cwd: workspaceRoot, changeName: "from-issue", issue: { reference: "12", revision: source.revision } });
+  await expect(page.getByLabel("New change id")).toHaveValue("from-issue");
+});
+
 test("opens the read-only PR Review example and copies it", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto(`${baseUrl}/#token=${encodeURIComponent(server.accessToken)}`);
