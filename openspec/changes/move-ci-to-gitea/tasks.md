@@ -60,6 +60,15 @@
 
 ## 3. Mirror and publication executors
 
+- [ ] 3.0 In packages/cli/scripts/smoke-package.mjs, accept the exact prepared
+  CLI archive and check its installed package identity. Feed that archive and
+  releases-base.json through the quality job artifact in quality.yml. Use
+  changed-file ESLint and syntax checks locally; the real prepared-tarball
+  smoke and native VSIX artifact must pass in Gitea before completion.
+- [ ] 3.0a In scripts/publication-receipt.mjs, bind signed artifact metadata
+  to all actual successful main Quality results. Run the named receipt and
+  publication-worker tests plus changed-file ESLint, with no registry write.
+
 - [ ] 3.1 Add scripts/mirror-tested-release.mjs and named tests for exact
   source/tag matching, target allowlists, existing assets and hash conflicts.
   Upload GitHub Releases through REST API without GitHub Actions.

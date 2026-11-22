@@ -1,14 +1,20 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, generateKeyPairSync } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { api, identity, run, validateJob } from "./publication-worker.mjs";
+import { api, identity, run as actualRun, validateJob, publish, validatePackage } from "./publication-worker.mjs";
 import { entry } from "./publication-manifest.mjs";
+import { signReceipt } from "./publication-receipt.mjs";
 
 const bytes = Buffer.from("immutable release");
 const job = { id: 1, channel: "npm", version: "1.2.3", lease: "a".repeat(32), commit: "b".repeat(40),
   sha256: createHash("sha256").update(bytes).digest("hex"),
   artifact_url: "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-cli@1.2.3/openspec-ui-cli-1.2.3.tgz" };
+
+const receiptKeys = generateKeyPairSync('ed25519');
+job.receipt = signReceipt(job, { id: 1, head_sha: job.commit, event: 'push', conclusion: 'success', workflow: 'quality.yml' },
+  receiptKeys.privateKey.export({ type: 'pkcs8', format: 'pem' }));
+const run = (channel, options) => actualRun(channel, { ...options, receiptKey: receiptKeys.publicKey });
 
 test("contract hashes released bytes and refuses ambiguous artifacts", () => {
   const release = { assets: [{ name: "openspec-ui-cli-1.2.3.tgz", url: job.artifact_url }] };
@@ -79,15 +85,45 @@ test("an empty queue and identity probe perform no platform calls", async () => 
   }, fetcher: () => assert.fail("no registry request"), registryProbe: async (channel) => assert.equal(channel, "marketplace") });
 });
 
-test("OIDC uses the Homepage audience, fresh identity and bearer HTTP", async () => {
-  const env = { ACTIONS_ID_TOKEN_REQUEST_URL: "https://github.example/token?x=1", ACTIONS_ID_TOKEN_REQUEST_TOKEN: "request-secret" };
-  const calls = [];
-  const fetcher = async (url, options) => {
-    calls.push([String(url), options]);
-    return String(url).startsWith("https://github.example") ? Response.json({ value: "short-lived-jwt" }) : Response.json({ worker: "verified" });
-  };
-  await api("npm", "probe", {}, { env, fetcher });
-  assert.equal(new URL(calls[0][0]).searchParams.get("audience"), "https://openspec-ui.dev/api/publications");
-  assert.equal(calls[1][1].headers.Authorization, "Bearer short-lived-jwt");
-  await assert.rejects(identity("audience", {}, fetcher), /OIDC is required/u);
+test("CircleCI uses the fixed Homepage audience and rejects GitHub or non-main identity", async () => {
+  const env = { CIRCLECI: 'true', CIRCLE_BRANCH: 'main' };
+  let issued;
+  const invoke = (command, args) => { issued = [command, args]; return 'short-lived-jwt'; };
+  let sent;
+  await api('npm', 'probe', {}, { env, invoke, fetcher: async (url, options) => {
+    sent = [String(url), options]; return Response.json({ worker: 'verified' });
+  } });
+  assert.deepEqual(issued, ['circleci', ['run','oidc','get','--v2','--aud','https://openspec-ui.dev/api/publications']]);
+  assert.equal(sent[1].headers.Authorization, 'Bearer short-lived-jwt');
+  assert.equal(sent[1].redirect, 'error');
+  await assert.rejects(identity('https://openspec-ui.dev/api/publications', { ...env, CIRCLE_BRANCH: 'feature' }, invoke));
+  await assert.rejects(identity('https://evil.example', env, invoke));
+  await assert.rejects(identity('https://openspec-ui.dev/api/publications', { ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'old-token' }, invoke));
+});
+
+test('native publisher checks inner product identity before a registry write', async () => {
+  const base = { name: '@openspec-ui/cli', version: job.version };
+  validatePackage(job, '/tmp/file.tgz', () => JSON.stringify(base));
+  for (const manifest of [{ ...base, name: 'another-package' }, { ...base, version: '1.2.4' }]) {
+    assert.throws(() => validatePackage(job, '/tmp/file.tgz', () => JSON.stringify(manifest)));
+  }
+  const marketplace = { ...job, channel: 'marketplace' };
+  assert.throws(() => validatePackage(marketplace, '/tmp/file.vsix', () => JSON.stringify({ name: 'other', publisher: 'openspec-ui', version: job.version })));
+  let called;
+  await publish(job, '/tmp/file.tgz', {
+    env: { NPM_TOKEN: 'forbidden', NODE_AUTH_TOKEN: 'forbidden', VSCE_PAT: 'forbidden' },
+    getIdentity: async () => 'ephemeral', inspect: () => JSON.stringify(base),
+    invoke: (command, args, options) => { called = { command, args, options }; return { status: 0 }; },
+  });
+  assert.equal(called.options.env.NPM_ID_TOKEN, 'ephemeral');
+  for (const name of ['NPM_TOKEN','NODE_AUTH_TOKEN','VSCE_PAT']) assert.equal(called.options.env[name], undefined);
+  assert.ok(called.args.includes('--provenance=false'));
+  assert.ok(called.args.includes('--ignore-scripts'));
+});
+
+test('an altered build receipt cannot cause a registry request', async () => {
+  await assert.rejects(run('npm', { call: async (_, action) => action === 'claim'
+    ? { job: { ...job, receipt: undefined } } : { state: 'failed' },
+    fetcher: () => assert.fail('No registry lookup or artifact download'),
+    publishArtifact: () => assert.fail('No registry write') }), /receipt/u);
 });

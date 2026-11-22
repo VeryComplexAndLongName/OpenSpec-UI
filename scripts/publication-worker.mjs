@@ -1,14 +1,18 @@
 // A bounded transport worker. Homepage owns the durable publication lifecycle.
-import { createHash } from "node:crypto";
+import { createHash, createPrivateKey, randomUUID, sign, X509Certificate } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { verifyReceipt } from "./publication-receipt.mjs";
+import { assertionFromCertificate, identity as entraIdentity, probeEntra } from "./check-marketplace-entra-access.mjs";
 
 const ORIGIN = "https://openspec-ui.dev";
 const REPO = "VeryComplexAndLongName/OpenSpec-UI";
 const ITEM = "openspec-ui.openspec-ui-vscode";
+const WORKER_RUN = randomUUID();
 
 export function validateJob(job, channel) {
   if (!job || !Number.isSafeInteger(job.id) || job.id < 1 || job.channel !== channel ||
@@ -34,23 +38,46 @@ export async function request(url, options = {}, fetcher = fetch) {
   return response;
 }
 
-export async function identity(audience, env = process.env, fetcher = fetch) {
-  if (!env.ACTIONS_ID_TOKEN_REQUEST_URL || !env.ACTIONS_ID_TOKEN_REQUEST_TOKEN) throw new Error("OIDC is required");
-  const url = new URL(env.ACTIONS_ID_TOKEN_REQUEST_URL);
-  if (url.protocol !== "https:") throw new Error("OIDC endpoint must use TLS");
-  url.searchParams.set("audience", audience);
-  const response = await request(url, {
-    headers: { Authorization: `Bearer ${env.ACTIONS_ID_TOKEN_REQUEST_TOKEN}` },
-  }, fetcher);
-  const token = (await response.json()).value;
-  if (typeof token !== "string" || !token) throw new Error("No OIDC identity returned");
-  return token;
+export async function identity(audience, env = process.env, invoke = execFileSync) {
+  if (![`${ORIGIN}/api/publications`, "npm:registry.npmjs.org"].includes(audience)) throw new Error("Unapproved identity audience");
+  if (env.CIRCLECI === "true") {
+    if (env.CIRCLE_BRANCH !== "main") throw new Error("Only CircleCI main may publish");
+    let token;
+    try {
+      token = invoke("circleci", ["run", "oidc", "get", "--v2", "--aud", audience],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 30_000 }).trim();
+    } catch { throw new Error("CircleCI could not issue the requested identity (details withheld)"); }
+    if (!token) throw new Error("No CircleCI identity returned");
+    return token;
+  }
+  if (!env.OPENSPEC_MARKETPLACE_CERTIFICATE || audience !== `${ORIGIN}/api/publications`) {
+    throw new Error("Approved CircleCI or certificate identity is required");
+  }
+  let pem, certificate, key;
+  try {
+    pem = readFileSync(env.OPENSPEC_MARKETPLACE_CERTIFICATE, "utf8");
+    const block = pem.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/u)?.[0];
+    certificate = new X509Certificate(block);
+    key = createPrivateKey(pem);
+  } catch { throw new Error("Could not load the approved worker certificate (details withheld)"); }
+  if (certificate.fingerprint.replaceAll(":", "") !== entraIdentity.thumbprint
+      || Date.parse(certificate.validTo) <= Date.now() || Date.parse(certificate.validFrom) > Date.now()
+      || !certificate.checkPrivateKey(key)) throw new Error("Worker certificate identity or validity differs");
+  const issued = Math.floor(Date.now() / 1000);
+  const encode = (value) => Buffer.from(JSON.stringify(value)).toString("base64url");
+  const header = encode({ alg: "RS256", typ: "JWT" });
+  const claims = encode({ iss: "urn:openspec:marketplace-publisher", sub: entraIdentity.client,
+    aud: audience, ref: "refs/heads/main", channel: "marketplace", run_id: WORKER_RUN,
+    iat: issued, nbf: issued - 10, exp: issued + 120 });
+  const input = `${header}.${claims}`;
+  return `${input}.${sign("RSA-SHA256", Buffer.from(input), key).toString("base64url")}`;
 }
 
-export async function api(channel, action, body, { fetcher = fetch, env = process.env } = {}) {
-  const token = await identity(`${ORIGIN}/api/publications`, env, fetcher);
+export async function api(channel, action, body, { fetcher = fetch, env = process.env, invoke = execFileSync } = {}) {
+  if (!["npm", "marketplace"].includes(channel) || !["probe", "claim", "finish"].includes(action)) throw new Error("Unknown publication API action");
+  const token = await identity(`${ORIGIN}/api/publications`, env, invoke);
   const response = await request(`${ORIGIN}/api/publications/${channel}/${action}`, {
-    method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    method: "POST", redirect: "error", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
   }, fetcher);
   return response.json();
@@ -93,34 +120,66 @@ export async function download(url, fetcher = fetch) {
 }
 
 export async function probeRegistry(channel, { env = process.env, fetcher = fetch } = {}) {
-  const audience = channel === "npm" ? "npm:registry.npmjs.org" : "marketplace.visualstudio.com";
-  const token = await identity(audience, env, fetcher);
-  const url = channel === "npm"
-    ? "https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/@openspec-ui%2fcli"
-    : "https://marketplace.visualstudio.com/_apis/gallery/token?api-version=7.2-preview.1";
-  const response = await request(url, { method: "POST", headers: {
-    Authorization: `${channel === "npm" ? "Bearer" : "FederatedToken"} ${token}`,
-    "Content-Type": "application/json", Accept: "application/json", "User-Agent": "vsce",
-  }, ...(channel === "marketplace" ? { body: JSON.stringify({ publisherName: "openspec-ui" }) } : {}) }, fetcher);
+  if (channel === "marketplace") {
+    const assertion = assertionFromCertificate(readFileSync(env.OPENSPEC_MARKETPLACE_CERTIFICATE, "utf8"));
+    await probeEntra({ assertion, mode: "verify", request: fetcher });
+    const result = spawnSync("vsce", ["verify-pat", "openspec-ui", "--azure-credential"],
+      { env: registryEnvironment(channel, env), stdio: "pipe", timeout: 60_000 });
+    if (result.status !== 0 || result.error) throw new Error("vsce certificate verification failed (details withheld)");
+    return;
+  }
+  const token = await identity("npm:registry.npmjs.org", env);
+  const response = await request("https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/@openspec-ui%2fcli", {
+    method: "POST", redirect: "error", headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  }, fetcher);
   const data = await response.json();
-  if (!data[channel === "npm" ? "token" : "credential"]) throw new Error("Registry did not exchange the OIDC identity");
+  if (!data.token) throw new Error("Registry did not exchange the OIDC identity");
   // The ephemeral credential is intentionally discarded without logging/storing it.
 }
 
-function publish(job, filename) {
+export function registryEnvironment(channel, env) {
+  const clean = { ...env };
+  for (const name of ["NPM_TOKEN", "NODE_AUTH_TOKEN", "NPM_ID_TOKEN", "VSCE_PAT", "AZURE_CLIENT_SECRET", "AZURE_FEDERATED_TOKEN_FILE"]) delete clean[name];
+  if (channel === "marketplace") {
+    if (!env.OPENSPEC_MARKETPLACE_CERTIFICATE) throw new Error("The approved certificate is required");
+    clean.AZURE_CLIENT_ID = entraIdentity.client;
+    clean.AZURE_TENANT_ID = entraIdentity.tenant;
+    clean.AZURE_CLIENT_CERTIFICATE_PATH = env.OPENSPEC_MARKETPLACE_CERTIFICATE;
+  }
+  return clean;
+}
+
+export function validatePackage(job, filename, inspect = execFileSync) {
+  let manifest;
+  try {
+    const args = job.channel === "npm" ? ["-xOf", filename, "package/package.json"]
+      : ["-p", filename, "extension/package.json"];
+    manifest = JSON.parse(inspect(job.channel === "npm" ? "tar" : "unzip", args,
+      { encoding: "utf8", maxBuffer: 256_000, timeout: 10_000, stdio: ["ignore", "pipe", "pipe"] }));
+  } catch { throw new Error("Cannot read bounded publication package metadata"); }
+  if (manifest.version !== job.version || (job.channel === "npm" ? manifest.name !== "@openspec-ui/cli"
+    : manifest.name !== "openspec-ui-vscode" || manifest.publisher !== "openspec-ui")) {
+    throw new Error("Publication package identity differs from the approved product");
+  }
+}
+
+export async function publish(job, filename, { env = process.env, invoke = spawnSync, getIdentity = identity, inspect = execFileSync } = {}) {
+  validatePackage(job, filename, inspect);
+  const clean = registryEnvironment(job.channel, env);
+  if (job.channel === "npm") clean.NPM_ID_TOKEN = await getIdentity("npm:registry.npmjs.org", env);
   const command = job.channel === "npm" ? "npm" : "vsce";
   const args = job.channel === "npm"
-    ? ["publish", filename, "--access", "public", "--provenance", "--ignore-scripts"]
-    : ["publish", "--oidc", "--packagePath", filename];
-  const result = spawnSync(command, args, { stdio: "inherit", timeout: 180_000 });
+    ? ["publish", filename, "--access", "public", "--provenance=false", "--ignore-scripts", "--registry=https://registry.npmjs.org"]
+    : ["publish", "--azure-credential", "--packagePath", filename];
+  const result = invoke(command, args, { cwd: path.dirname(filename), env: clean, stdio: "inherit", timeout: 180_000 });
   if (result.status !== 0 || result.error) throw new Error(`${command} publication failed`);
 }
 
-export async function run(channel, { call = api, fetcher = fetch, publishArtifact = publish, probe = false, registryProbe = probeRegistry } = {}) {
+export async function run(channel, { call = api, fetcher = fetch, publishArtifact = publish, probe = false, registryProbe = probeRegistry, receiptKey } = {}) {
   if (!["npm", "marketplace"].includes(channel)) throw new Error("Unknown publication channel");
   if (probe) {
     const result = await call(channel, "probe", {});
-    console.log(`Homepage OIDC verified: ${result.worker}`);
+    console.log(`Homepage worker identity verified: ${result.worker}`);
     await registryProbe(channel);
     console.log(`${channel} OIDC exchange verified without publishing.`);
     return;
@@ -134,6 +193,7 @@ export async function run(channel, { call = api, fetcher = fetch, publishArtifac
   let failure;
   try {
     const filename = validateJob(job, channel);
+    verifyReceipt(job, receiptKey);
     if (!await existing(job, fetcher)) {
       const bytes = await download(job.artifact_url, fetcher);
       if (createHash("sha256").update(bytes).digest("hex") !== job.sha256) throw new Error("Approved artifact checksum mismatch");

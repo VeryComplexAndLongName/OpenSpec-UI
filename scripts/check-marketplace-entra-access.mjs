@@ -24,7 +24,7 @@ export function signAssertion(key, thumbprint, now = Date.now()) {
   return `${input}.${sign('RSA-SHA256', Buffer.from(input), key).toString('base64url')}`;
 }
 
-function assertionFromCertificate(pem) {
+export function assertionFromCertificate(pem) {
   const certificateBlock = pem.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/u)?.[0];
   if (!certificateBlock) throw new Error('Certificate PEM is missing its public certificate');
   const certificate = new X509Certificate(certificateBlock);
