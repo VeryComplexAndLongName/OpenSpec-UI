@@ -7,8 +7,7 @@ export const circleIdentity = Object.freeze({
   pipeline: 'ff640ebf-283f-4f8a-b58d-5ab8acc9494e',
   origin: 'github.com/VeryComplexAndLongName/OpenSpec-UI',
   branch: 'refs/heads/circleci-project-setup',
-  // Fill only after the exact restricted context has been created and reviewed.
-  context: null,
+  context: 'dd0462b9-a028-418b-9591-91d1ef9cee78',
 });
 
 export async function probeNpm({ token, mode = 'identity', env = process.env,

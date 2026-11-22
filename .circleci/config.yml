@@ -21,4 +21,5 @@ jobs:
 workflows:
   publication-access:
     jobs:
-      - publication-access
+      - publication-access:
+          context: npm-publication

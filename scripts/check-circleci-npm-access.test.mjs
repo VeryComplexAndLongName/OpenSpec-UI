@@ -56,7 +56,7 @@ test('exchange requires a configured matching context', async () => {
     assert.equal(h.calls.length, 0);
   }
   const h = harness();
-  await assert.rejects(probeNpm({ ...h.options, mode: 'exchange', expected: circleIdentity }), /context/);
+  await assert.rejects(probeNpm({ ...h.options, mode: 'exchange', expected: { ...circleIdentity, context: null } }), /context/);
 });
 
 test('failed exchanges never log response bodies or request secrets', async () => {
