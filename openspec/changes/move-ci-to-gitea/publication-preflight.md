@@ -17,6 +17,9 @@ deletion. See ADR 0059, now named
 - CircleCI account access succeeded. Organization `OpenSpec Workbench` was
   created without a payment card. Its home shows 30,000 free credits and
   URL `https://app.circleci.com/organization/circleci/8aWYi8G89ikBPGoYjr3Bix`.
+  Organization UUID: `3d5db94d-4a2c-499e-82f5-af1f9fd28d49`, observed in
+  its usage report URL. Plan overview explicitly shows `Current plan: Free`
+  and 30,000 credits per month; paid checkout was not entered.
   Project `OpenSpec npm publisher` / pipeline `npm-publication` is being
   prepared. Exact ids, a hosted run and npm exchange remain pending. The
   GitHub App draft selects only OpenSpec-UI and awaits confirmation of its
@@ -44,6 +47,9 @@ deletion. See ADR 0059, now named
   assignments and changed extension ids, bounds certificate assertions,
   refuses redirects and withholds sensitive error bodies.
 - No registry version, VSIX or article was published by these probes.
+- Gitea's repository runner endpoints currently list zero assigned runners
+  for both targets. Instance runner availability remains a separate check;
+  this is not proof that a complete quality pipeline can execute.
 
 ## Owner priority
 
