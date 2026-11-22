@@ -41,6 +41,10 @@ export function checkRunner(source) {
       || !config.container.options?.includes('--cpus=2')) {
     throw new Error('OpenSpec CI runner must bound jobs without privileged host mounts');
   }
+  if (config.cache?.enabled !== true || config.cache.host !== '192.168.137.34'
+      || config.cache.port !== 8095 || config.cache.dir !== '/data/cache/artifacts') {
+    throw new Error('Cache must use the private authenticated runner endpoint');
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

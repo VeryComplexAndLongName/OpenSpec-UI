@@ -30,12 +30,19 @@ const sockets = [];
 try {
   await mkdir(consumer); await mkdir(workspace);
   await writeFile(path.join(consumer, "package.json"), JSON.stringify({ name: "isolated-workbench-smoke", private: true, version: "0.0.0" }));
-  const packed = JSON.parse(await npmRun(["pack", "--json", "--pack-destination", area], cliRoot));
+  const supplied = process.env.OPENSPEC_PREPARED_TARBALL;
+  const packed = supplied ? [{ name: "@openspec-ui/cli", filename: path.basename(supplied) }]
+    : JSON.parse(await npmRun(["pack", "--json", "--pack-destination", area], cliRoot));
   assert.equal(packed.length, 1); assert.equal(packed[0].name, "@openspec-ui/cli");
-  const archive = path.resolve(area, packed[0].filename);
-  assert.equal(path.dirname(archive), path.resolve(area));
+  const archive = supplied ? path.resolve(supplied) : path.resolve(area, packed[0].filename);
+  if (!supplied) assert.equal(path.dirname(archive), path.resolve(area));
+  assert.ok(archive.endsWith(".tgz"));
   await npmRun(["install", "--ignore-scripts", "--omit=dev", "--no-audit", "--no-fund", archive], consumer);
   const installed = path.join(consumer, "node_modules/@openspec-ui/cli/dist/cli.js");
+  const actualPackage = JSON.parse(await readFile(path.join(consumer, "node_modules/@openspec-ui/cli/package.json"), "utf8"));
+  const expectedPackage = JSON.parse(await readFile(path.join(cliRoot, "package.json"), "utf8"));
+  assert.equal(actualPackage.name, expectedPackage.name);
+  assert.equal(actualPackage.version, expectedPackage.version);
   const requireFromInstall = createRequire(installed);
   for (const name of ["@openspec-ui/core", "@openspec-ui/server"]) assert.throws(() => requireFromInstall.resolve(name), { code: "MODULE_NOT_FOUND" });
   const helpStarted = performance.now();

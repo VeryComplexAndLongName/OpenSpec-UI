@@ -1,6 +1,6 @@
 # 0048: npm Is Published by Trusted Publishing, From the Same Dispatch as the Marketplace
 
-Status: Accepted; completes [ADR-0009](0009-publish-cli-to-npm.md) decision 5
+Status: Superseded by [ADR 0058](0058-homepage-publication-center.md); originally completed [ADR-0009](0009-publish-cli-to-npm.md) decision 5
 
 Date: 2026-10-10
 

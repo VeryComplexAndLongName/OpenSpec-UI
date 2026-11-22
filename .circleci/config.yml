@@ -1,0 +1,34 @@
+version: 2.1
+parameters:
+  publication-probe:
+    type: boolean
+    default: false
+jobs:
+  npm-publication:
+    docker:
+      - image: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+    resource_class: small
+    steps:
+      - checkout
+      - run:
+          name: Install the isolated registry client
+          command: |
+            set -eu
+            test "$CIRCLE_BRANCH" = main
+            timeout 120 npm install --prefix /tmp/openspec-registry-client npm@12.1.0 --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org
+          no_output_timeout: 2m
+      - run:
+          name: Consume the approved Homepage queue without rebuilding
+          environment:
+            PUBLICATION_PROBE: '<< pipeline.parameters.publication-probe >>'
+          command: |
+            export PATH="/tmp/openspec-registry-client/node_modules/.bin:$PATH"
+            timeout 300 node scripts/publication-worker.mjs npm
+          no_output_timeout: 5m
+workflows:
+  npm-publication:
+    when: pipeline.git.branch == "main"
+    jobs:
+      - npm-publication:
+          context: npm-publication
+          serial-group: '<< pipeline.project.slug >>/npm-publication'

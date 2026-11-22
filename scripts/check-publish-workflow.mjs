@@ -1,187 +1,59 @@
-#!/usr/bin/env node
-// The Marketplace publish stays a step somebody asks for
-// (the-marketplace-publish-is-a-manual-step).
-//
-// Every other guarantee in this repository is a test over code. This one
-// lives in a YAML file that nothing else reads, and the failure mode is
-// the one the owner asked to prevent: a publish that goes out on a push
-// because a trigger was added while debugging, or a second workflow that
-// quietly learns the token.
-//
-// So this reads the workflow and fails where it stops being what the
-// change decided: dispatched by hand and by nothing else, confirmed by a
-// typed word, publishing the artifact that was released rather than a
-// rebuild, with the token read by that one job and named nowhere else.
+// Keep application CI, artifact preparation and registry executors separate.
+import { readdir, readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { parse } from 'yaml';
 
-import { readdir, readFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-
-export const PUBLISH_WORKFLOW = ".github/workflows/publish.yml";
-
-/** The lines of a workflow, with comments and blank lines dropped: every
- * rule below is about what the file does, and a comment quoting a trigger
- * is not a trigger. */
-function instructions(source) {
-  return source
-    .split(/\r?\n/u)
-    .filter((line) => line.trim().length > 0 && !line.trim().startsWith("#"));
-}
-
-/** The top-level `on:` block's keys. A workflow's triggers are the only
- * thing here that has to be exhaustive, so they are read as keys rather
- * than searched for as words. */
-function triggersOf(lines) {
-  const start = lines.findIndex((line) => /^on:\s*$/u.test(line) || /^on:\s*\S/u.test(line));
-  if (start === -1) return [];
-  const inline = /^on:\s*(\S.*)$/u.exec(lines[start]);
-  if (inline) return [inline[1].trim()];
-  const triggers = [];
-  for (const line of lines.slice(start + 1)) {
-    if (/^\S/u.test(line)) break;
-    const match = /^ {2}([A-Za-z_]+):/u.exec(line);
-    if (match) triggers.push(match[1]);
-  }
-  return triggers;
-}
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+export const PUBLISH_WORKFLOW = '.circleci/config.yml';
+const executable = (source) => source.split(/\r?\n/u).filter((line) => !line.trim().startsWith('#')).join('\n');
 
 export function checkPublishWorkflow(source) {
   const problems = [];
-  const lines = instructions(source);
-  const text = lines.join("\n");
-
-  const triggers = triggersOf(lines);
-  if (triggers.length === 0) {
-    problems.push("it declares no trigger at all");
-  }
-  for (const trigger of triggers) {
-    if (trigger !== "workflow_dispatch") {
-      problems.push(`it runs on "${trigger}"; a publish is dispatched by hand and by nothing else`);
-    }
-  }
-
-  if (!/^ {6}confirm:/mu.test(text)) {
-    problems.push('it takes no "confirm" input; the press has to be deliberate');
-  }
-  if (!/!=\s*"publish"/u.test(text) && !/!=\s*'publish'/u.test(text)) {
-    problems.push('no step refuses a run whose confirmation does not read "publish"');
-  }
-  if (!/^ {6}vscode_version:/mu.test(text)) {
-    problems.push('it takes no "vscode_version" input; a Marketplace publish names the version it publishes');
-  }
-  if (!/^ {6}cli_version:/mu.test(text)) {
-    problems.push('it takes no "cli_version" input; an npm publish names the version it publishes');
-  }
-  // Both publishing jobs wait for the confirmation, so neither can read
-  // its credential before it has been checked.
-  if ((text.match(/^ {4}needs: confirm$/gmu) ?? []).length < 2) {
-    problems.push('a publishing job does not need the "confirm" job; it could read its credential unconfirmed');
-  }
-  if (!text.includes("gh release download")) {
-    problems.push("it does not take the VSIX from the release that version was tagged as");
-  }
-  if (!/vsce publish[^\n]*--packagePath/u.test(text)) {
-    problems.push("its Marketplace publish does not take --packagePath; what goes out must be the artifact that was released");
-  }
-  if (/vsce package|npm run package/u.test(text)) {
-    problems.push("it builds a package of its own rather than publishing the released one");
-  }
-  if (!text.includes("VSCE_PAT")) {
-    problems.push("it reads no VSCE_PAT; nothing would authenticate");
-  }
-  if (!/^ {2}npm:$/mu.test(text) || !/npm publish\b/u.test(text)) {
-    problems.push("it has no npm job that runs npm publish");
-  }
-  if (!/^ {4}environment: npm$/mu.test(text)) {
-    problems.push('its npm job is not bound to the "npm" environment the trusted publisher names');
-  }
-  if (!/^ {6}id-token: write$/mu.test(text)) {
-    problems.push("its npm job asks for no id-token; Trusted Publishing has nothing to authenticate with");
-  }
-  if ((text.match(/id-token:\s*write/gu) ?? []).length > 1) {
-    problems.push("id-token: write is granted more than once; the OIDC token is held by the npm job alone");
-  }
-  if (/NPM_TOKEN|NODE_AUTH_TOKEN/u.test(text)) {
-    problems.push("it names an npm token; npm is published by Trusted Publishing, and there is no token to leak");
-  }
-  if (!text.includes("refs/heads/main")) {
-    problems.push("its npm job does not refuse a dispatch from a ref other than main");
-  }
-  if (!/packages\/cli\/package\.json/u.test(text) || !text.includes("npm view")) {
-    problems.push("its npm job does not check the named version against the commit it builds, or against what is already on npm");
-  }
+  let workflow;
+  try { workflow = parse(source); } catch { return ['invalid publisher YAML']; }
+  if (Object.keys(workflow.jobs ?? {}).join(',') !== 'npm-publication') problems.push('CircleCI runs only the npm publication worker');
+  const run = workflow.workflows?.['npm-publication'];
+  if (run?.when !== 'pipeline.git.branch == "main"' || run?.jobs?.length !== 1
+      || run.jobs[0]?.['npm-publication']?.context !== 'npm-publication') problems.push('Exact main and approved context are required');
+  if (run?.jobs?.[0]?.['npm-publication']?.['serial-group'] !== '<< pipeline.project.slug >>/npm-publication') problems.push('Serialize the npm channel across push and scheduled pipelines');
+  const job = workflow.jobs?.['npm-publication'];
+  if (!job?.docker?.[0]?.image?.startsWith('node:24.21.0-bookworm@sha256:') || job.resource_class !== 'small') problems.push('Pin the hosted runtime and bounded executor');
+  const commands = (job?.steps ?? []).filter((one) => one.run).map((one) => one.run.command ?? one.run).join('\n');
+  if (!commands.includes('npm@12.1.0') || !commands.includes('timeout 300 node scripts/publication-worker.mjs npm')) problems.push('Use the pinned client and Homepage queue worker');
+  if (/npm ci|npm run build|vsce |npm publish|changeset publish|--provenance=true/u.test(commands)) problems.push('Publisher must not rebuild or bypass the queue');
+  if (/VSCE_PAT|NPM_TOKEN|NODE_AUTH_TOKEN|GITHUB_TOKEN|GITHUB_APP_PRIVATE_KEY/u.test(executable(source))) problems.push('No persistent registry or mirror credentials in CircleCI');
   return problems;
 }
 
-/** Every other workflow, which may name neither the token nor a publish:
- * a second path to the Marketplace is exactly what "a manual step" rules
- * out, and it would not be visible from the file above. */
-/** The one workflow allowed to name the homepage's dispatch token. */
-const DISPATCH_WORKFLOW = ".github/workflows/homepage-dispatch.yml";
-
-export async function checkOtherWorkflows(root = repoRoot) {
+export async function checkOtherWorkflows(directory = root) {
   const problems = [];
-  const directory = path.join(root, ".github", "workflows");
-  let entries = [];
-  try {
-    entries = await readdir(directory);
-  } catch {
-    return [".github/workflows is not readable"];
+  let legacy = [];
+  try { legacy = await readdir(path.join(directory, '.github/workflows')); } catch { /* Retired. */ }
+  for (const file of legacy.filter((one) => /\.ya?ml$/u.test(one))) problems.push(`GitHub Actions must be retired: ${file}`);
+  const workflows = path.join(directory, '.gitea/workflows');
+  for (const file of await readdir(workflows)) {
+    if (!/\.ya?ml$/u.test(file)) continue;
+    const source = executable(await readFile(path.join(workflows, file), 'utf8'));
+    if (/VSCE_PAT|NPM_TOKEN|NODE_AUTH_TOKEN|npm publish|vsce publish|changeset publish/u.test(source)) problems.push(`${file}: Gitea prepares artifacts, never registry writes`);
+    if (file !== 'release.yml' && /MIRROR_APP_PRIVATE_KEY|RELEASE_SIGNING_PRIVATE_KEY/u.test(source)) problems.push(`${file}: production producer keys belong only to checked release preparation`);
   }
-  for (const entry of entries.sort()) {
-    if (!entry.endsWith(".yml") && !entry.endsWith(".yaml")) continue;
-    const relative = `.github/workflows/${entry}`;
-    if (relative === PUBLISH_WORKFLOW) continue;
-    const source = await readFile(path.join(directory, entry), "utf8");
-    const text = instructions(source).join("\n");
-    if (text.includes("VSCE_PAT")) {
-      problems.push(`${relative}: names VSCE_PAT; the token is read by the publishing workflow alone`);
-    }
-    // The same rule for the other credential this repository holds: a
-    // token that can act on another repository is named by the one
-    // workflow that needs it (the-homepage-hears-about-an-article).
-    if (relative !== DISPATCH_WORKFLOW && text.includes("HOMEPAGE_DISPATCH_TOKEN")) {
-      problems.push(`${relative}: names HOMEPAGE_DISPATCH_TOKEN; the token is read by the homepage dispatch workflow alone`);
-    }
-    if (/vsce publish/u.test(text)) {
-      problems.push(`${relative}: publishes to the Marketplace; that is the dispatched workflow's alone`);
-    }
-    if (/npm publish|changeset publish/u.test(text)) {
-      problems.push(`${relative}: publishes to npm; that is the dispatched workflow's alone`);
-    }
-    if (/NPM_TOKEN|NODE_AUTH_TOKEN/u.test(text)) {
-      problems.push(`${relative}: names an npm token; npm is published by Trusted Publishing from the dispatched workflow alone`);
-    }
+  const service = await readFile(path.join(directory, 'deploy/publication/marketplace.service'), 'utf8');
+  for (const boundary of ['User=openspec-publisher', 'ProtectSystem=strict', 'NoNewPrivileges=yes',
+    'OPENSPEC_MARKETPLACE_CERTIFICATE=/etc/openspec-publisher/marketplace-publisher.pem', 'publication-worker.mjs marketplace']) {
+    if (!service.includes(boundary)) problems.push(`Marketplace worker lacks ${boundary}`);
   }
   return problems;
 }
 
-export async function checkAll(root = repoRoot) {
-  const problems = [];
-  let source;
+export async function checkAll(directory = root) {
   try {
-    source = await readFile(path.join(root, PUBLISH_WORKFLOW), "utf8");
-  } catch {
-    return [`${PUBLISH_WORKFLOW} is missing; the Marketplace and npm publishes live there`];
-  }
-  problems.push(...checkPublishWorkflow(source).map((problem) => `${PUBLISH_WORKFLOW}: ${problem}`));
-  problems.push(...(await checkOtherWorkflows(root)));
-  return problems;
-}
-
-async function main() {
-  const problems = await checkAll();
-  if (problems.length > 0) {
-    console.error("Publish workflow check failed:\n");
-    for (const problem of problems) console.error(`  ${problem}`);
-    console.error("\nSee openspec/changes/archive/2026-09-19-the-marketplace-publish-is-a-manual-step/design.md");
-    process.exit(1);
-  }
-  console.log("Publish workflow check passed.");
+    return [...checkPublishWorkflow(await readFile(path.join(directory, PUBLISH_WORKFLOW), 'utf8')), ...await checkOtherWorkflows(directory)];
+  } catch (error) { return [`Publication configuration is missing or unreadable: ${error.code || error.name}`]; }
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  await main();
+  const problems = await checkAll();
+  if (problems.length) { console.error(problems.join('\n')); process.exitCode = 1; }
+  else console.log('Independent publication policy passed.');
 }

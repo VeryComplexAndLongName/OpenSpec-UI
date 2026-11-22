@@ -1,0 +1,23 @@
+[Unit]
+Description=Publish eligible Homepage Marketplace jobs with the approved Entra identity
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=openspec-publisher
+Group=openspec-publisher
+WorkingDirectory=/srv/homepage/registry-worker
+Environment=PATH=/opt/openspec-publisher/node/bin:/opt/openspec-publisher/tools/node_modules/.bin:/usr/bin:/bin
+Environment=OPENSPEC_MARKETPLACE_CERTIFICATE=/etc/openspec-publisher/marketplace-publisher.pem
+Environment=NODE_ENV=production
+ExecStart=/opt/openspec-publisher/node/bin/node /srv/homepage/registry-worker/scripts/publication-worker.mjs marketplace
+TimeoutStartSec=400
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+UMask=0077

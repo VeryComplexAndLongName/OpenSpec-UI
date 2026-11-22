@@ -43,6 +43,7 @@ test('runner refuses privileged execution, Docker socket mounts and unbounded jo
     source.replace('--memory=6g', '')]) {
     assert.throws(() => checkRunner(changed));
   }
+  assert.throws(() => checkRunner(source.replace('host: 192.168.137.34', 'host: 0.0.0.0')));
 });
 test('every workflow shell step parses before any command is executed', () => {
   const workflow = createRequire(import.meta.url)('yaml').parse(readFileSync('.gitea/workflows/quality.yml', 'utf8'));

@@ -53,8 +53,17 @@ jobs:
       - name: Verify the production Workbench tarball
         run: |
           timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
-          npm run smoke:package --workspace @openspec-ui/cli
+          mkdir -p approved-artifacts
+          npm pack --workspace @openspec-ui/cli --ignore-scripts --pack-destination approved-artifacts
+          version=$(node -p "require('./packages/cli/package.json').version")
+          OPENSPEC_PREPARED_TARBALL="$GITHUB_WORKSPACE/approved-artifacts/openspec-ui-cli-$version.tgz" npm run smoke:package --workspace @openspec-ui/cli
+          npm run start --silent --workspace @openspec-ui/cli -- write manifest --cwd "$GITHUB_WORKSPACE" --repository VeryComplexAndLongName/OpenSpec-UI --commit "$GITHUB_SHA" > approved-artifacts/releases-base.json
           OPENSPEC_STEP
+      - uses: https://github.com/christopherhx/gitea-upload-artifact@81f940d004763f986ba3582c007fd842dd5cb0d7
+        with:
+          name: openspec-cli-artifact
+          path: approved-artifacts/
+          if-no-files-found: error
   dependency-audit:
     name: Dependency audit
     runs-on: openspec-ci
@@ -179,7 +188,7 @@ jobs:
           timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
           npm run package --workspace openspec-ui-vscode
           OPENSPEC_STEP
-      - uses: https://github.com/actions/upload-artifact@v3
+      - uses: https://github.com/christopherhx/gitea-upload-artifact@81f940d004763f986ba3582c007fd842dd5cb0d7
         with:
           name: openspec-ui-vsix
           path: packages/extension/*.vsix
@@ -259,7 +268,7 @@ jobs:
           chown -R pwuser:pwuser "$GITHUB_WORKSPACE"
           runuser -u pwuser -- env PATH="$PATH" npm run test:browser --workspace @openspec-ui/server
           OPENSPEC_STEP
-      - uses: https://github.com/actions/upload-artifact@v3
+      - uses: https://github.com/christopherhx/gitea-upload-artifact@81f940d004763f986ba3582c007fd842dd5cb0d7
         if: failure()
         with:
           name: standalone-playwright-diagnostics
