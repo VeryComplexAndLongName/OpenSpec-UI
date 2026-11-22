@@ -7,7 +7,9 @@ GitHub Actions cannot start because the account is locked for billing. The owner
 ## What Changes
 
 - Move authoritative repository, pull requests, required checks, Changesets automation and builds to `http://hppiigit:3000/root/OpenSpec-Workbench`.
-- Retain the existing public GitHub repositories, source/documentation/feedback URLs and Releases. Mirror tested source/tags and upload artifacts through REST API without GitHub Actions.
+- Retain both existing GitHub repositories with their current visibility,
+  public source/documentation/feedback URLs and Releases. Mirror tested
+  source/tags and upload artifacts through REST API without GitHub Actions.
 - Transfer already built VSIX/npm files with hashes, signed build receipts and exact source identity. Independent workers claim eligible Homepage jobs and publish those bytes without rebuilding or duplicate application CI.
 - Verify actual CircleCI Free hosted access without a card and package-specific npm OIDC authorization; verify certificate-authenticated Entra Contributor access for Marketplace before provider cutover.
 - Preserve source/history/assets and outstanding PR branches, including PR #1009. Supersede the GitLab public-home and GitHub deletion plan. Retire obsolete Actions/publisher paths only after replacement checks succeed.

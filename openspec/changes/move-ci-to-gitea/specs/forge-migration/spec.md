@@ -3,7 +3,8 @@
 ### Requirement: Development and public distribution have explicit authorities
 
 Gitea SHALL own reviewed main and all quality/build CI. Existing GitHub
-repositories SHALL remain public mirrors and release asset hosts. Homepage
+repositories SHALL remain mirrors and release asset hosts with their existing
+visibility and public URLs preserved. Homepage
 SHALL manage publication eligibility and outcomes. Registry executors SHALL
 consume exact checked artifacts without rebuilding. Public package identities
 and source/documentation/feedback destinations SHALL remain unchanged.
