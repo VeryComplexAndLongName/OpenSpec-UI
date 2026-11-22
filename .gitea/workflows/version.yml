@@ -1,0 +1,30 @@
+name: Propose package versions
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+permissions:
+  contents: write
+  pull-requests: write
+concurrency:
+  group: version-proposal
+  cancel-in-progress: false
+jobs:
+  propose:
+    if: github.ref == 'refs/heads/main'
+    runs-on: openspec-ci
+    steps:
+      - uses: https://github.com/actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: https://github.com/actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - run: timeout 120 npm install --global npm@10.9.0
+      - run: timeout 300 npm ci --ignore-scripts
+      - run: timeout 420 node scripts/gitea-proposal.mjs version
+        env:
+          GITEA_TOKEN: ${{ github.token }}
+          GITEA_REPOSITORY: ${{ github.repository }}
+          GITEA_REF: ${{ github.ref }}

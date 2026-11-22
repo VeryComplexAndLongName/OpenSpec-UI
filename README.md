@@ -428,31 +428,33 @@ footer prints the live figures):
 `@vscode/vsce` (the extension's packager) already names the built
 artifact with its version (`openspec-ui-vscode-<version>.vsix`) — no
 extra step needed there. On every push to `main` where that version has
-no matching git tag yet, CI (`release-extension` job in
-`.github/workflows/quality.yml`) tags the commit
+no matching git tag yet, Gitea prepares a release only after the complete
+`.gitea/workflows/quality.yml` run for that exact main commit succeeds.
+`.gitea/workflows/release.yml` mirrors checked source, tags the commit
 (`openspec-ui-vscode@<version>`) and publishes a GitHub Release with the
 `.vsix` attached — that Release page is the permanent, versioned place to
 download a specific build; the artifact itself is never committed into
 `packages/` or anywhere else in git.
 
-Reaching the Visual Studio Marketplace or the npm registry is a separate
-step, and a manual one: not every release is meant for either. Somebody
-dispatches the `Publish` workflow (`.github/workflows/publish.yml`), names
-`vscode_version`, `cli_version` or both, and types the confirmation; a
-version left empty skips its channel.
+Homepage manages registry eligibility, durable attempts, finite retries and
+independent remote confirmation at `/stats?tab=publications`. A signed
+receipt binds each exact archive to its source commit and successful Gitea
+Quality run. Existing versions are reconciled rather than written again.
 
 - The Marketplace publishes the `.vsix` from that version's GitHub Release
   — the artifact the extension integration suite exercised, never a
-  rebuild. Its token is a repository secret read by that one job.
-- npm publishes `@openspec-ui/cli`, built from `main` and only if
-  `packages/cli/package.json` states the version that was named. It uses
-  npm Trusted Publishing, so there is no npm token at all; the trusted
-  publisher on npmjs.com names `publish.yml` and the `npm` environment
-  (ADR-0048).
+  rebuild. An isolated `openspec-publisher` service authenticates using an
+  Entra certificate. Flask and PR jobs do not receive that private key.
+- CircleCI Free publishes the checked `@openspec-ui/cli` tarball using npm
+  Trusted Publishing, restricted to one project, pipeline, context and main.
+  There is no permanent npm token and no application build in CircleCI.
+  CircleCI currently does not provide automatic npm provenance.
 
-No push, tag or merge publishes anything.
-`scripts/check-publish-workflow.mjs` fails the lint gate if any of that
-stops holding.
+Gitea owns all checks, version proposals and dependency maintenance. GitHub
+stores the code mirror and Releases; GitHub Actions is retired. A failed or
+incomplete Quality run cannot make an artifact eligible. See
+[the migration runbook](docs/migration/gitea.md) and ADR 0059 for recovery,
+credentials and the first-release acceptance evidence.
 
 ## Delivery Capability Matrix
 
@@ -634,7 +636,7 @@ npm run start --workspace @openspec-ui/cli -- validate changes --cwd . --format 
 - It checks every change's history (see `history` below). With `--base`
   it refuses a history file deleted or changed, and a new one that does
   not check out or breaks a hand-over rule.
-- This repository's own CI (`.github/workflows/quality.yml`,
+- This repository's own CI (`.gitea/workflows/quality.yml`,
   `openspec-validate` job) runs it against `openspec/changes/` on every
   pull request, as the real merge gate; `main`'s ruleset requires it on a
   branch that is up to date with `main`.

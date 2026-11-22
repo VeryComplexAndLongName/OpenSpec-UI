@@ -1,0 +1,33 @@
+name: Prepare checked releases and mirror
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch: {}
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: checked-release-producer
+  cancel-in-progress: false
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/main'
+    runs-on: openspec-ci
+    steps:
+      - uses: https://github.com/actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: https://github.com/actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - name: Mirror successful main and retain its exact approved artifacts
+        env:
+          GITEA_TOKEN: ${{ github.token }}
+          GITEA_REPOSITORY: ${{ github.repository }}
+          GITEA_REF: ${{ github.ref }}
+          GITHUB_APP_ID: ${{ vars.MIRROR_APP_ID }}
+          GITHUB_APP_PRIVATE_KEY: ${{ secrets.MIRROR_APP_PRIVATE_KEY }}
+          RELEASE_SIGNING_PRIVATE_KEY: ${{ secrets.RELEASE_SIGNING_PRIVATE_KEY }}
+        run: timeout 600 node scripts/mirror-tested-release.mjs

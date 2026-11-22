@@ -27,12 +27,12 @@ test('signer refuses another commit, failed or PR eligibility', () => {
 
 test('producer checks real main run metadata and every independent job', () => {
   const run = { id: 12, repository: { full_name: 'root/OpenSpec-Workbench' }, head_sha: item.commit,
-    event: 'push', status: 'completed', path: 'quality.yml@refs/heads/main' };
+    event: 'push', status: 'completed', conclusion: 'success', path: 'quality.yml@refs/heads/main' };
   const jobs = ['Typecheck, lint, test, and build', 'Dependency audit', 'Extension integration and package',
     'Standalone browser and accessibility', 'Gitea quality gate'].map((name) => ({ name, conclusion: 'success' }));
   assert.deepEqual(mainQualityProof(run, jobs, item.commit), quality);
   for (const change of [{ head_sha: 'c'.repeat(40) }, { event: 'pull_request' }, { status: 'queued' },
-    { repository: { full_name: 'attacker/fork' } }, { path: 'other.yml@refs/heads/main' }]) {
+    { conclusion: 'failure' }, { repository: { full_name: 'attacker/fork' } }, { path: 'other.yml@refs/heads/main' }]) {
     assert.throws(() => mainQualityProof({ ...run, ...change }, jobs, item.commit));
   }
   for (let i = 0; i < jobs.length; i++) {

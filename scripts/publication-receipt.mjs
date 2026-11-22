@@ -44,7 +44,7 @@ export function verifyReceipt(item, publicKey = readFileSync(new URL('../.gitea/
 
 export function mainQualityProof(run, jobs, commit) {
   if (run.repository?.full_name !== 'root/OpenSpec-Workbench' || run.head_sha !== commit
-      || run.event !== 'push' || run.status !== 'completed'
+      || run.event !== 'push' || run.status !== 'completed' || run.conclusion !== 'success'
       || run.path !== 'quality.yml@refs/heads/main' || !Number.isSafeInteger(run.id) || run.id < 1) {
     throw new Error('Expected completed Gitea main Quality for the exact release commit');
   }

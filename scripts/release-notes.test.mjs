@@ -65,12 +65,11 @@ test("public-note validation requires each delivery while keeping Core internal"
   });
 });
 
-test("release workflow validates version notes and prepares Highlights before tagging", async () => {
-  const workflow = YAML.parse(await readFile(path.join(REPO, ".github/workflows/quality.yml"), "utf8"));
+test("Gitea validates authored notes and feeds typed release copy into the retained artifact", async () => {
+  const workflow = YAML.parse(await readFile(path.join(REPO, ".gitea/workflows/quality.yml"), "utf8"));
   assert.ok(workflow.jobs["version-pr"].steps.some((step) => step.run?.includes("write-release-notes.ts --check")));
-  const script = workflow.jobs["release-extension"].steps.find((step) => step.id === "release").run;
-  const generate = script.indexOf("write-release-notes.ts");
-  assert.ok(generate >= 0 && generate < script.indexOf("git tag -a"));
-  assert.match(script, /--notes-file "\$\{RUNNER_TEMP\}\/release-notes\.md"/);
-  assert.match(script, /--generate-notes/);
+  const script = workflow.jobs.quality.steps.find((step) => step.run?.includes('releases-base.json')).run;
+  assert.match(script, /write manifest.*--commit/u);
+  const producer = await readFile(path.join(REPO, 'scripts/mirror-tested-release.mjs'), 'utf8');
+  assert.ok(producer.includes('baseProduct.changes.map'));
 });
