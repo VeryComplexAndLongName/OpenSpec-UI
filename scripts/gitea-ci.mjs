@@ -25,6 +25,7 @@ export function checkWorkflow(source) {
     if (!jobs[id] || jobs[id]['runs-on'] !== 'openspec-ci') throw new Error(`Missing internal quality job ${id}`);
     if (!jobs['ci-ready']?.needs?.includes(id)) throw new Error(`Aggregate gate omits ${id}`);
   }
+  if (jobs['dependency-audit'].if) throw new Error('Independent audit must also run on main');
   if (/secrets\./u.test(source)) throw new Error('Quality may not receive production secrets');
   if (workflow.env?.NODE_VERSION !== '24.21.0' || workflow.env?.NPM_VERSION !== '10.9.0') {
     throw new Error('Pinned runtime required');
