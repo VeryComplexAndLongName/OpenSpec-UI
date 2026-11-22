@@ -25,7 +25,9 @@ deletion. See ADR 0059, now named
   definition id `ff640ebf-283f-4f8a-b58d-5ab8acc9494e`. The owner approved
   CircleCI App installation only for OpenSpec-UI; setup now lists that repo
   and installation `184623029`. The initial trigger is default-branch pushes.
-  Actual hosted execution and npm exchange remain pending.
+  Hosted run #1 succeeded in 19 seconds on the Free plan without a card.
+  Hosted run #2 succeeded in 25 seconds and exchanged the real V2 npm-audience
+  token for a package-specific npm token. No publish command ran.
 - The owner added certificate thumbprint
   `490FD4FE9CB6A31479EC3D1572D79A2EE55C2603` to the existing Entra app.
   Credential id: `d1b5a10d-f669-4355-ac93-df9b6c1e9981`.
@@ -49,9 +51,76 @@ deletion. See ADR 0059, now named
   assignments and changed extension ids, bounds certificate assertions,
   refuses redirects and withholds sensitive error bodies.
 - No registry version, VSIX or article was published by these probes.
-- Gitea's repository runner endpoints currently list zero assigned runners
-  for both targets. Instance runner availability remains a separate check;
-  this is not proof that a complete quality pipeline can execute.
+- Gitea's repository runner endpoints list zero repository-specific runners
+  for both targets. Its administrator endpoint lists three online instance
+  runners: `devtools-release-runner` (id 8, `hppmcp-release`) and
+  `devtools-pr-runner` / `devtools-pr-runner-2` (ids 10/11, `hppmcp-pr`).
+  Existing HppMCP labels are not evidence of an isolated OpenSpec executor
+  or complete Quality parity. Verify capabilities and isolation before use.
+  HppMCP's current operations guide says these Docker executors share one
+  2-vCPU VM and its Docker daemon; separate labels divide queues, not host
+  privileges. Keep internal PR authors trusted and do not run untrusted public
+  mirror submissions on this host. External contributions need a separate
+  ephemeral VM before they can enter automatic CI with no credential exposure.
+
+## CircleCI hosted npm access proof
+
+The owner completed security-key authentication and npm reported
+`Successfully added new Trusted Publisher connection.` The connection is
+`CircleCI npm publisher`, id `ff57bbf0-edc3-4438-9f57-a84dc2e5f12e`.
+It permits `npm publish` and `npm stage publish`; separate dist-tag management
+was not enabled. The old valid GitHub connection and package owner remain.
+
+Exact trust bindings:
+
+- Organization: `3d5db94d-4a2c-499e-82f5-af1f9fd28d49`.
+- Project: `1bee6918-ef0a-424e-9775-cfd25745b0cd`.
+- Pipeline definition: `ff640ebf-283f-4f8a-b58d-5ab8acc9494e`.
+- Context: `dd0462b9-a028-418b-9591-91d1ef9cee78` (`npm-publication`).
+- VCS origin: `github.com/VeryComplexAndLongName/OpenSpec-UI`.
+
+The context contains no secrets. Its project restriction names only
+`OpenSpec npm publisher`; its expression is
+`pipeline.git.branch == "circleci-project-setup" and not job.ssh.enabled`.
+This temporary probe branch is not a production publishing ref. Before
+cutover, restrict the context and both script ref checks to protected main
+and consume the accepted Homepage/immutable-artifact contract.
+
+Hosted run #1 verified the exact V2 token identity from commit
+`e899d0562b9df5c1d8c89f9d113924c94730675b`:
+https://app.circleci.com/pipelines/circleci/8aWYi8G89ikBPGoYjr3Bix/1bee6918-ef0a-424e-9775-cfd25745b0cd/1/details?useNewPipelines=true
+
+Hosted run #2 used commit `e47ab3e128210a9ca94c3d09a91b1e2f947f1001`,
+both config/checkout refs `circleci-project-setup` and parameter
+`access-probe=exchange`. Pipeline id:
+`c546b8d5-f377-43d4-9de2-43bf412e7484`; workflow id:
+`b092eea3-ba7d-482a-b1bf-4bdb0e3df2ed`; job id:
+`63668eeb-1ce5-4489-8cfc-260a72818b99`. The success step visibly names
+`node scripts/check-circleci-npm-access.mjs "exchange"`. That script rejects
+wrong org/project/pipeline/context/origin/config/ref/SSH/expiry, sends the
+token only to the fixed package exchange endpoint and requires a nonempty
+returned token. It never prints or persists either token and never publishes.
+https://app.circleci.com/pipelines/circleci/8aWYi8G89ikBPGoYjr3Bix/1bee6918-ef0a-424e-9775-cfd25745b0cd/2/details?useNewPipelines=true
+
+All 5 named offline CircleCI probe tests, changed-path ESLint, YAML parsing
+and strict OpenSpec validation passed before these runs. The two hosted jobs
+perform only authentication checks, not development/build/test CI.
+
+**First-publish deadline:** npm still shows `Pending validation`; a real
+successful publish is required before **2026-11-24 10:58 UTC** (13:58 Moscow).
+Token exchange does not satisfy that condition. Recreate an expired connection
+instead of manufacturing a disposable package version. CircleCI does not
+currently provide npm automatic provenance attestations.
+
+## Superseded grant cleanup
+
+After the successful CircleCI exchange, the approved Entra federation
+`gitlab-main-marketplace` was deleted. The portal now shows zero federated
+credentials and retains one certificate. A fresh live certificate identity,
+Contributor role and exact publisher/extension check passed after deletion.
+The npm deletion of only `GitLab release publisher` is awaiting a second
+owner security-key authentication. Neither GitHub trust nor the new CircleCI
+trust is a cleanup target. Do not declare npm cleanup complete until observed.
 
 ## Owner priority
 
@@ -206,12 +275,15 @@ VSIX or dist-tag publication commands. It is not a product CI migration.
 
 The GitLab preflight MR !1 was closed without merging after the owner's
 revised decision. Its source branch and the initial main commit remain intact.
-The obsolete GitLab federation and npm trust await exact reviewed cleanup
-after replacement access is proved. No GitHub deletion is scheduled.
+The obsolete grants' current cleanup status is recorded above. No GitHub
+deletion is scheduled.
 
 ## Primary references
 
 - https://docs.npmjs.com/trusted-publishers/
+- https://circleci.com/pricing/
+- https://circleci.com/docs/guides/deploy/deploy-to-npm-registry/
+- https://circleci.com/docs/guides/permissions-authentication/oidc-tokens-with-custom-claims/
 - https://docs.gitlab.com/ci/cloud_services/azure/
 - https://code.visualstudio.com/api/working-with-extensions/publishing-extension
 - https://raw.githubusercontent.com/microsoft/vscode-vsce/main/src/auth.ts
