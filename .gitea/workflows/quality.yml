@@ -176,6 +176,9 @@ jobs:
           name: openspec-ui-vsix
           path: packages/extension/*.vsix
           if-no-files-found: error
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.1-noble
+      options: --ipc=host
   version-pr:
     name: Version pull request installs, builds and packages
     if: github.event_name == 'pull_request' && github.head_ref == 'changeset-release/main'
@@ -296,10 +299,7 @@ jobs:
           timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
           changed=$(git diff --name-only "origin/$BASE_REF"...HEAD)
           if grep -qE '^packages/[^/]+/(src/|package\.json$)' <<< "$changed"; then
-            printf '%s\n' "$changed" | grep -qE '^\.changeset/.*\.md { echo 'Package change requires an authored changeset'; exit 1; }
-          fi
-          OPENSPEC_STEP
-           <<< "$changed" || { echo 'Package change requires an authored changeset'; exit 1; }
+            grep -qE '^\.changeset/.*\.md$' <<< "$changed" || { echo 'Package change requires an authored changeset'; exit 1; }
           fi
           OPENSPEC_STEP
   ci-ready:
@@ -327,3 +327,6 @@ jobs:
           CI_EVENT: ${{ github.event_name }}
           CI_HEAD: ${{ github.head_ref }}
         run: timeout 30 node scripts/gitea-ci.mjs results
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}

@@ -14,7 +14,7 @@ cache:
   enabled: false
 container:
   privileged: false
-  options: --cpus=2 --memory=6g --pids-limit=2048 --add-host=hppiigit:192.168.137.34
+  options: --cpus=2 --memory=6g --pids-limit=2048 --dns=1.1.1.1 --dns=8.8.8.8 --add-host=hppiigit:192.168.137.34
   valid_volumes: []
   docker_host: '-'
   force_pull: false

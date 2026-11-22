@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import test from 'node:test';
 import { checkRunner, checkWorkflow, requireResults } from './gitea-ci.mjs';
 
@@ -39,5 +41,13 @@ test('runner refuses privileged execution, Docker socket mounts and unbounded jo
     source.replace('valid_volumes: []', "valid_volumes: ['**']"),
     source.replace('--memory=6g', '')]) {
     assert.throws(() => checkRunner(changed));
+  }
+});
+test('every workflow shell step parses before any command is executed', () => {
+  const workflow = createRequire(import.meta.url)('yaml').parse(readFileSync('.gitea/workflows/quality.yml', 'utf8'));
+  for (const job of Object.values(workflow.jobs)) for (const step of job.steps) {
+    if (!step.run) continue;
+    const parsed = spawnSync(process.env.OPENSPEC_TEST_BASH || 'bash', ['-n'], { input: step.run, encoding: 'utf8' });
+    assert.equal(parsed.status, 0, parsed.stderr || parsed.error?.message);
   }
 });
