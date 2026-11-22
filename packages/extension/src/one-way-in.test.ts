@@ -92,7 +92,7 @@ describe("the extension contributes one way to start a run", () => {
 describe("a command that asks before it acts says so", () => {
   const ASKS_FIRST = [
     "initializeWorkspace", "generateInstructions", "initializeWorkspaceHarness", "configureDependabot",
-    "generateScopedInstructions", "runChange", "createChange", "createTemplate",
+    "generateScopedInstructions", "runChange", "createChange", "createChangeFromIssue", "createTemplate",
     "openChangeCopy", "findChange", "copyTasks", "insertTemplate",
     "confirmKey", "joinTeam", "generateReport", "sendMessage", "stopRun",
     "addRelation", "removeRelation", "filterArchive", "filterSpecs", "filterGraph",

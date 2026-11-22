@@ -21,6 +21,7 @@
 - [x] 2.8 Register confirmation/refusal identifiers in `packages/core/src/message-register.ts`; the named message register test must pass with its existing ratchet.
 - [x] 2.9 Retain issued identifiers in `packages/core/src/message-register.test.ts`; the GIVEN ledger must include OSW-CHG-019 through OSW-CHG-032.
 - [x] 2.10 Regenerate `docs/messages.md` using the Core messages script; the generated-page comparison must pass.
+- [x] 2.11 List `createChangeFromIssue` in `packages/extension/src/one-way-in.test.ts` as a command that asks first; the selected "a command that asks before it acts says so" tests must pass. Keep the ellipsis and the actual confirmation.
 
 ## 3. Delivery and verification
 
@@ -45,4 +46,6 @@ Full verification is pending in the existing PR CI gates.
 
 Actual main conflict: both this change and launch-workbench-from-npm inserted a browser scenario at the same location. git merge-tree reported that conflict, so the branch was rebased onto origin/main and both complete scenarios retained. Server e2e TypeScript, the Core source/message selections (21 passed, one POSIX-only skipped), and authored notes/budgets were rechecked after resolution. No manual rebase was done solely for freshness.
 
-CI run 44902771153 found one cross-platform fixture error in issue-change-rest.test.ts: Z:/outside-workspace is relative on Linux. The refusal check now uses path.resolve(cwd, '..', 'issue-outside-workspace'). The selected real HTTP contract test passed locally after correction (1 test, 207 ms); changed-file ESLint and whitespace checks passed. All other executed suites in that run passed; dependent browser/integration gates were skipped, so full CI remains pending.
+CI run 44902771153 found a cross-platform fixture error in issue-change-rest.test.ts: Z:/outside-workspace is relative on Linux. The refusal check now uses path.resolve(cwd, '..', 'issue-outside-workspace'). The selected real HTTP contract test passed locally after correction (1 test, 207 ms); changed-file ESLint and whitespace checks passed. Full-log review also found the native one-way-in manifest contract needed to list the new command among commands that ask first. Core issue readers, source workflow (including the POSIX symlink case), security and Shared UI tests passed in that Linux run. Dependent browser/integration gates were skipped, so full CI remains pending.
+
+Native confirmation contract selection: 3 passed, 6 filtered; changed-file ESLint and whitespace checks passed. Run 45005317673 could not start any required job: GitHub reported that the account is locked due to a billing issue. Full CI, merge, archival and registry publication remain pending until Actions is available.
