@@ -1,5 +1,19 @@
 # @openspec-ui/core
 
+## 0.151.0
+
+### Minor Changes
+
+- a69db83: Prepare CI Repair Task in PR Review gathers available failure details and missing expected checks, keeps their checked commit and source links, and provides a brief to copy to an agent. GitHub annotations and forge-reported messages may be partial; preparing a task does not start a run or modify the change.
+- 8a6c165: Preview a GitHub, GitLab or Gitea issue and create a change with its source attached. The existing Propose stage reads the confirmed snapshot; running an agent still requires a separate action. Issues must belong to the workspace repository. Changed previews require confirmation again, and truncated requests are marked.
+- 86a88fd: PR Review flags committed files outside the paths listed in a change's `change-scope.json`, including paths removed by renames. Copy PR summary retains missing or invalid declarations and warns when the declaration itself changed. Scope checking is advisory and excludes uncommitted edits.
+- ff9e81f: PR Review in openspec-ui-vscode and @openspec-ui/server can import JUnit XML and show individual test results for OpenSpec scenarios, including skipped, missing and ambiguous evidence. Commit scenario-tests.json to declare test associations. The imported report's tested commit is user-declared and remains visible, including historical results, in Copy PR summary.
+
+### Patch Changes
+
+- 10d9059: Use Codex CLI (ACP) for unconfigured commands and new sessions. Repository setup offers Codex ACP first when installed. Existing selections take precedence, and both Claude adapters retain their supported settings.
+- a0e9b22: Launch the standalone Workbench with `npx @openspec-ui/cli open workbench --cwd <project>` without cloning or building OpenSpec-UI. The command prints an authenticated localhost URL, accepts `--port` and stops on Ctrl+C. OpenSpec and agent executables remain separate prerequisites for operations that use them.
+
 ## 0.150.1
 
 ### Patch Changes

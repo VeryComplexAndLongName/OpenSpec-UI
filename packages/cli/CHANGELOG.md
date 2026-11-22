@@ -1,5 +1,16 @@
 # @openspec-ui/cli
 
+## 0.34.0
+
+### Minor Changes
+
+- a0e9b22: Launch the standalone Workbench with `npx @openspec-ui/cli open workbench --cwd <project>` without cloning or building OpenSpec-UI. The command prints an authenticated localhost URL, accepts `--port` and stops on Ctrl+C. OpenSpec and agent executables remain separate prerequisites for operations that use them.
+- 8a6c165: Preview a GitHub, GitLab or Gitea issue and create a change with its source attached. The existing Propose stage reads the confirmed snapshot; running an agent still requires a separate action. Issues must belong to the workspace repository. Changed previews require confirmation again, and truncated requests are marked.
+
+### Patch Changes
+
+- 10d9059: Use Codex CLI (ACP) for unconfigured commands and new sessions. Repository setup offers Codex ACP first when installed. Existing selections take precedence, and both Claude adapters retain their supported settings.
+
 ## 0.33.0
 
 ### Minor Changes
