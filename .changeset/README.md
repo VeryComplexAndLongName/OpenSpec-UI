@@ -75,23 +75,24 @@ for new work and never justifies rebuilding an old version's artifact.
 
 ## What this repository does *not* use changesets for
 
-- **npm publishing is a dispatched step, not `changeset publish`.** Only
+- **npm publishing is coordinated by Homepage, not `changeset publish`.** Only
   `@openspec-ui/cli` is public; every other workspace package is
   `"private": true` and never reaches the registry. A version bump of the
-  CLI reaches npm only when somebody dispatches
-  `.github/workflows/publish.yml` with `cli_version` (ADR-0048). This repo
+  CLI automatically enters Homepage's durable publication queue after its
+  immutable GitHub Release is prepared (ADR 0058). This repo
   never runs `changeset publish`, so `access: "restricted"` in
   `config.json` is never exercised; the workflow passes `--access public`
   itself.
-- **The actual release mechanism is unchanged.** CI (`release-extension`
+- **CI prepares immutable artifacts.** CI (`release-extension`
   job in `.github/workflows/quality.yml`) tags the commit and publishes a
   GitHub Release with the built `.vsix` once `package.json`'s version has
   no matching git tag yet — changesets only produces the version bump and
   changelog entry that trigger that existing pipeline; it does not replace
-  it. Publishing that release to the VS Code Marketplace is a step
-  somebody dispatches by hand, for a version they name
-  (`.github/workflows/publish.yml`): a version bump reaches the
-  Marketplace only when somebody asks it to.
+  it. A matching `release-cli` job prepares the CLI tarball. Short jobs in
+  `.github/workflows/publish.yml` automatically pull approved Homepage work,
+  verify the artifact checksum, reconcile existing registry versions and
+  publish through OIDC. Homepage retains confirmations and finite retry
+  budgets; registry writes do not run in Quality.
 - **`openspec-ui`** (the private workspace root, always `0.0.0`) is
   listed in `config.json`'s `ignore` array — it is a workspace
   container, never a release artifact, and was never bumped by hand

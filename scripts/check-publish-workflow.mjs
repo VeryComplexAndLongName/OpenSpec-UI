@@ -1,187 +1,77 @@
 #!/usr/bin/env node
-// The Marketplace publish stays a step somebody asks for
-// (the-marketplace-publish-is-a-manual-step).
-//
-// Every other guarantee in this repository is a test over code. This one
-// lives in a YAML file that nothing else reads, and the failure mode is
-// the one the owner asked to prevent: a publish that goes out on a push
-// because a trigger was added while debugging, or a second workflow that
-// quietly learns the token.
-//
-// So this reads the workflow and fails where it stops being what the
-// change decided: dispatched by hand and by nothing else, confirmed by a
-// typed word, publishing the artifact that was released rather than a
-// rebuild, with the token read by that one job and named nowhere else.
-
+// Publication policy: automatic Homepage leases, immutable artifacts, OIDC only.
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { parse } from "yaml";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-
 export const PUBLISH_WORKFLOW = ".github/workflows/publish.yml";
 
-/** The lines of a workflow, with comments and blank lines dropped: every
- * rule below is about what the file does, and a comment quoting a trigger
- * is not a trigger. */
-function instructions(source) {
-  return source
-    .split(/\r?\n/u)
-    .filter((line) => line.trim().length > 0 && !line.trim().startsWith("#"));
-}
-
-/** The top-level `on:` block's keys. A workflow's triggers are the only
- * thing here that has to be exhaustive, so they are read as keys rather
- * than searched for as words. */
-function triggersOf(lines) {
-  const start = lines.findIndex((line) => /^on:\s*$/u.test(line) || /^on:\s*\S/u.test(line));
-  if (start === -1) return [];
-  const inline = /^on:\s*(\S.*)$/u.exec(lines[start]);
-  if (inline) return [inline[1].trim()];
-  const triggers = [];
-  for (const line of lines.slice(start + 1)) {
-    if (/^\S/u.test(line)) break;
-    const match = /^ {2}([A-Za-z_]+):/u.exec(line);
-    if (match) triggers.push(match[1]);
-  }
-  return triggers;
+function executable(source) {
+  return source.split(/\r?\n/u).filter((line) => !line.trim().startsWith("#")).join("\n");
 }
 
 export function checkPublishWorkflow(source) {
   const problems = [];
-  const lines = instructions(source);
-  const text = lines.join("\n");
-
-  const triggers = triggersOf(lines);
-  if (triggers.length === 0) {
-    problems.push("it declares no trigger at all");
+  let workflow;
+  try { workflow = parse(source); } catch { return ["invalid workflow YAML"]; }
+  const triggers = Object.keys(workflow.on ?? {});
+  if (triggers.length !== 3 || !["workflow_run", "schedule", "workflow_dispatch"].every((one) => triggers.includes(one))) {
+    problems.push("only workflow_run, schedule and workflow_dispatch may trigger publication");
   }
-  for (const trigger of triggers) {
-    if (trigger !== "workflow_dispatch") {
-      problems.push(`it runs on "${trigger}"; a publish is dispatched by hand and by nothing else`);
+  if (JSON.stringify(workflow.on?.workflow_run) !== JSON.stringify({ workflows: ["Quality"], types: ["completed"], branches: ["main"] })) {
+    problems.push("automatic publication must follow completed main Quality");
+  }
+  if (workflow.permissions?.["id-token"] || workflow.permissions?.contents !== "read") problems.push("top-level permissions must not grant publish identities or writes");
+  if (workflow.concurrency?.["cancel-in-progress"] !== false) problems.push("publishing workers must not cancel one another");
+  if (Object.keys(workflow.jobs ?? {}).sort().join(",") !== "marketplace,npm") problems.push("only the two registry workers may run");
+  for (const channel of ["npm", "marketplace"]) {
+    const job = workflow.jobs?.[channel] ?? {};
+    if (job.environment !== channel) problems.push(`${channel}: environment must match its OIDC policy`);
+    if (job.permissions?.["id-token"] !== "write" || job.permissions?.contents !== "read") problems.push(`${channel}: scoped OIDC and read-only contents are required`);
+    if (job["runs-on"] !== "ubuntu-latest" || job["timeout-minutes"] > 10 || !job["timeout-minutes"]) problems.push(`${channel}: use a short GitHub-hosted job`);
+    const guard = job.if ?? "";
+    for (const condition of ["github.ref == 'refs/heads/main'", "github.event.workflow_run.conclusion == 'success'",
+      "github.event.workflow_run.event == 'push'", "github.event.workflow_run.head_repository.full_name == github.repository"]) {
+      if (!guard.includes(condition)) problems.push(`${channel}: missing main/success/trusted repository guard`);
+    }
+    const checkout = job.steps?.find((step) => step.uses?.startsWith("actions/checkout@"));
+    if (checkout?.with?.ref !== "main" || checkout?.with?.["persist-credentials"] !== false) problems.push(`${channel}: checkout main without persisted credentials`);
+    if (!job.steps?.some((step) => step.run === `node scripts/publication-worker.mjs ${channel}`)) problems.push(`${channel}: must use the Homepage queue worker`);
+    for (const step of job.steps ?? []) {
+      if (step.run && /npm ci|npm run build|vsce package|npm run package|npm publish|vsce publish/u.test(step.run)) problems.push(`${channel}: no build or independent registry writes in the workflow`);
     }
   }
-
-  if (!/^ {6}confirm:/mu.test(text)) {
-    problems.push('it takes no "confirm" input; the press has to be deliberate');
-  }
-  if (!/!=\s*"publish"/u.test(text) && !/!=\s*'publish'/u.test(text)) {
-    problems.push('no step refuses a run whose confirmation does not read "publish"');
-  }
-  if (!/^ {6}vscode_version:/mu.test(text)) {
-    problems.push('it takes no "vscode_version" input; a Marketplace publish names the version it publishes');
-  }
-  if (!/^ {6}cli_version:/mu.test(text)) {
-    problems.push('it takes no "cli_version" input; an npm publish names the version it publishes');
-  }
-  // Both publishing jobs wait for the confirmation, so neither can read
-  // its credential before it has been checked.
-  if ((text.match(/^ {4}needs: confirm$/gmu) ?? []).length < 2) {
-    problems.push('a publishing job does not need the "confirm" job; it could read its credential unconfirmed');
-  }
-  if (!text.includes("gh release download")) {
-    problems.push("it does not take the VSIX from the release that version was tagged as");
-  }
-  if (!/vsce publish[^\n]*--packagePath/u.test(text)) {
-    problems.push("its Marketplace publish does not take --packagePath; what goes out must be the artifact that was released");
-  }
-  if (/vsce package|npm run package/u.test(text)) {
-    problems.push("it builds a package of its own rather than publishing the released one");
-  }
-  if (!text.includes("VSCE_PAT")) {
-    problems.push("it reads no VSCE_PAT; nothing would authenticate");
-  }
-  if (!/^ {2}npm:$/mu.test(text) || !/npm publish\b/u.test(text)) {
-    problems.push("it has no npm job that runs npm publish");
-  }
-  if (!/^ {4}environment: npm$/mu.test(text)) {
-    problems.push('its npm job is not bound to the "npm" environment the trusted publisher names');
-  }
-  if (!/^ {6}id-token: write$/mu.test(text)) {
-    problems.push("its npm job asks for no id-token; Trusted Publishing has nothing to authenticate with");
-  }
-  if ((text.match(/id-token:\s*write/gu) ?? []).length > 1) {
-    problems.push("id-token: write is granted more than once; the OIDC token is held by the npm job alone");
-  }
-  if (/NPM_TOKEN|NODE_AUTH_TOKEN/u.test(text)) {
-    problems.push("it names an npm token; npm is published by Trusted Publishing, and there is no token to leak");
-  }
-  if (!text.includes("refs/heads/main")) {
-    problems.push("its npm job does not refuse a dispatch from a ref other than main");
-  }
-  if (!/packages\/cli\/package\.json/u.test(text) || !text.includes("npm view")) {
-    problems.push("its npm job does not check the named version against the commit it builds, or against what is already on npm");
-  }
+  if (workflow.env?.NPM_PUBLISH_VERSION !== "11.5.1" || workflow.env?.VSCE_PUBLISH_VERSION !== "4.0.2") problems.push("pin OIDC-capable registry clients");
+  if (/VSCE_PAT|NPM_TOKEN|NODE_AUTH_TOKEN/u.test(executable(source))) problems.push("no persistent registry tokens are allowed");
   return problems;
 }
 
-/** Every other workflow, which may name neither the token nor a publish:
- * a second path to the Marketplace is exactly what "a manual step" rules
- * out, and it would not be visible from the file above. */
-/** The one workflow allowed to name the homepage's dispatch token. */
-const DISPATCH_WORKFLOW = ".github/workflows/homepage-dispatch.yml";
-
 export async function checkOtherWorkflows(root = repoRoot) {
   const problems = [];
-  const directory = path.join(root, ".github", "workflows");
-  let entries = [];
-  try {
-    entries = await readdir(directory);
-  } catch {
-    return [".github/workflows is not readable"];
-  }
-  for (const entry of entries.sort()) {
-    if (!entry.endsWith(".yml") && !entry.endsWith(".yaml")) continue;
+  let entries;
+  try { entries = await readdir(path.join(root, ".github/workflows")); } catch { return [".github/workflows is not readable"]; }
+  for (const entry of entries) {
     const relative = `.github/workflows/${entry}`;
-    if (relative === PUBLISH_WORKFLOW) continue;
-    const source = await readFile(path.join(directory, entry), "utf8");
-    const text = instructions(source).join("\n");
-    if (text.includes("VSCE_PAT")) {
-      problems.push(`${relative}: names VSCE_PAT; the token is read by the publishing workflow alone`);
-    }
-    // The same rule for the other credential this repository holds: a
-    // token that can act on another repository is named by the one
-    // workflow that needs it (the-homepage-hears-about-an-article).
-    if (relative !== DISPATCH_WORKFLOW && text.includes("HOMEPAGE_DISPATCH_TOKEN")) {
-      problems.push(`${relative}: names HOMEPAGE_DISPATCH_TOKEN; the token is read by the homepage dispatch workflow alone`);
-    }
-    if (/vsce publish/u.test(text)) {
-      problems.push(`${relative}: publishes to the Marketplace; that is the dispatched workflow's alone`);
-    }
-    if (/npm publish|changeset publish/u.test(text)) {
-      problems.push(`${relative}: publishes to npm; that is the dispatched workflow's alone`);
-    }
-    if (/NPM_TOKEN|NODE_AUTH_TOKEN/u.test(text)) {
-      problems.push(`${relative}: names an npm token; npm is published by Trusted Publishing from the dispatched workflow alone`);
-    }
+    if (!/\.ya?ml$/u.test(entry) || relative === PUBLISH_WORKFLOW) continue;
+    const source = executable(await readFile(path.join(root, relative), "utf8"));
+    if (/VSCE_PAT|NPM_TOKEN|NODE_AUTH_TOKEN|vsce publish|npm publish|changeset publish/u.test(source)) problems.push(`${relative}: registry writes and credentials belong only to the OIDC queue worker`);
+    if (relative !== ".github/workflows/homepage-dispatch.yml" && source.includes("HOMEPAGE_DISPATCH_TOKEN")) problems.push(`${relative}: homepage dispatch token belongs only to homepage-dispatch.yml`);
   }
   return problems;
 }
 
 export async function checkAll(root = repoRoot) {
-  const problems = [];
   let source;
-  try {
-    source = await readFile(path.join(root, PUBLISH_WORKFLOW), "utf8");
-  } catch {
-    return [`${PUBLISH_WORKFLOW} is missing; the Marketplace and npm publishes live there`];
-  }
-  problems.push(...checkPublishWorkflow(source).map((problem) => `${PUBLISH_WORKFLOW}: ${problem}`));
-  problems.push(...(await checkOtherWorkflows(root)));
-  return problems;
-}
-
-async function main() {
-  const problems = await checkAll();
-  if (problems.length > 0) {
-    console.error("Publish workflow check failed:\n");
-    for (const problem of problems) console.error(`  ${problem}`);
-    console.error("\nSee openspec/changes/archive/2026-09-19-the-marketplace-publish-is-a-manual-step/design.md");
-    process.exit(1);
-  }
-  console.log("Publish workflow check passed.");
+  try { source = await readFile(path.join(root, PUBLISH_WORKFLOW), "utf8"); } catch { return [`${PUBLISH_WORKFLOW} is missing`]; }
+  return [...checkPublishWorkflow(source), ...await checkOtherWorkflows(root)];
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  await main();
+  const problems = await checkAll();
+  if (problems.length) {
+    console.error(`Publish workflow check failed:\n${problems.join("\n")}\nSee docs/adr/0058-homepage-publication-center.md`);
+    process.exitCode = 1;
+  } else console.log("Publish workflow check passed.");
 }
