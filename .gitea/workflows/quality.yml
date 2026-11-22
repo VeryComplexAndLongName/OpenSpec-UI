@@ -1,42 +1,332 @@
 name: Quality
-
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   pull_request:
-    branches: [main]
-
+    branches:
+      - main
+  workflow_dispatch: {}
+permissions:
+  contents: read
 env:
   NODE_VERSION: 24.21.0
   NPM_VERSION: 10.9.0
-
 jobs:
   quality:
     name: Typecheck, lint, test, and build
-    runs-on: ubuntu-latest
+    outputs:
+      playwright-version: ${{ steps.playwright.outputs.version }}
+    if: github.head_ref != 'changeset-release/main'
+    runs-on: openspec-ci
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: https://github.com/actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: https://github.com/actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - run: npm install --global npm@${NPM_VERSION}
-      - run: npm ci
-      - run: npm run verify
-      - run: npm run build
-      - run: npm audit --omit=dev --audit-level=high
-
+      - run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          npm install --global npm@${NPM_VERSION}
+          OPENSPEC_STEP
+      - run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          npm ci
+          OPENSPEC_STEP
+      - name: Read the installed Playwright version
+        id: playwright
+        run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          version=$(node -p "require('@playwright/test/package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          OPENSPEC_STEP
+      - run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          npm run verify
+          OPENSPEC_STEP
+      - run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          npm run build
+          OPENSPEC_STEP
+      - name: Verify the production Workbench tarball
+        run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          npm run smoke:package --workspace @openspec-ui/cli
+          OPENSPEC_STEP
+  dependency-audit:
+    name: Dependency audit
+    if: github.event_name == 'pull_request'
+    runs-on: openspec-ci
+    steps:
+      - uses: https://github.com/actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: https://github.com/actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          npm install --global npm@${NPM_VERSION}
+          OPENSPEC_STEP
+      - run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          npm ci
+          OPENSPEC_STEP
+      - name: Audit production dependencies
+        run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          # `npm audit` exits non-zero both for "found a high-severity
+          # advisory" and for "could not reach the advisory service", and
+          # the second must not be reported as the first: an audit that
+          # did not run says nothing about these dependencies, in either
+          # direction. So the report is read rather than the exit status
+          # trusted on its own.
+          #
+          # `timeout` bounds the command itself, not just the job. A job
+          # timeout is a red check, which is the outcome this exists to
+          # stop; the command has to give up first so its result can be
+          # interpreted at all.
+          set +e
+          timeout 180 npm audit --omit=dev --audit-level=high --json > audit.json
+          status=$?
+          set -e
+          if [ "$status" -eq 124 ]; then
+            echo "::warning::npm audit did not answer within 180s; the audit was not carried out."
+            exit 0
+          fi
+          node .github/scripts/interpret-npm-audit.mjs audit.json
+          exit $?
+          OPENSPEC_STEP
   openspec-validate:
     name: OpenSpec change validation (merge gate)
     needs: quality
-    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
+    runs-on: openspec-ci
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: https://github.com/actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: https://github.com/actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - run: npm install --global npm@${NPM_VERSION}
-      - run: npm install --global @fission-ai/openspec@1.7.0
-      - run: npm ci
-      - run: npm run start --workspace @openspec-ui/cli -- validate changes --cwd "${{ github.workspace }}"
+      - run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          npm install --global npm@${NPM_VERSION}
+          OPENSPEC_STEP
+      - run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          npm install --global @fission-ai/openspec@1.7.0
+          OPENSPEC_STEP
+      - run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          npm ci
+          OPENSPEC_STEP
+      - run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          git fetch --no-tags --depth=1 origin "$BASE_REF"
+          OPENSPEC_STEP
+        env:
+          BASE_REF: ${{ github.base_ref }}
+      - run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          npm run start --workspace @openspec-ui/cli -- validate changes --cwd "$GITHUB_WORKSPACE" --change "$HEAD_REF" --base "origin/$BASE_REF"
+          OPENSPEC_STEP
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+  extension-integration:
+    name: Extension integration and package
+    needs: quality
+    if: github.head_ref != 'changeset-release/main'
+    runs-on: openspec-ci
+    steps:
+      - uses: https://github.com/actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: https://github.com/actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          npm install --global npm@${NPM_VERSION}
+          OPENSPEC_STEP
+      - run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          npm install --global @fission-ai/openspec@1.7.0
+          OPENSPEC_STEP
+      - run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          npm ci
+          OPENSPEC_STEP
+      - run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          xvfb-run -a npm run test:integration --workspace openspec-ui-vscode
+          OPENSPEC_STEP
+      - run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          npm run package --workspace openspec-ui-vscode
+          OPENSPEC_STEP
+      - uses: https://github.com/actions/upload-artifact@v3
+        with:
+          name: openspec-ui-vsix
+          path: packages/extension/*.vsix
+          if-no-files-found: error
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.1-noble
+      options: --ipc=host
+  version-pr:
+    name: Version pull request installs, builds and packages
+    if: github.event_name == 'pull_request' && github.head_ref == 'changeset-release/main'
+    runs-on: openspec-ci
+    steps:
+      - uses: https://github.com/actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: https://github.com/actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          npm install --global npm@${NPM_VERSION}
+          OPENSPEC_STEP
+      - run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          npm ci
+          OPENSPEC_STEP
+      - name: Validate authored product release notes
+        run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          node --import tsx packages/cli/scripts/write-release-notes.ts --check
+          OPENSPEC_STEP
+      - run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          npm run build
+          OPENSPEC_STEP
+      - name: Verify the versioned production Workbench tarball
+        run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          npm run smoke:package --workspace @openspec-ui/cli
+          OPENSPEC_STEP
+      - run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          npm run package --workspace openspec-ui-vscode
+          OPENSPEC_STEP
+  browser-e2e:
+    name: Standalone browser and accessibility
+    needs: quality
+    if: github.head_ref != 'changeset-release/main'
+    runs-on: openspec-ci
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.1-noble
+      options: --ipc=host
+    steps:
+      - uses: https://github.com/actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: https://github.com/actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          npm install --global npm@${NPM_VERSION}
+          OPENSPEC_STEP
+      - run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          npm install --global @fission-ai/openspec@1.7.0
+          OPENSPEC_STEP
+      - run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          npm ci
+          OPENSPEC_STEP
+      - name: Run the browser suite as the Playwright user
+        run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          chown -R pwuser:pwuser "$GITHUB_WORKSPACE"
+          runuser -u pwuser -- env PATH="$PATH" npm run test:browser --workspace @openspec-ui/server
+          OPENSPEC_STEP
+      - uses: https://github.com/actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: standalone-playwright-diagnostics
+          path: |
+            packages/server/playwright-report/
+            packages/server/test-results/
+          if-no-files-found: warn
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: openspec-ci
+    steps:
+      - uses: https://github.com/actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: https://github.com/actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          npm install --global npm@${NPM_VERSION}
+          OPENSPEC_STEP
+      - name: Review changed lockfile nodes against all advisories
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          git show "origin/$BASE_REF:package-lock.json" > base-lock.json
+          timeout 180 npm audit --json > audit-all.json || true
+          node scripts/review-dependency-diff.mjs base-lock.json package-lock.json audit-all.json
+          OPENSPEC_STEP
+  changeset:
+    name: Require authored changeset
+    if: github.event_name == 'pull_request'
+    runs-on: openspec-ci
+    steps:
+      - uses: https://github.com/actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          changed=$(git diff --name-only "origin/$BASE_REF"...HEAD)
+          if grep -qE '^packages/[^/]+/(src/|package\.json$)' <<< "$changed"; then
+            grep -qE '^\.changeset/.*\.md$' <<< "$changed" || { echo 'Package change requires an authored changeset'; exit 1; }
+          fi
+          OPENSPEC_STEP
+  ci-ready:
+    name: Gitea quality gate
+    needs:
+      - quality
+      - dependency-audit
+      - openspec-validate
+      - extension-integration
+      - version-pr
+      - browser-e2e
+      - dependency-review
+      - changeset
+    if: ${{ always() }}
+    runs-on: openspec-ci
+    steps:
+      - uses: https://github.com/actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: https://github.com/actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - env:
+          CI_RESULTS: ${{ toJSON(needs) }}
+          CI_EVENT: ${{ github.event_name }}
+          CI_HEAD: ${{ github.head_ref }}
+        run: timeout 30 node scripts/gitea-ci.mjs results
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
