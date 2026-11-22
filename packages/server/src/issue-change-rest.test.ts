@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import path from "node:path";
 import { createServer } from "./server.js";
 const preview = vi.hoisted(() => vi.fn());
 const create = vi.hoisted(() => vi.fn());
@@ -21,7 +22,7 @@ describe("issue preview/create HTTP contract", () => {
       expect(preview).toHaveBeenCalledWith({ repositoryRoot: cwd, reference: "12" });
       expect(create).not.toHaveBeenCalled();
       expect((await post("issue-preview", { cwd, reference: "12" }, "wrong")).status).toBe(401);
-      expect((await post("issue-preview", { cwd: "Z:/outside-workspace", reference: "12" })).status).toBe(403);
+      expect((await post("issue-preview", { cwd: path.resolve(cwd, "..", "issue-outside-workspace"), reference: "12" })).status).toBe(403);
       expect((await post("create", { cwd, changeName: "from-issue", issue: { reference: "12", revision: "bad" } })).status).toBe(400);
       expect(create).not.toHaveBeenCalled();
       const result = await post("create", { cwd, changeName: "from-issue", issue: { reference: "12", revision: source.revision } });

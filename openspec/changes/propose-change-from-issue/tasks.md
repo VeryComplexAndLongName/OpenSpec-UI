@@ -44,3 +44,5 @@
 Full verification is pending in the existing PR CI gates.
 
 Actual main conflict: both this change and launch-workbench-from-npm inserted a browser scenario at the same location. git merge-tree reported that conflict, so the branch was rebased onto origin/main and both complete scenarios retained. Server e2e TypeScript, the Core source/message selections (21 passed, one POSIX-only skipped), and authored notes/budgets were rechecked after resolution. No manual rebase was done solely for freshness.
+
+CI run 44902771153 found one cross-platform fixture error in issue-change-rest.test.ts: Z:/outside-workspace is relative on Linux. The refusal check now uses path.resolve(cwd, '..', 'issue-outside-workspace'). The selected real HTTP contract test passed locally after correction (1 test, 207 ms); changed-file ESLint and whitespace checks passed. All other executed suites in that run passed; dependent browser/integration gates were skipped, so full CI remains pending.
