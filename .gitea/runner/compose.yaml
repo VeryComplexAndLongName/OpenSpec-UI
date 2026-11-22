@@ -1,0 +1,21 @@
+services:
+  runner:
+    image: gitea/act_runner@sha256:b5c35d6bdbb9bb25e531230bfc7cc663cb751406cbec90a2a891b85fea54de86
+    container_name: openspec-ci-runner
+    restart: unless-stopped
+    entrypoint: [/sbin/tini, --, act_runner]
+    command: [daemon, --config, /config.yaml]
+    environment:
+      HOME: /data
+    extra_hosts:
+      - hppiigit:192.168.137.34
+    dns: [192.168.137.6, 192.168.137.3]
+    volumes:
+      - ./state:/data
+      - ./config.yaml:/config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
