@@ -1,5 +1,24 @@
 # Migration evidence
 
+## Preserved feature and actual artifact API
+
+Gitea PR 2 passed full run 6742 at 5937a525, operator review 11 and merged as
+93a25199722e576e0cc1d7820281895a57785921. Its standard OpenSpec archive and
+accepted change-editor-workbench requirement are included after that merge.
+
+Migration run 6743's quality job 8992 passed the installed prepared CLI archive
+smoke. Both patched v4 artifacts were listed and downloaded through the actual
+Gitea REST API, and their inner package identities were verified:
+
+- CLI artifact 11537: @openspec-ui/cli 0.33.0, SHA-256
+  `1ed3e3dd8bf674ee758c5a07fc129dd7a9375f2b99410d73bb6e30856ef30267`.
+- Native VSIX artifact 11538: openspec-ui.openspec-ui-vscode 0.110.0, SHA-256
+  `803610cab723c532fae6c8bcbe447484c6af292723649ee96c782733258854a8`.
+
+These are verification artifacts, not new registry versions. Run 6743's
+OpenSpec gate correctly refused the then-open evidence tasks 2.4 and 3.0;
+they were completed only after the feature merge and actual artifact downloads.
+
 The retired GitHub release helpers `scripts/release-cli.mjs` and
 `scripts/publication-manifest.mjs` were removed. They could rebuild a CLI
 outside the approved Gitea artifact flow or emit an unsigned queue contract.

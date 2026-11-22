@@ -49,3 +49,11 @@ Actual main conflict: both this change and launch-workbench-from-npm inserted a 
 CI run 44902771153 found a cross-platform fixture error in issue-change-rest.test.ts: Z:/outside-workspace is relative on Linux. The refusal check now uses path.resolve(cwd, '..', 'issue-outside-workspace'). The selected real HTTP contract test passed locally after correction (1 test, 207 ms); changed-file ESLint and whitespace checks passed. Full-log review also found the native one-way-in manifest contract needed to list the new command among commands that ask first. Core issue readers, source workflow (including the POSIX symlink case), security and Shared UI tests passed in that Linux run. Dependent browser/integration gates were skipped, so full CI remains pending.
 
 Native confirmation contract selection: 3 passed, 6 filtered; changed-file ESLint and whitespace checks passed. Run 45005317673 could not start any required job: GitHub reported that the account is locked due to a billing issue. Full CI, merge, archival and registry publication remain pending until Actions is available.
+
+Gitea replaced the blocked GitHub execution on 2026-11-22. Full Quality run
+6742 passed exact head 5937a525af2b217db85024c1f8ce2d608d15deb0, including Linux
+source/security cases, native integration/package and browser/accessibility.
+Operator review 11 recorded the source, revision and confirmation boundaries.
+Gitea PR 2 merged as 93a25199722e576e0cc1d7820281895a57785921. The archive is
+delivered in the migration branch after that merge; authored Changesets remain
+pending for the first legitimate release through the new publication path.

@@ -42,12 +42,12 @@
 - [x] 2.3 In .gitea/workflows/dependencies.yml, propose compatible lockfile
   updates through the same scoped helper. Its named test refuses manifest
   changes and @types/vscode above 1.90. Deliberate pins and majors remain review.
-- [ ] 2.4 Record the exact required checks/protection and actual Gitea delivery
+- [x] 2.4 Record the exact required checks/protection and actual Gitea delivery
   of preserved GitHub PR #1009 through Gitea PR 2. Merge only its passing head.
 
 ## 3. Approved bytes and independent executors
 
-- [ ] 3.0 In packages/cli/scripts/smoke-package.mjs, accept the exact prepared
+- [x] 3.0 In packages/cli/scripts/smoke-package.mjs, accept the exact prepared
   archive and verify installed package identity. Its changed-file ESLint and
   syntax checks passed. Before completion, require the actual Gitea prepared
   tarball smoke and both v4 REST artifacts, including the native VSIX.
