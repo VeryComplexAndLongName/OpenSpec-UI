@@ -2,6 +2,13 @@
 
 ## Preserved feature and actual artifact API
 
+Release and deployment eligibility query Gitea with both `event=push` and the
+exact `head_sha` before inspecting Quality. Scheduled producer/deploy runs must
+not push the approving main build out of a page of 50 unrelated runs and block
+delayed recovery. The live Gitea Swagger and both filtered API calls confirmed
+these supported filters and returned only the matching actual main Quality.
+Eleven selected mirror/receipt tests and scoped producer ESLint passed.
+
 Gitea PR 2 passed full run 6742 at 5937a525, operator review 11 and merged as
 93a25199722e576e0cc1d7820281895a57785921. Its standard OpenSpec archive and
 accepted change-editor-workbench requirement are included after that merge.

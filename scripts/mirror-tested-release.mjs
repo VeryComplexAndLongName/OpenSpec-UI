@@ -172,7 +172,7 @@ async function publishManifest(documents, token, commit, directory) {
 export async function main() {
   if (process.env.GITEA_REF !== 'refs/heads/main' || process.env.GITEA_REPOSITORY !== INTERNAL) throw new Error('Release producer requires authoritative main');
   const current = (await gitea('/branches/main')).commit.id;
-  const runs = (await gitea('/actions/runs?limit=50')).workflow_runs;
+  const runs = (await gitea(`/actions/runs?event=push&head_sha=${current}&limit=50`)).workflow_runs;
   const run = runs.find((one) => one.head_sha === current && one.path === 'quality.yml@refs/heads/main' && one.event === 'push' && one.status === 'completed');
   if (!run) { console.log('Current main Quality has not completed; no mirror or release write.'); return; }
   const quality = mainQualityProof(run, (await gitea(`/actions/runs/${run.id}/jobs`)).jobs, current);
