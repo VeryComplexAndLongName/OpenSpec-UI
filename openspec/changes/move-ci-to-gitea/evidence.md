@@ -1,5 +1,12 @@
 # Migration evidence
 
+The retired GitHub release helpers `scripts/release-cli.mjs` and
+`scripts/publication-manifest.mjs` were removed. They could rebuild a CLI
+outside the approved Gitea artifact flow or emit an unsigned queue contract.
+The replacement mirror/receipt/worker coverage validates exact bytes, source,
+stable identity, duplicate assets, historical manifests and altered receipts.
+The 16 selected worker/mirror tests and changed-file ESLint passed after removal.
+
 ## Access and existing identities
 
 See publication-preflight.md for actual hosted CircleCI identity/exchange runs

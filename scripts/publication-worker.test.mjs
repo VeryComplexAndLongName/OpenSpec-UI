@@ -3,7 +3,6 @@ import { createHash, generateKeyPairSync } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { api, identity, run as actualRun, validateJob, publish, validatePackage } from "./publication-worker.mjs";
-import { entry } from "./publication-manifest.mjs";
 import { signReceipt } from "./publication-receipt.mjs";
 
 const bytes = Buffer.from("immutable release");
@@ -15,13 +14,6 @@ const receiptKeys = generateKeyPairSync('ed25519');
 job.receipt = signReceipt(job, { id: 1, head_sha: job.commit, event: 'push', conclusion: 'success', workflow: 'quality.yml' },
   receiptKeys.privateKey.export({ type: 'pkcs8', format: 'pem' }));
 const run = (channel, options) => actualRun(channel, { ...options, receiptKey: receiptKeys.publicKey });
-
-test("contract hashes released bytes and refuses ambiguous artifacts", () => {
-  const release = { assets: [{ name: "openspec-ui-cli-1.2.3.tgz", url: job.artifact_url }] };
-  assert.equal(entry("npm", "1.2.3", release, job.commit, bytes).sha256, job.sha256);
-  assert.throws(() => entry("npm", "1.2.3", { ...release, assets: [] }, job.commit, bytes));
-  assert.throws(() => entry("npm", "1.2.3", { ...release, isDraft: true }, job.commit, bytes));
-});
 
 test("refuses untrusted artifact URL, malformed version and checksum", () => {
   assert.equal(validateJob(job, "npm"), "openspec-ui-cli-1.2.3.tgz");
