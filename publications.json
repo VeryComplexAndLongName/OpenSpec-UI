@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "repository": "VeryComplexAndLongName/OpenSpec-UI",
+  "producer_commit": "ae9bdad8ad845dec82362a66bb2c0fb7d4c6bc13",
+  "worker_source": {
+    "payload": "eyJzY2hlbWFfdmVyc2lvbiI6MSwicHVycG9zZSI6Im1hcmtldHBsYWNlLXdvcmtlci1ydW50aW1lIiwicmVwb3NpdG9yeSI6InJvb3QvT3BlblNwZWMtV29ya2JlbmNoIiwicmVmIjoicmVmcy9oZWFkcy9tYWluIiwiY29tbWl0IjoiYWU5YmRhZDhhZDg0NWRlYzgyMzYyYTY2YmIyYzBmYjdkNGM2YmMxMyIsInF1YWxpdHkiOnsiaWQiOjY3ODIsImhlYWRfc2hhIjoiYWU5YmRhZDhhZDg0NWRlYzgyMzYyYTY2YmIyYzBmYjdkNGM2YmMxMyIsImV2ZW50IjoicHVzaCIsImNvbmNsdXNpb24iOiJzdWNjZXNzIiwid29ya2Zsb3ciOiJxdWFsaXR5LnltbCJ9LCJmaWxlcyI6eyJzY3JpcHRzL3B1YmxpY2F0aW9uLXdvcmtlci5tanMiOiJhZjBlNzE4NGVjY2ViNmE4NzIwN2NjNjBkMWU4NDhhZjllNDczN2Y3ZjEwMzlkNDQ1NDI0MTM4NDc5YjI5MmFjIiwic2NyaXB0cy9wdWJsaWNhdGlvbi1yZWNlaXB0Lm1qcyI6ImE2ODdjZjYxN2ZiMjE2YTM2OTI1ODgzZTg0NThlYzQ1NTAxNDY2NDQ5ZWRmYzU1N2VjMWE1MTcyNDA0Y2RkNWIiLCJzY3JpcHRzL2NoZWNrLW1hcmtldHBsYWNlLWVudHJhLWFjY2Vzcy5tanMiOiJlYTNmNWRiYzNiYmY0ZTZiNWU2NTZjMjFiMDY2Y2Q5MjBjMjA5ZGE3MjNkNzE0MTEzMjYyNjcyNWZkYWM5YjA3IiwiLmdpdGVhL3JlbGVhc2Utc2lnbmluZy1wdWJsaWMucGVtIjoiYTA4MzE3YzU5NmJmNTJmNmFjNzg1NGJkNTkzZTQxODgxOTRmYmU4N2UxNDNjMmFiMDA5ODk4M2U2MDdlODg5MCIsImRlcGxveS9wdWJsaWNhdGlvbi9tYXJrZXRwbGFjZS5zZXJ2aWNlIjoiZDM3YjdmZDlhODExMTJkOWY2ODUzOGMzYjIxMzM1YjUyYjQ3Mzc4ZTEyNjM3NzU1M2VkOThlNTA4YjdiMzQxMiIsImRlcGxveS9wdWJsaWNhdGlvbi9tYXJrZXRwbGFjZS50aW1lciI6IjFhMzNiMTMwYjFiNjFlMmFkMTcwZDM3YWEwZmNjYWMxNTgyYWQ5ODkzM2RmNjE1ZTMwNWE0Y2QyYjg3N2E1YzIifX0=",
+    "signature": "oZ0JV30UhvWCiY84z+oumXCXybNfznHrnigrQAuZnDiRz6dwNM9mzLjHIE0SY3oUkXHi/OYAbX0iMei3mEmbBg=="
+  },
+  "publications": [
+    {
+      "channel": "npm",
+      "version": "0.34.0",
+      "commit": "ae9bdad8ad845dec82362a66bb2c0fb7d4c6bc13",
+      "tag": "openspec-ui-cli@0.34.0",
+      "filename": "openspec-ui-cli-0.34.0.tgz",
+      "artifact_url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-cli@0.34.0/openspec-ui-cli-0.34.0.tgz",
+      "sha256": "aa0659a6adf157a491242d6ad20eb2ca2ad5076d2cf3a38846725daec717a117",
+      "receipt": {
+        "payload": "eyJzY2hlbWFfdmVyc2lvbiI6MSwicmVwb3NpdG9yeSI6InJvb3QvT3BlblNwZWMtV29ya2JlbmNoIiwicmVmIjoicmVmcy9oZWFkcy9tYWluIiwiY2hhbm5lbCI6Im5wbSIsInZlcnNpb24iOiIwLjM0LjAiLCJjb21taXQiOiJhZTliZGFkOGFkODQ1ZGVjODIzNjJhNjZiYjJjMGZiN2Q0YzZiYzEzIiwiYXJ0aWZhY3RfdXJsIjoiaHR0cHM6Ly9naXRodWIuY29tL1ZlcnlDb21wbGV4QW5kTG9uZ05hbWUvT3BlblNwZWMtVUkvcmVsZWFzZXMvZG93bmxvYWQvb3BlbnNwZWMtdWktY2xpQDAuMzQuMC9vcGVuc3BlYy11aS1jbGktMC4zNC4wLnRneiIsInNoYTI1NiI6ImFhMDY1OWE2YWRmMTU3YTQ5MTI0MmQ2YWQyMGViMmNhMmFkNTA3NmQyY2YzYTM4ODQ2NzI1ZGFlYzcxN2ExMTciLCJxdWFsaXR5Ijp7ImlkIjo2NzgyLCJoZWFkX3NoYSI6ImFlOWJkYWQ4YWQ4NDVkZWM4MjM2MmE2NmJiMmMwZmI3ZDRjNmJjMTMiLCJldmVudCI6InB1c2giLCJjb25jbHVzaW9uIjoic3VjY2VzcyIsIndvcmtmbG93IjoicXVhbGl0eS55bWwifX0=",
+        "signature": "L2hQwawCmu2Zuh6N9Wctzwxf5727jqs1RTFrAkU/Ym5l4IFLi4kwLpaSDZ5LZ1dVVaxNH2dICoKFDr6pc5gLCw=="
+      },
+      "released_at": "2026-11-23T05:05:42Z",
+      "size_bytes": 2874216
+    },
+    {
+      "channel": "marketplace",
+      "version": "0.111.0",
+      "commit": "ae9bdad8ad845dec82362a66bb2c0fb7d4c6bc13",
+      "tag": "openspec-ui-vscode@0.111.0",
+      "filename": "openspec-ui-vscode-0.111.0.vsix",
+      "artifact_url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode@0.111.0/openspec-ui-vscode-0.111.0.vsix",
+      "sha256": "8b915382e67097a819345ade725b3b2dfb4046dd75cadeb2adf539457b94bb62",
+      "receipt": {
+        "payload": "eyJzY2hlbWFfdmVyc2lvbiI6MSwicmVwb3NpdG9yeSI6InJvb3QvT3BlblNwZWMtV29ya2JlbmNoIiwicmVmIjoicmVmcy9oZWFkcy9tYWluIiwiY2hhbm5lbCI6Im1hcmtldHBsYWNlIiwidmVyc2lvbiI6IjAuMTExLjAiLCJjb21taXQiOiJhZTliZGFkOGFkODQ1ZGVjODIzNjJhNjZiYjJjMGZiN2Q0YzZiYzEzIiwiYXJ0aWZhY3RfdXJsIjoiaHR0cHM6Ly9naXRodWIuY29tL1ZlcnlDb21wbGV4QW5kTG9uZ05hbWUvT3BlblNwZWMtVUkvcmVsZWFzZXMvZG93bmxvYWQvb3BlbnNwZWMtdWktdnNjb2RlQDAuMTExLjAvb3BlbnNwZWMtdWktdnNjb2RlLTAuMTExLjAudnNpeCIsInNoYTI1NiI6IjhiOTE1MzgyZTY3MDk3YTgxOTM0NWFkZTcyNWIzYjJkZmI0MDQ2ZGQ3NWNhZGViMmFkZjUzOTQ1N2I5NGJiNjIiLCJxdWFsaXR5Ijp7ImlkIjo2NzgyLCJoZWFkX3NoYSI6ImFlOWJkYWQ4YWQ4NDVkZWM4MjM2MmE2NmJiMmMwZmI3ZDRjNmJjMTMiLCJldmVudCI6InB1c2giLCJjb25jbHVzaW9uIjoic3VjY2VzcyIsIndvcmtmbG93IjoicXVhbGl0eS55bWwifX0=",
+        "signature": "g3MyRVnEcf2wod/NClzg4gXjMDP2OI85u7LfhNik6ZWR5onOZEBk6IhsB0SN0h2ggrXXWi7wx78Ykx0KOCcBAQ=="
+      },
+      "released_at": "2026-11-23T05:05:46Z",
+      "size_bytes": 11318152
+    }
+  ]
+}

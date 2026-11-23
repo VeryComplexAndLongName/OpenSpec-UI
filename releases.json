@@ -1,57 +1,62 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-11-15T09:22:16.510Z",
+  "generated_at": "2026-11-22T16:02:11.486Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "5b391fb43c278272811f7976b49b20b35b4c2c25",
+  "commit": "ae9bdad8ad845dec82362a66bb2c0fb7d4c6bc13",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.110.0",
-      "released_at": "2026-11-15T09:22:16.510Z",
-      "tag": "openspec-ui-vscode@0.110.0",
+      "version": "0.111.0",
+      "released_at": "2026-11-23T05:05:46Z",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.110.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode@0.111.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.110.0/openspec-ui-vscode-0.110.0.vsix",
-          "size_bytes": 11221692
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode@0.111.0/openspec-ui-vscode-0.111.0.vsix",
+          "size_bytes": 11318152,
+          "sha256": "8b915382e67097a819345ade725b3b2dfb4046dd75cadeb2adf539457b94bb62"
         }
       ],
       "changes": [
         {
           "kind": "minor",
-          "summary": "Open **OpenSpec Stores and Worksets** to find registered planning stores, browse their specification titles and see the folders included in your saved worksets. This requires an OpenSpec CLI with beta stores and worksets."
+          "summary": "Prepare CI Repair Task in PR Review gathers available failure details and missing expected checks, keeps their checked commit and source links, and provides a brief to copy to an agent. GitHub annotations and forge-reported messages may be partial; preparing a task does not start a run or modify the change."
         },
         {
           "kind": "minor",
-          "summary": "Use **Refresh PR checks** on GitHub, GitLab and Gitea. Choose a reported check for an OpenSpec scenario in PR Review, inspect the mapping diff, and save it to the change."
+          "summary": "Preview a GitHub, GitLab or Gitea issue and create a change with its source attached. The existing Propose stage reads the confirmed snapshot; running an agent still requires a separate action. Issues must belong to the workspace repository. Changed previews require confirmation again, and truncated requests are marked."
         },
         {
           "kind": "minor",
-          "summary": "PR Review can remember the commit you reviewed. Use **Changes since last review** after a push to compare the new proposal, specification and code edits with that commit."
+          "summary": "PR Review flags committed files outside the paths listed in a change's `change-scope.json`, including paths removed by renames. Copy PR summary retains missing or invalid declarations and warns when the declaration itself changed. Scope checking is advisory and excludes uncommitted edits."
         },
         {
           "kind": "minor",
-          "summary": "Select **Show Spec Overlaps** on a Pipeline card before running Apply. See which requirements changed on your locally known default branch or are also named by another local change, with the three versions available for comparison."
+          "summary": "PR Review in openspec-ui-vscode and @openspec-ui/server can import JUnit XML and show individual test results for OpenSpec scenarios, including skipped, missing and ambiguous evidence. Commit scenario-tests.json to declare test associations. The imported report's tested commit is user-declared and remains visible, including historical results, in Copy PR summary."
+        },
+        {
+          "kind": "patch",
+          "summary": "Use Codex CLI (ACP) for unconfigured commands and new sessions. Repository setup offers Codex ACP first when installed. Existing selections take precedence, and both Claude adapters retain their supported settings."
         }
-      ]
+      ],
+      "tag": "openspec-ui-vscode@0.111.0"
     },
     {
       "id": "standalone-app",
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.66.0",
-      "released_at": "2026-11-15T09:22:16.510Z",
+      "version": "1.67.0",
+      "released_at": "2026-11-22T16:02:11.486Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -62,19 +67,27 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "Open **OpenSpec Stores and Worksets** to find registered planning stores, browse their specification titles and see the folders included in your saved worksets. This requires an OpenSpec CLI with beta stores and worksets."
+          "summary": "Prepare CI Repair Task in PR Review gathers available failure details and missing expected checks, keeps their checked commit and source links, and provides a brief to copy to an agent. GitHub annotations and forge-reported messages may be partial; preparing a task does not start a run or modify the change."
         },
         {
           "kind": "minor",
-          "summary": "Use **Refresh PR checks** on GitHub, GitLab and Gitea. Choose a reported check for an OpenSpec scenario in PR Review, inspect the mapping diff, and save it to the change."
+          "summary": "Preview a GitHub, GitLab or Gitea issue and create a change with its source attached. The existing Propose stage reads the confirmed snapshot; running an agent still requires a separate action. Issues must belong to the workspace repository. Changed previews require confirmation again, and truncated requests are marked."
         },
         {
           "kind": "minor",
-          "summary": "PR Review can remember the commit you reviewed. Use **Changes since last review** after a push to compare the new proposal, specification and code edits with that commit."
+          "summary": "PR Review flags committed files outside the paths listed in a change's `change-scope.json`, including paths removed by renames. Copy PR summary retains missing or invalid declarations and warns when the declaration itself changed. Scope checking is advisory and excludes uncommitted edits."
         },
         {
           "kind": "minor",
-          "summary": "Select **Show Spec Overlaps** on a Pipeline card before running Apply. See which requirements changed on your locally known default branch or are also named by another local change, with the three versions available for comparison."
+          "summary": "PR Review in openspec-ui-vscode and @openspec-ui/server can import JUnit XML and show individual test results for OpenSpec scenarios, including skipped, missing and ambiguous evidence. Commit scenario-tests.json to declare test associations. The imported report's tested commit is user-declared and remains visible, including historical results, in Copy PR summary."
+        },
+        {
+          "kind": "patch",
+          "summary": "Use Codex CLI (ACP) for unconfigured commands and new sessions. Repository setup offers Codex ACP first when installed. Existing selections take precedence, and both Claude adapters retain their supported settings."
+        },
+        {
+          "kind": "patch",
+          "summary": "Embedded Workbench hosts can report the Core/server versions included in their build. Listen failures reject cleanly, and closing the host disconnects browser sockets so shutdown can finish."
         }
       ]
     },
@@ -83,8 +96,8 @@
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": false,
-      "version": "0.150.1",
-      "released_at": "2026-11-15T09:22:16.510Z",
+      "version": "0.151.0",
+      "released_at": "2026-11-22T16:02:11.486Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -94,8 +107,28 @@
       "artifacts": [],
       "changes": [
         {
+          "kind": "minor",
+          "summary": "Prepare CI Repair Task in PR Review gathers available failure details and missing expected checks, keeps their checked commit and source links, and provides a brief to copy to an agent. GitHub annotations and forge-reported messages may be partial; preparing a task does not start a run or modify the change."
+        },
+        {
+          "kind": "minor",
+          "summary": "Preview a GitHub, GitLab or Gitea issue and create a change with its source attached. The existing Propose stage reads the confirmed snapshot; running an agent still requires a separate action. Issues must belong to the workspace repository. Changed previews require confirmation again, and truncated requests are marked."
+        },
+        {
+          "kind": "minor",
+          "summary": "PR Review flags committed files outside the paths listed in a change's `change-scope.json`, including paths removed by renames. Copy PR summary retains missing or invalid declarations and warns when the declaration itself changed. Scope checking is advisory and excludes uncommitted edits."
+        },
+        {
+          "kind": "minor",
+          "summary": "PR Review in openspec-ui-vscode and @openspec-ui/server can import JUnit XML and show individual test results for OpenSpec scenarios, including skipped, missing and ambiguous evidence. Commit scenario-tests.json to declare test associations. The imported report's tested commit is user-declared and remains visible, including historical results, in Copy PR summary."
+        },
+        {
           "kind": "patch",
-          "summary": "Keep every agent invocation's recorded usage across chain stages and retries, preserve cache/thought tokens and unknown USD cost with coverage, and retain requested models and Codex ACP's limited current-model attribution. Read archived change usage from retained repository logs and disclose model acceptance in CLI agent reports."
+          "summary": "Use Codex CLI (ACP) for unconfigured commands and new sessions. Repository setup offers Codex ACP first when installed. Existing selections take precedence, and both Claude adapters retain their supported settings."
+        },
+        {
+          "kind": "patch",
+          "summary": "Launch the standalone Workbench with `npx @openspec-ui/cli open workbench --cwd <project>` without cloning or building OpenSpec-UI. The command prints an authenticated localhost URL, accepts `--port` and stops on Ctrl+C. OpenSpec and agent executables remain separate prerequisites for operations that use them."
         }
       ]
     },
@@ -104,41 +137,67 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.94.4",
-      "released_at": "2026-11-15T09:22:16.510Z",
+      "version": "1.95.0",
+      "released_at": "2026-11-22T16:02:11.486Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/README.md"
       },
       "artifacts": [],
-      "changes": []
+      "changes": [
+        {
+          "kind": "minor",
+          "summary": "Prepare CI Repair Task in PR Review gathers available failure details and missing expected checks, keeps their checked commit and source links, and provides a brief to copy to an agent. GitHub annotations and forge-reported messages may be partial; preparing a task does not start a run or modify the change."
+        },
+        {
+          "kind": "minor",
+          "summary": "Preview a GitHub, GitLab or Gitea issue and create a change with its source attached. The existing Propose stage reads the confirmed snapshot; running an agent still requires a separate action. Issues must belong to the workspace repository. Changed previews require confirmation again, and truncated requests are marked."
+        },
+        {
+          "kind": "minor",
+          "summary": "PR Review in openspec-ui-vscode and @openspec-ui/server can import JUnit XML and show individual test results for OpenSpec scenarios, including skipped, missing and ambiguous evidence. Commit scenario-tests.json to declare test associations. The imported report's tested commit is user-declared and remains visible, including historical results, in Copy PR summary."
+        }
+      ]
     },
     {
       "id": "ci-cli",
       "name": "CLI",
       "package": "@openspec-ui/cli",
       "public": true,
-      "version": "0.33.0",
-      "released_at": "2026-11-15T09:22:16.510Z",
+      "version": "0.34.0",
+      "released_at": "2026-11-23T05:05:42Z",
       "prerelease": false,
       "summary": "Run, validate and check OpenSpec changes from a terminal or CI.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/README.md",
-        "npm": "https://www.npmjs.com/package/@openspec-ui/cli"
+        "npm": "https://www.npmjs.com/package/@openspec-ui/cli",
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-cli@0.34.0"
       },
-      "artifacts": [],
+      "artifacts": [
+        {
+          "kind": "npm-tarball",
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-cli@0.34.0/openspec-ui-cli-0.34.0.tgz",
+          "size_bytes": 2874216,
+          "sha256": "aa0659a6adf157a491242d6ad20eb2ca2ad5076d2cf3a38846725daec717a117"
+        }
+      ],
       "changes": [
         {
           "kind": "minor",
-          "summary": "- Require approval for a change's Harness Git push from its `harness.json`. The approval shows the commit and destination and applies only to that push. An unattended CLI run stops before pushing when approval is required."
+          "summary": "Launch the standalone Workbench with `npx @openspec-ui/cli open workbench --cwd <project>` without cloning or building OpenSpec-UI. The command prints an authenticated localhost URL, accepts `--port` and stops on Ctrl+C. OpenSpec and agent executables remain separate prerequisites for operations that use them."
+        },
+        {
+          "kind": "minor",
+          "summary": "Preview a GitHub, GitLab or Gitea issue and create a change with its source attached. The existing Propose stage reads the confirmed snapshot; running an agent still requires a separate action. Issues must belong to the workspace repository. Changed previews require confirmation again, and truncated requests are marked."
         },
         {
           "kind": "patch",
-          "summary": "- An approved Harness push over HTTP or HTTPS stops when the repository redirects to another URL."
+          "summary": "Use Codex CLI (ACP) for unconfigured commands and new sessions. Repository setup offers Codex ACP first when installed. Existing selections take precedence, and both Claude adapters retain their supported settings."
         }
-      ]
+      ],
+      "tag": "openspec-ui-cli@0.34.0"
     }
   ]
 }
