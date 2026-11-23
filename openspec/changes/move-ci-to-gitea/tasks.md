@@ -94,10 +94,11 @@
   key only at signing. The named receipt/mirror/policy tests and changed-file
   ESLint passed. The policy refuses raw PEM environment property names.
 
-- [ ] 3.8 In .circleci/config.yml, export the probe parameter explicitly inside
+- [x] 3.8 In .circleci/config.yml, export the probe parameter explicitly inside
   the shell command. In scripts/publication-worker.mjs, refuse ambiguous probe
-  values before claiming a job. Verify named worker/policy tests, scoped ESLint
-  and the actual hosted main probe after full Gitea CI and mirror delivery.
+  values before claiming a job. Twenty-one named worker/policy tests, including
+  the actual shell modes against hostile inherited values, and scoped ESLint
+  passed. Hosted execution is the mandatory post-merge acceptance below.
 
 ## 4. Selected local verification
 
@@ -128,6 +129,9 @@ They remain mandatory and block final archival until their real evidence exists:
    legitimate version release, retain exact source/asset hashes and independently
    verify Marketplace, npm latest and the versions visible on openspec-ui.dev.
    Never create a disposable version or social test post.
+   Specifically, repeat CircleCI main with publication-probe=true after the
+   canonical mode correction reaches its mirror, verify the two probe messages
+   and unchanged queue attempts, then activate its fifteen-minute recovery.
 4. Archive Publication Center first, then this migration, with standard OpenSpec
    so modified specs have their accepted base. Land synchronized specs/archive
    in authoritative main, pass required checks and mirror accepted main.
