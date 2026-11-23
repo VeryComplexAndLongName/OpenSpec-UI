@@ -12,7 +12,8 @@ export function allowedPaths(mode, files) {
 }
 
 export function compatibleVscode(lock) {
-  const version = lock.packages?.['node_modules/@types/vscode']?.version;
+  const version = (lock.packages?.['packages/extension/node_modules/@types/vscode']
+    ?? lock.packages?.['node_modules/@types/vscode'])?.version;
   if (!version || !/^1\.90\.\d+$/u.test(version)) throw new Error('Automatic maintenance may not raise the VS Code baseline');
 }
 

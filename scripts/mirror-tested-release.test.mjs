@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash, generateKeyPairSync, verify } from 'node:crypto';
 import test from 'node:test';
 import { assetIdentity, reconcileAsset, zipEntries, mergeManifests, tagAt, alreadyPrepared } from './mirror-tested-release.mjs';
-import { mirrorGit, bytes, githubToken } from './publication-transport.mjs';
+import { mirrorGit, bytes, githubToken, json } from './publication-transport.mjs';
 import { signReceipt, signRuntime, RUNTIME_FILES } from './publication-receipt.mjs';
 
 test('release identities fix package, stable version, source and public destination', () => {
@@ -10,6 +10,15 @@ test('release identities fix package, stable version, source and public destinat
   assert.equal(item.filename, 'openspec-ui-cli-1.2.3.tgz');
   assert.equal(item.artifact_url, 'https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-cli@1.2.3/openspec-ui-cli-1.2.3.tgz');
   for (const args of [['evil', '1.2.3', item.commit], ['npm', '1.2.3-beta', item.commit], ['npm', '1.2.3', 'main']]) assert.throws(() => assetIdentity(...args));
+});
+
+test('successful token revocation accepts an empty HTTP 204 response', async (context) => {
+  context.mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.equal(url, 'https://api.github.com/installation/token');
+    assert.equal(options.method, 'DELETE');
+    return new Response(null, { status: 204 });
+  });
+  assert.deepEqual(await json('https://api.github.com/installation/token', { token: 'fixture', method: 'DELETE' }), {});
 });
 
 test('single-line mirror credentials mint a valid JWT and only one repository grant', async () => {

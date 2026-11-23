@@ -131,3 +131,14 @@ ae9bdad8ad845dec82362a66bb2c0fb7d4c6bc13. Its main Quality run 6782 also passed.
 The pending public versions are CLI 0.34.0 and extension 0.111.0. They have not
 yet been published. The owner approved the scoped App, main Circle context and
 GitHub mirror protection cutover on 2026-11-23; GitHub reauthentication is pending.
+
+The first correction PR run 6903 exposed that the existing resolved types had
+already drifted to 1.125.0. Regenerated the lock with pinned npm 10.9.0 to resolve
+the extension's declared ~1.90.0 to 1.90.0, and made the guard inspect the actual
+workspace resolution before its hoisted fallback. An empty standard Changeset
+records this development-only correction without inventing a runtime release.
+
+The actual scoped GitHub App probe also exposed that HTTP 204 has a null body.
+The transport now accepts successful bodyless responses, with an explicit token
+revocation regression test. Eleven named proposal/mirror tests and scoped ESLint
+passed; full Gitea verification must run on the corrected PR head.

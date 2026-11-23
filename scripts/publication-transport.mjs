@@ -27,6 +27,7 @@ export async function bytes(url, { token, method = 'GET', body, type = 'applicat
   }
   if (missing && response.status === 404) return null;
   if (!response.ok) throw new Error(`Producer request to ${parsed.hostname} failed: HTTP ${response.status}`);
+  if (response.body === null) return Buffer.alloc(0);
   if (Number(response.headers.get('content-length')) > limit) throw new Error('Producer response exceeds limit');
   const chunks = []; let size = 0;
   for await (const chunk of response.body) {

@@ -10,5 +10,10 @@ test('dependency proposals only refresh the lock and preserve the declared VS Co
   allowedPaths('dependencies', ['package-lock.json']);
   assert.throws(() => allowedPaths('dependencies', ['package.json']));
   compatibleVscode({ packages: { 'node_modules/@types/vscode': { version: '1.90.0' } } });
+  compatibleVscode({ packages: { 'packages/extension/node_modules/@types/vscode': { version: '1.90.0' },
+    'node_modules/@types/vscode': { version: '1.125.0' } } });
+  assert.throws(() => compatibleVscode({ packages: {
+    'packages/extension/node_modules/@types/vscode': { version: '1.125.0' },
+    'node_modules/@types/vscode': { version: '1.90.0' } } }));
   for (const version of ['1.91.0', '1.134.0', '2.0.0', undefined]) assert.throws(() => compatibleVscode({ packages: { 'node_modules/@types/vscode': { version } } }));
 });
