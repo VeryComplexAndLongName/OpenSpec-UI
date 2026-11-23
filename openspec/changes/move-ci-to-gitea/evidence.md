@@ -116,3 +116,18 @@ and the final CircleCI main context/recovery schedule is not active yet.
 RELEASE_SIGNING_PRIVATE_KEY is stored in Gitea; its public key is committed in
 both paired branches. Actual migration CI, deployed queue/worker verification,
 the first legitimate release and final archival/cleanup remain mandatory.
+
+## Weekly proposal acceptance correction, 2026-11-23
+
+Actual scheduled dependency run 6898 correctly refused a refreshed lock that
+raised VS Code types above the declared 1.90 baseline. The package declaration
+had allowed that incompatible refresh with ^1.90.0. Both the workspace manifest
+and its lock metadata now specify ~1.90.0; resolved dependency bytes are unchanged.
+Both named scripts/gitea-proposal.test.mjs tests and git diff --check passed.
+The real weekly proposal must be retried after this correction passes full CI.
+
+The legitimate version PR 6 passed full run 6779, review 17 and merged as
+ae9bdad8ad845dec82362a66bb2c0fb7d4c6bc13. Its main Quality run 6782 also passed.
+The pending public versions are CLI 0.34.0 and extension 0.111.0. They have not
+yet been published. The owner approved the scoped App, main Circle context and
+GitHub mirror protection cutover on 2026-11-23; GitHub reauthentication is pending.
