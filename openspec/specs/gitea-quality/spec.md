@@ -1,7 +1,7 @@
 # gitea-quality Specification
 
 ## Purpose
-TBD - created by archiving change run-quality-in-gitea. Update Purpose after archive.
+Enforce complete product quality gates in Gitea and bound their shared executor resources before changes can merge.
 
 ## Requirements
 
