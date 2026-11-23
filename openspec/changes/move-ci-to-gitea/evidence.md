@@ -148,3 +148,16 @@ The actual scoped GitHub App probe also exposed that HTTP 204 has a null body.
 The transport now accepts successful bodyless responses, with an explicit token
 revocation regression test. Twelve named proposal/mirror tests and scoped ESLint
 passed; full Gitea verification must run on the corrected PR head.
+
+## Actual first registry writes and probe correction
+
+Marketplace's native publisher and CircleCI run 4 both accepted the legitimate
+0.111.0/0.34.0 archives. Immediate public registry confirmation was delayed, so
+Homepage retained retry state instead of declaring success from process exit.
+The public npm version endpoint subsequently returned 0.34.0 with latest 0.34.0.
+
+CircleCI run 4 selected publication-probe=true in the UI, but the step environment
+did not select the worker's exact-string probe mode and it claimed eligible work.
+Export the parameter as a quoted shell string immediately before Node and refuse
+ambiguous probe environment values before a claim. The hosted no-claim probe
+must be repeated after this correction passes CI and reaches the mirror.

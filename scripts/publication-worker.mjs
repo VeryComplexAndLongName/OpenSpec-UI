@@ -213,9 +213,15 @@ export async function run(channel, { call = api, fetcher = fetch, publishArtifac
   console.log(`Confirmed ${channel} ${job.version}: ${result.url}`);
 }
 
+export function probeRequested(value) {
+  if (value === undefined || value === "false") return false;
+  if (value === "true") return true;
+  throw new Error("Invalid publication probe mode; refusing to claim work");
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    await run(process.argv[2], { probe: process.env.PUBLICATION_PROBE === "true" });
+    await run(process.argv[2], { probe: probeRequested(process.env.PUBLICATION_PROBE) });
   } catch (error) {
     console.error(`Publication failed: ${error.message}`);
     process.exitCode = 1;

@@ -94,6 +94,11 @@
   key only at signing. The named receipt/mirror/policy tests and changed-file
   ESLint passed. The policy refuses raw PEM environment property names.
 
+- [ ] 3.8 In .circleci/config.yml, export the probe parameter explicitly inside
+  the shell command. In scripts/publication-worker.mjs, refuse ambiguous probe
+  values before claiming a job. Verify named worker/policy tests, scoped ESLint
+  and the actual hosted main probe after full Gitea CI and mirror delivery.
+
 ## 4. Selected local verification
 
 - [x] 4.1 Record exact selected files and results in evidence.md. Only named

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, writeFile, rm, cp } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -8,11 +9,21 @@ import { checkPublishWorkflow, checkOtherWorkflows } from './check-publish-workf
 
 const GOOD = await readFile(new URL('../.circleci/config.yml', import.meta.url), 'utf8');
 test('publication-only CircleCI configuration passes', () => assert.deepEqual(checkPublishWorkflow(GOOD), []));
+test('the actual Circle command exports canonical probe values before starting Node', () => {
+  const command = parse(GOOD).jobs['npm-publication'].steps[2].run.command;
+  for (const value of ['true', 'false']) {
+    const script = 'timeout() { shift; "$@"; }\nnode() { printf "%s" "$PUBLICATION_PROBE"; }\n'
+      + command.replaceAll('<< pipeline.parameters.publication-probe >>', value);
+    assert.equal(execFileSync(process.env.OPENSPEC_TEST_BASH || 'bash', ['-c', script],
+      { encoding: 'utf8', env: { ...process.env, PUBLICATION_PROBE: value === 'true' ? '1' : '0' }, timeout: 5000 }), value);
+  }
+});
 for (const [name, mutate] of [
   ['non-main context', (w) => { w.workflows['npm-publication'].when = 'true'; }],
   ['foreign context', (w) => { w.workflows['npm-publication'].jobs[0]['npm-publication'].context = 'other'; }],
   ['concurrent channel writers', (w) => { delete w.workflows['npm-publication'].jobs[0]['npm-publication']['serial-group']; }],
   ['extra publisher', (w) => { w.jobs.extra = w.jobs['npm-publication']; }],
+  ['missing explicit probe mode', (w) => { w.jobs['npm-publication'].steps[2].run.command = w.jobs['npm-publication'].steps[2].run.command.replace("export PUBLICATION_PROBE='<< pipeline.parameters.publication-probe >>'", ''); }],
   ['rebuild', (w) => { w.jobs['npm-publication'].steps.push({ run: 'npm ci && npm run build' }); }],
   ['direct publication', (w) => { w.jobs['npm-publication'].steps.push({ run: 'npm publish' }); }],
   ['permanent credential', (w) => { w.jobs['npm-publication'].environment = { NPM_TOKEN: 'placeholder' }; }],
