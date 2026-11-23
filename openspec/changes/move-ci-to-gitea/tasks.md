@@ -41,7 +41,8 @@
   Its named test refuses application-source or workflow edits. Do not auto-merge.
 - [x] 2.3 In .gitea/workflows/dependencies.yml, propose compatible lockfile
   updates through the same scoped helper. Its named test refuses manifest
-  changes and @types/vscode above 1.90. Deliberate pins and majors remain review.
+  changes and changes to the committed VS Code type baseline. Deliberate pins
+  and majors remain review.
 - [x] 2.4 Record the exact required checks/protection and actual Gitea delivery
   of preserved GitHub PR #1009 through Gitea PR 2. Merge only its passing head.
 - [x] 2.5 In .gitea/workflows/version.yml, use the restricted maintenance
@@ -52,6 +53,11 @@
 - [x] 2.6 In .gitea/workflows/dependencies.yml, use that same restricted
   maintenance identity only for reviewed proposals. The policy refuses this
   credential in registry executors and unrelated Gitea jobs.
+- [x] 2.7 In scripts/gitea-proposal.mjs, name eligible dependencies explicitly
+  while leaving VS Code types for deliberate upgrades. Preserve manifest ranges
+  and verify the actual workspace compiler baseline against the committed lock.
+  Three named proposal cases and a real isolated npm 10.9.0 refresh passed;
+  require a real dependency proposal run after full Gitea checks and merge.
 
 ## 3. Approved bytes and independent executors
 

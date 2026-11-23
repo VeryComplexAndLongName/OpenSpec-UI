@@ -116,3 +116,35 @@ and the final CircleCI main context/recovery schedule is not active yet.
 RELEASE_SIGNING_PRIVATE_KEY is stored in Gitea; its public key is committed in
 both paired branches. Actual migration CI, deployed queue/worker verification,
 the first legitimate release and final archival/cleanup remain mandatory.
+
+## Weekly proposal acceptance correction, 2026-11-23
+
+Actual scheduled dependency run 6898 refused its lock refresh because the initial
+migration guard incorrectly assumed a 1.90 compiler baseline. The existing lock
+already resolved 1.125.0. An attempted 1.90 declaration exposed the inconsistency
+through actual CI runs 6903 (lock mismatch) and 6913 (ChatRequest.model typing).
+Run 6918 also showed that narrowing the declaration to ~1.125.0 conflicts with
+vsce's engine/declaration check, despite all 23 native tests passing. The final
+implementation retains both original manifests and lock bytes. It names the
+49 eligible dependencies explicitly in npm update, excluding editor types and
+local workspace names. The guard compares actual workspace resolutions with
+the pre-update committed lock instead of assuming a historical minimum.
+The real weekly proposal must be retried after this correction passes full CI.
+
+The legitimate version PR 6 passed full run 6779, review 17 and merged as
+ae9bdad8ad845dec82362a66bb2c0fb7d4c6bc13. Its main Quality run 6782 also passed.
+The pending registry versions are CLI 0.34.0 and extension 0.111.0. Successful
+producer run 6915 mirrored their exact signed artifacts into GitHub Releases.
+The owner approved the scoped App, main Circle context and mirror protections;
+both actual Actions settings are disabled, source histories fast-forwarded,
+App-only main updates enforced and Homepage privacy retained.
+
+An isolated real npm 10.9.0 package-lock-only refresh of all copied workspace
+manifests passed: 49 eligible names, original manifests unchanged and the existing
+compiler resolution retained. No source, package declaration or lock modification
+remains in this correction. No public version bump or empty Changeset is needed.
+
+The actual scoped GitHub App probe also exposed that HTTP 204 has a null body.
+The transport now accepts successful bodyless responses, with an explicit token
+revocation regression test. Twelve named proposal/mirror tests and scoped ESLint
+passed; full Gitea verification must run on the corrected PR head.
