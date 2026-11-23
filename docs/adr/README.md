@@ -66,3 +66,5 @@ Alternatives / Consequences.
 | [0058](0058-homepage-publication-center.md) | Automatic publication coordinated by Homepage | Accepted; supersedes 0048 |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.
+
+- [0061: Shared host CI budget](0061-shared-host-ci-budget.md) - aggregate hppiigit executor limits.

@@ -40,6 +40,7 @@ test('runner refuses privileged execution, Docker socket mounts and unbounded jo
   for (const changed of [source.replace('privileged: false', 'privileged: true'),
     source.replace("docker_host: '-'", "docker_host: ''"),
     source.replace('valid_volumes: []', "valid_volumes: ['**']"),
+    source.replace('--cgroup-parent=user.slice', ''),
     source.replace('--memory=6g', '')]) {
     assert.throws(() => checkRunner(changed));
   }

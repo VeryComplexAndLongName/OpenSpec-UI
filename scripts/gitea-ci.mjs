@@ -38,6 +38,7 @@ export function checkRunner(source) {
       || config.container?.privileged !== false || config.container?.docker_host !== '-'
       || !Array.isArray(config.container?.valid_volumes) || config.container.valid_volumes.length
       || !config.container.options?.includes('--memory=6g')
+      || !config.container.options?.includes('--cgroup-parent=user.slice')
       || !config.container.options?.includes('--cpus=2')) {
     throw new Error('OpenSpec CI runner must bound jobs without privileged host mounts');
   }
