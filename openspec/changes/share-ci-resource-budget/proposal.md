@@ -1,6 +1,6 @@
 ## Why
 
-The 2026-11-23 hppiigit audit found CI competing with Gitea on four CPUs. ADR 0060 bounds each OpenSpec job, but the host pool now needs an aggregate budget. DocsAI ADR 0037 defines that shared host policy.
+The 2026-11-23 hppiigit audit found CI competing with Gitea on four CPUs. ADR 0060 bounds each OpenSpec job, but the host pool now needs an aggregate budget. DocsAI ADR 0038 defines that shared host policy.
 
 ## What Changes
 
