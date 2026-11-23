@@ -19,6 +19,15 @@ export function compatibleVscode(lock, baseline) {
   if (!before || !after || before[1] !== after[1]) throw new Error('Automatic maintenance may not change the committed VS Code type baseline');
 }
 
+export function dependencyUpdates(manifests) {
+  const local = new Set(manifests.map((item) => item.name));
+  const names = [...new Set(manifests.flatMap((item) => Object.keys({
+    ...item.dependencies, ...item.devDependencies, ...item.optionalDependencies,
+  })))].filter((name) => name !== '@types/vscode' && !local.has(name)).sort();
+  if (!names.length) throw new Error('No eligible dependency updates');
+  return names;
+}
+
 export async function main(mode) {
   if (!['version', 'dependencies'].includes(mode) || process.env.GITEA_REF !== 'refs/heads/main'
       || process.env.GITEA_REPOSITORY !== INTERNAL) throw new Error('Maintenance requires authoritative main');
@@ -29,8 +38,11 @@ export async function main(mode) {
     if (!pending.length) { console.log('No pending changesets.'); return; }
   }
   const baseline = JSON.parse(await readFile('package-lock.json', 'utf8'));
+  const manifests = mode === 'dependencies' ? await Promise.all([
+    'package.json', ...(await readdir('packages')).map((name) => `packages/${name}/package.json`),
+  ].map(async (file) => JSON.parse(await readFile(file, 'utf8')))) : [];
   execFileSync('npm', mode === 'version' ? ['run', 'changeset:version']
-    : ['update', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund'], { stdio: 'inherit', timeout: 300_000 });
+    : ['update', ...dependencyUpdates(manifests), '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund'], { stdio: 'inherit', timeout: 300_000 });
   const files = git(['diff', '--name-only']).trim().split('\n').filter(Boolean);
   if (!files.length) { console.log('No maintenance changes.'); return; }
   allowedPaths(mode, files);

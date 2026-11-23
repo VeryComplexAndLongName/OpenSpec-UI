@@ -53,9 +53,10 @@
 - [x] 2.6 In .gitea/workflows/dependencies.yml, use that same restricted
   maintenance identity only for reviewed proposals. The policy refuses this
   credential in registry executors and unrelated Gitea jobs.
-- [x] 2.7 In packages/extension/package.json and package-lock.json, constrain
-  @types/vscode to ~1.125.0 so the weekly updater preserves the existing compiler
-  baseline. Both named scripts/gitea-proposal.test.mjs cases passed locally;
+- [x] 2.7 In scripts/gitea-proposal.mjs, name eligible dependencies explicitly
+  while leaving VS Code types for deliberate upgrades. Preserve manifest ranges
+  and verify the actual workspace compiler baseline against the committed lock.
+  Three named proposal cases and a real isolated npm 10.9.0 refresh passed;
   require a real dependency proposal run after full Gitea checks and merge.
 
 ## 3. Approved bytes and independent executors
