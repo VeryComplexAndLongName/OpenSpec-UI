@@ -28,3 +28,28 @@ Marketplace currently has no trusted publishing policy. The prepared policy scop
 access to VeryComplexAndLongName/OpenSpec-UI, publish.yml, marketplace environment.
 Creating it requires action-time confirmation in the browser. No policy was saved.
 Do not merge, archive, remove the worktree, or report deployed until the blocked checks and live verification complete.
+
+## Superseding production delivery, 2026-11-23
+
+The GitHub billing blockage above was resolved by the owner-approved Gitea
+migration, not by asserting an unexecuted GitHub check passed. Complete Gitea
+Quality 6757 and operator review preceded migration PR 3, merged as
+87c12dda. Paired provider and source-verification corrections are recorded in
+the move-ci-to-gitea evidence. GitHub PR 1010 was automatically marked merged
+when the checked ancestry reached its existing mirror on 2026-11-23.
+
+Actual scheduled Homepage deployment 6948 serves
+5f314398211538133def3565c64d0202dc8bc664. The authenticated Publications page
+shows CLI 0.34.0 and Marketplace 0.111.0 as published, with links to the original
+approved GitHub Release assets and actual worker attempt history. Independent
+registry reads confirmed both versions under their unchanged public identities.
+The public npm tarball matches its approved SHA-256. Native Marketplace timer
+confirmation and Circle automatic pipeline 5 succeeded; neither republished an
+already confirmed version. The 403 original release records, 18 dev.to records
+and 2 LinkedIn records retain all original fields.
+
+The earlier GitHub-only worker policy is superseded by ADR 0059 and the paired
+migration delta: Gitea produces and signs artifacts, Homepage owns eligibility
+and durable outcomes, CircleCI provides native npm OIDC and the isolated
+server worker uses the approved Entra certificate. Full migration acceptance
+and standard archival are recorded separately before worktree cleanup.

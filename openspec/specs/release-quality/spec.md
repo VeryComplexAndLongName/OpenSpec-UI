@@ -1,7 +1,8 @@
 # release-quality Specification
 
 ## Purpose
-TBD - created by archiving change release-quality-gates. Update Purpose after archive.
+Required pull request and main verification, authored release notes, immutable
+checked artifacts and independently confirmed publication of supported deliveries.
 
 ## Requirements
 
@@ -535,59 +536,6 @@ check.
 - **WHEN** a pull request's branch conflicts textually with `main`
 - **THEN** it cannot merge until the conflict is resolved
 
-### Requirement: Publishing to the Marketplace is asked for, never inferred
-
-The repository SHALL be able to publish a released version of
-`openspec-ui-vscode` to the Visual Studio Marketplace, and SHALL do so
-only when a person dispatches that publish and names the version.
-
-No push, tag, schedule or merge SHALL start a publish. Not every release
-is meant for the Marketplace, and a publish reaches every installed copy
-through the editor's auto-update and cannot be taken back.
-
-The dispatch SHALL require a confirmation the person types, and the run
-SHALL refuse anything else before it reads the token.
-
-What is published SHALL be the artifact that was released: the `.vsix`
-attached to the `openspec-ui-vscode@<version>` tag's GitHub Release, which
-the extension integration suite exercised. The publish SHALL NOT rebuild
-the extension, and SHALL fail, naming the tag, where that release or that
-asset is absent.
-
-The Marketplace token SHALL be held as a repository secret read by the
-publishing job alone, and SHALL NOT appear in any other workflow, in any
-document or in any run's output.
-
-A check SHALL fail the lint gate where the publishing workflow stops
-holding to this: another trigger, a missing confirmation, a rebuild in
-place of the released artifact, or a second workflow naming the token.
-These guarantees live in a YAML file that no test would otherwise read.
-
-#### Scenario: A release that is not meant for the Marketplace
-
-- **WHEN** a version is released, tagged and published as a GitHub Release
-- **THEN** nothing reaches the Marketplace until a person dispatches the
-  publish for that version
-
-#### Scenario: A dispatch without the confirmation
-
-- **WHEN** the publish is dispatched with anything but the required word
-  typed into the confirmation
-- **THEN** the run fails before the token is read and nothing is published
-
-#### Scenario: A version that was never released
-
-- **WHEN** the publish is dispatched for a version whose tag has no release
-  or whose release carries no `.vsix`
-- **THEN** the run fails naming the tag, rather than building a package of
-  its own
-
-#### Scenario: A trigger added to the publishing workflow
-
-- **WHEN** the publishing workflow gains a trigger other than the manual
-  dispatch, loses its confirmation, or a second workflow names the token
-- **THEN** the lint gate fails
-
 ### Requirement: The manifest exposes CLI as a public npm product
 
 The manifest SHALL preserve the stable `ci-cli` identity and derive its version
@@ -609,22 +557,16 @@ SHALL remain present; Shared UI SHALL remain non-public.
 - **AND** existing release artifacts and links remain unchanged
 
 ### Requirement: The CLI link is additive and delivered through the release path
-
-`links.npm` SHALL be optional and the manifest SHALL retain schema version 1.
-The CLI minor version bump SHALL trigger the existing fingerprint-based manifest
-publication and notification path. This change SHALL NOT create a GitHub CLI
-release or change separately dispatched npm publishing.
+`links.npm` SHALL remain optional and releases.json SHALL retain schema version 1. The CLI version bump SHALL trigger fingerprint-based release manifest publication. Quality SHALL prepare an immutable CLI tarball in a versioned GitHub Release and publish its checksum in the separate publications.json contract. Registry publication SHALL be automatic through the Homepage queue rather than part of artifact preparation.
 
 #### Scenario: An older consumer receives the npm link
-
-- **WHEN** a schema-1 consumer that ignores unknown fields reads the new manifest
-- **THEN** it accepts the manifest without requiring a schema-version upgrade
+- **WHEN** a schema-1 consumer that ignores unknown fields reads the manifest
+- **THEN** it accepts the manifest without a schema-version upgrade
 
 #### Scenario: The CLI version bump lands
-
-- **WHEN** the change's CLI version bump lands on main
-- **THEN** the version fingerprint changes and the existing release path publishes
-  CLI visibility and its npm destination for the homepage to consume
+- **WHEN** a stable CLI version bump lands on main
+- **THEN** the release path prepares its immutable tarball and publishes the manifests
+- **AND** an automatic OIDC worker publishes or reconciles the version through Homepage
 
 ### Requirement: A product visibility change triggers manifest publication
 
@@ -638,66 +580,6 @@ NOT affect that fingerprint.
   generation time and commit remain unchanged
 - **THEN** the manifest fingerprint changes
 - **AND** CI publishes the updated manifest through the existing release path
-
-### Requirement: Publishing to npm is asked for, never inferred
-
-The repository SHALL be able to publish a version of `@openspec-ui/cli` to
-the npm registry, and SHALL do so only when a person dispatches that
-publish and names the version. The same dispatch SHALL be able to publish
-`openspec-ui-vscode` to the Marketplace, each channel at the version named
-for it, and a channel whose version is not named SHALL be skipped.
-
-No push, tag, schedule or merge SHALL start an npm publish. The dispatch
-SHALL require the typed confirmation described for the Marketplace, and
-both publishing jobs SHALL wait for it, so that neither reads a credential
-before the confirmation has been checked.
-
-The publish SHALL be refused unless the dispatch was started from `main`,
-the version named is the version `packages/cli/package.json` states on
-that commit, and that version is not already on the registry. What is
-published SHALL be the bundle built in that run.
-
-npm SHALL be authenticated by Trusted Publishing: the registry trusts the
-publishing workflow and its environment, and no npm token SHALL exist in
-a repository secret, in any workflow or in any document. The OIDC
-permission the registry exchanges SHALL be granted to the npm job alone.
-The repository's pinned npm SHALL install and build; a newer, exactly
-named npm MAY be installed for the publish step alone.
-
-A check SHALL fail the lint gate where the publishing workflow stops
-holding to this: another trigger, a missing confirmation, a publishing job
-that does not wait for it, an npm job outside its environment, an npm
-token, or a second workflow publishing to npm.
-
-#### Scenario: A CLI version is merged
-
-- **WHEN** a version of `@openspec-ui/cli` is merged to `main`
-- **THEN** nothing reaches npm until a person dispatches the publish for
-  that version
-
-#### Scenario: One dispatch names only one channel
-
-- **WHEN** the publish is dispatched with `cli_version` and no
-  `vscode_version`
-- **THEN** `@openspec-ui/cli` is published and the Marketplace job is
-  skipped
-
-#### Scenario: A version that this commit does not carry
-
-- **WHEN** the publish is dispatched for a `cli_version` other than the
-  one `packages/cli/package.json` states, or for one already on npm
-- **THEN** the run fails naming both versions, and nothing is published
-
-#### Scenario: A dispatch from another branch
-
-- **WHEN** the publish is dispatched from a ref other than `main`
-- **THEN** the npm job fails before it builds or publishes
-
-#### Scenario: An npm token or a second path appears
-
-- **WHEN** a workflow names an npm token, or a workflow other than the
-  publishing one runs `npm publish`
-- **THEN** the lint gate fails
 
 ### Requirement: A change explains what each product user receives
 
@@ -745,3 +627,34 @@ and the release job SHALL generate its notes before creating a tag.
 - **WHEN** the released Codex notes are corrected
 - **THEN** product changelogs and GitHub Highlights identify CLI and ACP support with its original introduction version
 - **AND** versions, original history, tags and released assets are preserved
+
+### Requirement: Gitea checks and publication retain distinct evidence
+
+Required quality, security, OpenSpec, extension integration,
+browser/accessibility, package-smoke and version-PR checks SHALL run in Gitea
+with equivalent semantics before main/release eligibility. Registry workers
+SHALL verify exact authenticated Gitea artifacts and source identities and
+report outcomes to the existing Homepage queue. GitHub Release uploads SHALL
+use API operations independent of GitHub Actions. A provider change SHALL NOT
+invent passing evidence, rewrite an existing version or create another
+independent publication authority.
+
+#### Scenario: Gitea quality fails
+
+- **WHEN** a required check fails or never runs
+- **THEN** the change cannot merge as checked or produce an eligible publication
+
+#### Scenario: Publisher receives altered bytes
+
+- **WHEN** an artifact differs from its authenticated build receipt
+- **THEN** publication is refused before any registry write
+
+#### Scenario: A channel lacks working authorization
+
+- **WHEN** its real credential and permission probes have not succeeded
+- **THEN** it stays pending without a silent stored-token fallback
+
+#### Scenario: A GitLab runner asks for card verification
+
+- **WHEN** the abandoned GitLab preflight cannot start
+- **THEN** it is not treated as evidence for CircleCI or Marketplace readiness
