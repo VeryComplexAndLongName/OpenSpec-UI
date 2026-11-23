@@ -11,10 +11,12 @@ export function allowedPaths(mode, files) {
   if (!['version', 'dependencies'].includes(mode) || !files.length || files.some((name) => !rule.test(name))) throw new Error('Maintenance changed files outside its allowed scope');
 }
 
-export function compatibleVscode(lock) {
-  const version = (lock.packages?.['packages/extension/node_modules/@types/vscode']
-    ?? lock.packages?.['node_modules/@types/vscode'])?.version;
-  if (!version || !/^1\.90\.\d+$/u.test(version)) throw new Error('Automatic maintenance may not raise the VS Code baseline');
+export function compatibleVscode(lock, baseline) {
+  const version = (value) => (value.packages?.['packages/extension/node_modules/@types/vscode']
+    ?? value.packages?.['node_modules/@types/vscode'])?.version;
+  const before = /^(\d+\.\d+)\.\d+$/u.exec(version(baseline) || '');
+  const after = /^(\d+\.\d+)\.\d+$/u.exec(version(lock) || '');
+  if (!before || !after || before[1] !== after[1]) throw new Error('Automatic maintenance may not change the committed VS Code type baseline');
 }
 
 export async function main(mode) {
@@ -26,12 +28,13 @@ export async function main(mode) {
     const pending = (await readdir('.changeset')).filter((name) => name.endsWith('.md') && name !== 'README.md');
     if (!pending.length) { console.log('No pending changesets.'); return; }
   }
+  const baseline = JSON.parse(await readFile('package-lock.json', 'utf8'));
   execFileSync('npm', mode === 'version' ? ['run', 'changeset:version']
     : ['update', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund'], { stdio: 'inherit', timeout: 300_000 });
   const files = git(['diff', '--name-only']).trim().split('\n').filter(Boolean);
   if (!files.length) { console.log('No maintenance changes.'); return; }
   allowedPaths(mode, files);
-  if (mode === 'dependencies') compatibleVscode(JSON.parse(await readFile('package-lock.json', 'utf8')));
+  if (mode === 'dependencies') compatibleVscode(JSON.parse(await readFile('package-lock.json', 'utf8')), baseline);
   const branch = mode === 'version' ? 'changeset-release/main' : 'deps/lock-refresh';
   let previous;
   try { previous = (await gitea(`/branches/${encodeURIComponent(branch)}`)).commit.id; } catch (error) {

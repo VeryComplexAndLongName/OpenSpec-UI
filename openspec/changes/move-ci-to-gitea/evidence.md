@@ -119,11 +119,13 @@ the first legitimate release and final archival/cleanup remain mandatory.
 
 ## Weekly proposal acceptance correction, 2026-11-23
 
-Actual scheduled dependency run 6898 correctly refused a refreshed lock that
-raised VS Code types above the declared 1.90 baseline. The package declaration
-had allowed that incompatible refresh with ^1.90.0. Both the workspace manifest
-and its lock metadata now specify ~1.90.0; resolved dependency bytes are unchanged.
-Both named scripts/gitea-proposal.test.mjs tests and git diff --check passed.
+Actual scheduled dependency run 6898 refused its lock refresh because the initial
+migration guard incorrectly assumed a 1.90 compiler baseline. The existing lock
+already resolved 1.125.0. An attempted 1.90 declaration exposed the inconsistency
+through actual CI runs 6903 (lock mismatch) and 6913 (ChatRequest.model typing).
+The final declaration is ~1.125.0, preserving the current working compiler.
+The guard compares actual workspace resolutions with the pre-update committed
+lock instead of assuming a historical minimum. Both named proposal tests pass.
 The real weekly proposal must be retried after this correction passes full CI.
 
 The legitimate version PR 6 passed full run 6779, review 17 and merged as
@@ -132,11 +134,10 @@ The pending public versions are CLI 0.34.0 and extension 0.111.0. They have not
 yet been published. The owner approved the scoped App, main Circle context and
 GitHub mirror protection cutover on 2026-11-23; GitHub reauthentication is pending.
 
-The first correction PR run 6903 exposed that the existing resolved types had
-already drifted to 1.125.0. Regenerated the lock with pinned npm 10.9.0 to resolve
-the extension's declared ~1.90.0 to 1.90.0, and made the guard inspect the actual
-workspace resolution before its hoisted fallback. An empty standard Changeset
-records this development-only correction without inventing a runtime release.
+Regenerated the final lock with pinned npm 10.9.0. The guard inspects the actual
+workspace resolution before its hoisted fallback and permits patch updates only
+within the committed compiler baseline. An empty standard Changeset records
+this development-only correction without inventing a runtime release.
 
 The actual scoped GitHub App probe also exposed that HTTP 204 has a null body.
 The transport now accepts successful bodyless responses, with an explicit token

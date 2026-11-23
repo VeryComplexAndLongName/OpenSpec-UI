@@ -9,11 +9,13 @@ test('version proposals may consume notes and package versions but never applica
 test('dependency proposals only refresh the lock and preserve the declared VS Code baseline', () => {
   allowedPaths('dependencies', ['package-lock.json']);
   assert.throws(() => allowedPaths('dependencies', ['package.json']));
-  compatibleVscode({ packages: { 'node_modules/@types/vscode': { version: '1.90.0' } } });
-  compatibleVscode({ packages: { 'packages/extension/node_modules/@types/vscode': { version: '1.90.0' },
-    'node_modules/@types/vscode': { version: '1.125.0' } } });
+  const lock = (version) => ({ packages: { 'node_modules/@types/vscode': { version } } });
+  compatibleVscode(lock('1.125.1'), lock('1.125.0'));
+  compatibleVscode({ packages: { 'packages/extension/node_modules/@types/vscode': { version: '1.125.1' },
+    'node_modules/@types/vscode': { version: '1.147.0' } } }, lock('1.125.0'));
   assert.throws(() => compatibleVscode({ packages: {
-    'packages/extension/node_modules/@types/vscode': { version: '1.125.0' },
-    'node_modules/@types/vscode': { version: '1.90.0' } } }));
-  for (const version of ['1.91.0', '1.134.0', '2.0.0', undefined]) assert.throws(() => compatibleVscode({ packages: { 'node_modules/@types/vscode': { version } } }));
+    'packages/extension/node_modules/@types/vscode': { version: '1.147.0' },
+    'node_modules/@types/vscode': { version: '1.125.0' } } }, lock('1.125.0')));
+  for (const version of ['1.90.0', '1.134.0', '2.0.0', undefined]) assert.throws(() => compatibleVscode(lock(version), lock('1.125.0')));
+  assert.throws(() => compatibleVscode(lock('1.125.0'), lock(undefined)));
 });
