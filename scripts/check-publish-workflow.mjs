@@ -21,6 +21,7 @@ export function checkPublishWorkflow(source) {
   if (!job?.docker?.[0]?.image?.startsWith('node:24.21.0-bookworm@sha256:') || job.resource_class !== 'small') problems.push('Pin the hosted runtime and bounded executor');
   const commands = (job?.steps ?? []).filter((one) => one.run).map((one) => one.run.command ?? one.run).join('\n');
   if (!commands.includes('npm@12.1.0') || !commands.includes('timeout 300 node scripts/publication-worker.mjs npm')) problems.push('Use the pinned client and Homepage queue worker');
+  if (!commands.includes("export PUBLICATION_PROBE='<< pipeline.parameters.publication-probe >>'")) problems.push('Export the probe parameter as a canonical shell string');
   if (/npm ci|npm run build|vsce |npm publish|changeset publish|--provenance=true/u.test(commands)) problems.push('Publisher must not rebuild or bypass the queue');
   if (/VSCE_PAT|NPM_TOKEN|NODE_AUTH_TOKEN|GITHUB_TOKEN|GITHUB_APP_PRIVATE_KEY|MAINTENANCE_TOKEN/u.test(executable(source))) problems.push('No persistent registry or mirror credentials in CircleCI');
   return problems;

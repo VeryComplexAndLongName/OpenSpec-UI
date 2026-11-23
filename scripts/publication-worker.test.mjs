@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { api, identity, run as actualRun, validateJob, publish, validatePackage } from "./publication-worker.mjs";
+import { api, identity, run as actualRun, validateJob, publish, validatePackage, probeRequested } from "./publication-worker.mjs";
 import { signReceipt } from "./publication-receipt.mjs";
 
 const bytes = Buffer.from("immutable release");
@@ -14,6 +14,13 @@ const receiptKeys = generateKeyPairSync('ed25519');
 job.receipt = signReceipt(job, { id: 1, head_sha: job.commit, event: 'push', conclusion: 'success', workflow: 'quality.yml' },
   receiptKeys.privateKey.export({ type: 'pkcs8', format: 'pem' }));
 const run = (channel, options) => actualRun(channel, { ...options, receiptKey: receiptKeys.publicKey });
+
+test('ambiguous probe environment values refuse work instead of publishing', () => {
+  assert.equal(probeRequested('true'), true);
+  assert.equal(probeRequested('false'), false);
+  assert.equal(probeRequested(undefined), false);
+  for (const value of ['1', '0', '', 'TRUE', 'yes']) assert.throws(() => probeRequested(value), /refusing to claim/u);
+});
 
 test("refuses untrusted artifact URL, malformed version and checksum", () => {
   assert.equal(validateJob(job, "npm"), "openspec-ui-cli-1.2.3.tgz");
