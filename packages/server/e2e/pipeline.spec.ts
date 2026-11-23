@@ -276,7 +276,7 @@ test("opens a worktree PR review and copies the displayed summary", async ({ pag
 test("opens an isolated specification archive preview", async ({ page }) => {
   test.setTimeout(90_000);
   const delta = path.join("openspec", "changes", "pipeline-unrelated", "specs", "pipeline-unrelated", "spec.md");
-  await writeFile(path.join(ownDirectory, delta), "## ADDED Requirements\n\n### Requirement: Fixture\nThe system SHALL load.\n\n#### Scenario: Open the pipeline\n- **WHEN** selected\n- **THEN** it loads\n");
+  await writeFile(path.join(ownDirectory, delta), "## ADDED Requirements\n\n### Requirement: Archive fixture\nThe system SHALL load.\n\n#### Scenario: Open the pipeline\n- **WHEN** selected\n- **THEN** it loads\n");
   await git(ownDirectory, ["add", delta]);
   await git(ownDirectory, ["commit", "-qm", "Write the delta"]);
   await page.goto(`${baseUrl}/#token=${encodeURIComponent(server.accessToken)}`);

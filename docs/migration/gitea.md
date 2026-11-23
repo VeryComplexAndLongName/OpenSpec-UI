@@ -89,6 +89,15 @@ Never rebuild or replace an approved version to make recovery convenient.
 Homepage's database retains discovered jobs after entries leave the bounded
 contract. A missing notification does not remove work; timers recover it.
 
+## Local development remotes
+
+The authoritative origin is `http://hppiigit:3000/root/OpenSpec-Workbench.git`
+for the product and `http://hppiigit:3000/root/OpenSpec-Workbench-Homepage.git`
+for Homepage. The `github` remote retains each existing GitHub URL as a mirror.
+New work and pull requests belong in Gitea; do not push development branches or
+main to GitHub. The repository-local push default is origin. Changing these
+remotes does not update, reset or clean an existing working directory.
+
 ## Credentials and rotation
 
 Gitea release preparation needs `MIRROR_APP_ID`, `MIRROR_APP_PRIVATE_KEY` and
@@ -128,7 +137,8 @@ existing npm owners or original GitHub npm trust as incidental cleanup.
 ## Delivery evidence
 
 Access probes, local selected tests and live Gitea runs are distinct evidence.
-See the active change's evidence file for actual commits, deployment markers,
+See the [accepted migration evidence](../../openspec/changes/archive/2026-11-23-move-ci-to-gitea/evidence.md)
+for actual commits, deployment markers,
 first legitimate registry versions and cleanup. Do not claim cutover based on
 configuration or a dry run alone. No disposable registry version or social post
 is needed to test the migration.

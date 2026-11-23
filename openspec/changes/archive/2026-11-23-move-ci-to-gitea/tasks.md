@@ -25,6 +25,10 @@
 - [x] 1.3 Accept docs/adr/0059-gitea-ci-and-independent-publication.md after
   real Gitea full run 6734, hosted CircleCI exchange and server Entra probes.
   Preserve both mirrors' current visibility and all existing public identities.
+- [x] 1.4 In this change's specs/publication-center/spec.md, retain the accepted
+  non-main event scenario when replacing the complete OIDC worker requirement.
+  Validate strictly against the base created by the standard Publication Center
+  archive; no previously accepted scenario may disappear during spec sync.
 
 ## 2. Gitea checks and proposals
 
@@ -101,6 +105,14 @@
   passed. Hosted execution is the mandatory post-merge acceptance below.
 
 ## 4. Selected local verification
+
+- [x] 4.3 In packages/server/e2e/pipeline.spec.ts, give the archive-preview
+  scenario its own requirement text so the preceding PR-review scenario cannot
+  make its fixture commit empty. Extract the two actual fixture bodies and run
+  their ordered Git writes/commits: the former duplicate is refused, both current
+  commits succeed and leave a clean repository. Changed-file ESLint passed.
+  A local two-scenario browser run reached both dialogs but timed out awaiting
+  their results; full browser verification remains mandatory in Gitea.
 
 - [x] 4.1 Record exact selected files and results in evidence.md. Only named
   Node tests, changed-file ESLint, YAML/shell parsing and strict OpenSpec ran

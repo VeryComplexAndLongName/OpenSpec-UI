@@ -161,3 +161,142 @@ did not select the worker's exact-string probe mode and it claimed eligible work
 Export the parameter as a quoted shell string immediately before Node and refuse
 ambiguous probe environment values before a claim. The hosted no-claim probe
 must be repeated after this correction passes CI and reaches the mirror.
+
+## Confirmed cutover, 2026-11-23
+
+The dependency/transport correction passed complete Quality 6925, review 19 and
+merged as 97581892d2557a31b53e1a1005e2b4e0ed14c86d. Main Quality 6934 passed.
+The actual dependency proposal run 6937 succeeded, created review-only PR 9
+and triggered complete passing Quality 6943. It was not automatically merged.
+The old GitHub Version Packages PR 1000 was closed only after its unchanged
+head matched the preservation inventory and the legitimate versions were public.
+GitHub PR 1009 was automatically recognized as merged through preserved ancestry.
+
+The actual Gitea producer 6915 published the approved archives from successful
+main Quality 6782 at ae9bdad8ad845dec82362a66bb2c0fb7d4c6bc13. Later automatic
+producer 6952 mirrored accepted main without replacing existing assets or
+inflating self-download totals. Signed artifact and six-file worker-source
+receipts were independently verified.
+
+Public npm latest and the version endpoint both report CLI 0.34.0. Downloading
+the registry archive returned the exact approved SHA-256
+aa0659a6adf157a491242d6ad20eb2ca2ad5076d2cf3a38846725daec717a117.
+Marketplace publicly reports extension 0.111.0 with unchanged publisher
+5ece82ef-e623-4c63-ae77-ee9261e4ca19 and extension
+8082245e-9666-438c-8680-4e447f5eef72. The approved VSIX SHA-256 is
+8b915382e67097a819345ade725b3b2dfb4046dd75cadeb2adf539457b94bb62.
+Both versions appear on openspec-ui.dev. Marketplace's scheduled timer confirmed
+publication at 05:51:32 UTC; automatic Circle push pipeline 5 succeeded at
+06:08:09 UTC, reconciling the existing npm version without another upload.
+Homepage records both jobs as published, with two npm and three Marketplace
+attempts. No disposable version or social test post was created.
+
+Mirror App 5882677 is installed only on the two approved repositories, with
+Contents write and mandatory Metadata read. Scoped installation tokens were
+verified and revoked. The orphan first key was removed after explicit owner
+confirmation; the sole remaining working key is protected in Gitea Secrets.
+Both GitHub repositories have Actions disabled. Product main is App-update-only
+with deletion/non-fast-forward protection retained. The private Homepage
+GitHub plan refuses rulesets with HTTP 403; privacy was preserved, authoritative
+Gitea main is protected and the mirror refuses non-fast-forward updates.
+The owner's npm/package and Marketplace identities did not change.
+
+The Circle probe correction passed complete PR Quality 6955, review 21 and
+merged as cfbe8a8cfde9917f40a77034f6fe0741825850d7. The existing browser fixture
+passed its configured retry; no test or gate was bypassed. Main Quality, the
+corrected hosted probe and first successful scheduled recovery remain required.
+
+The paired Homepage correction passed main Quality 6936 and scheduled deployment
+6948. Production serves 5f314398211538133def3565c64d0202dc8bc664, homepage.service
+is active, root/healthz/sitemap return 200 and an unauthenticated worker returns
+401. A read-only database comparison preserved every original field of all
+403 release rows, 18 dev.to confirmations and 2 LinkedIn confirmations.
+Its actual watch 6951 passed. Original credentials and future article holds
+were preserved.
+
+## Actual social executor previews
+
+Gitea workflow_dispatch runs 6971 (devto.yml) and 6972 (linkedin.yml) both
+completed successfully against deployed main. Inputs were dry_run=true and
+refresh_token=false. The real SSH wrappers executed the server task entry
+points; no credential rotation, timer change or social publication was requested.
+Future article and cover checks remain subject to their original dates.
+
+## Browser fixture correction
+
+The complete PR 6955 and main 6965 browser jobs each exposed the same ordered
+fixture failure: the PR-review scenario commits the exact spec text later
+written by archive-preview, so its first commit is empty. The configured retry
+recreates the shared fixture and passes. Give archive-preview its own requirement
+name, preserving its actual scenario and visible diff assertion.
+
+Changed-file ESLint passed. An isolated native Git check extracted both actual
+string literals from pipeline.spec.ts, reproduced the former duplicate commit
+failure, and committed the two current bodies in order, leaving two commits
+and a clean tree. The selected two-scenario local browser run, with retries=0,
+reached both dialogs but timed out awaiting their result headings. It is not
+reported as a passing browser check. Complete Gitea browser execution on the
+final PR remains a required merge prerequisite and must show both scenarios
+passing on their first attempt. Original checkout files and dependencies were
+not rebuilt or modified; only owned package-local core links and the owned
+standalone browser bundle were used for this selected run.
+
+## Corrected hosted main probe
+
+Main Quality 6965 passed on cfbe8a8cfde9917f40a77034f6fe0741825850d7. Producer
+6984 succeeded and the GitHub main API reported that exact source. Hosted
+Circle pipeline 7, workflow a9d8d424-7634-464f-b673-70d50cb6de32, completed
+successfully with both config and checkout main and publication-probe=true.
+The downloaded worker step output confirms "Homepage worker identity verified"
+and "npm OIDC exchange verified without publishing." A fresh read-only SQLite
+snapshot matched all 36 queue rows' channel/key/state/attempt fields exactly
+before and after the probe. No lease was consumed or publication attempted.
+The first successful recovery-schedule trigger remains the final acceptance.
+
+## Ordered spec synchronization
+
+Standard Publication Center archival created the accepted base specification.
+Strict validation against it then caught an omitted non-main event scenario in
+the migration's complete MODIFIED worker block. The exact accepted scenario is
+retained beside the narrower hostile-identity scenario. Strict validation and
+git diff --check now pass without dropping a previously accepted case. The
+Homepage replacement block already retains both accepted base scenarios.
+
+## First successful scheduled npm recovery
+
+CircleCI pipeline 8, workflow 5d0783a1-41b7-4ca2-bab3-691f0d754a56, was
+triggered by Scheduled / npm publication recovery at 07:04:01 UTC and
+completed successfully at 07:04:27 UTC on checked mirror main cfbe8a8c.
+The existing main/main trigger is enabled with cron */15 * * * * and the
+approved one-project context still forbids SSH debugging. This is an actual
+scheduled run, distinct from the successful manual probe and push runs.
+
+Actual scheduled Gitea producer 7000 and Homepage watch 7001 also passed. A
+repeat isolated Marketplace API probe confirmed Homepage identity and the
+unchanged Entra Contributor assignment without publishing; all 36 queue states
+and attempt counters remained unchanged. Native Marketplace publishing had
+already been confirmed automatically from the first legitimate release.
+
+Production acceptance is complete. Archive Publication Center before this
+migration through normal OpenSpec commands, land synchronized specs and both
+archives through required PR checks/review, then verify accepted main mirrors
+and the final deployment. These final PR/main outcomes are retained in the
+Gitea review records and delivery checkpoint, avoiding self-referential commits.
+Owned cleanup follows only after all needed commits are in authoritative main.
+
+## Standard archival
+
+Both repositories ran `openspec archive publication-center --yes`, then
+`openspec archive move-ci-to-gitea --yes` on 2026-11-23. Both commands completed
+with validation enabled and synchronized accepted main specifications. No
+--skip-specs or --no-validate option was used. Purpose text and current runbook
+links were completed. This finishing diff still requires its own complete
+Gitea PR checks, operator review, main checks, accepted mirror and deployment
+verification before the owned working directory can be removed.
+
+The scheduled Circle job's actual shell exported PUBLICATION_PROBE=false. Its
+downloaded output was "No npm publications are due." A subsequent read-only
+snapshot again matched all 36 queue states and attempt counters exactly. The
+standard archive completed in both repositories; targeted accepted-spec checks
+and git diff --check passed. The archived product change merge-gate command
+returned ok=true with no remaining active affected change.
