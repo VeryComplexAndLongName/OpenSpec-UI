@@ -1,7 +1,7 @@
 # gitea-quality Specification
 
 ## Purpose
-TBD - created by archiving change run-quality-in-gitea. Update Purpose after archive.
+Enforce complete product quality gates in Gitea and bound their shared executor resources before changes can merge.
 
 ## Requirements
 
@@ -25,3 +25,14 @@ of the integration suites. Quality jobs SHALL contain no production secrets.
 - **WHEN** a changed dependency node has a high or critical advisory
 - **THEN** the independent dependency review refuses the change
 - **AND** an advisory service outage is explicitly reported as unknown
+
+### Requirement: Shared executor budget
+OpenSpec quality jobs SHALL join the host's bounded user.slice while retaining their existing per-job CPU and memory limits and host Docker socket prohibition.
+
+#### Scenario: Runner policy omits the shared parent
+- **WHEN** the runner config removes --cgroup-parent=user.slice
+- **THEN** the runner policy check rejects the configuration
+
+#### Scenario: Quality job starts on the shared host
+- **WHEN** a quality job starts after the updated runner config is deployed
+- **THEN** its processes belong to user.slice under the host CPU and memory ceilings

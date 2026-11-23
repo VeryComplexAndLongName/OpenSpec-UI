@@ -17,7 +17,7 @@ cache:
   port: 8095
 container:
   privileged: false
-  options: --init --cpus=2 --memory=6g --pids-limit=2048 --dns=192.168.137.6 --dns=192.168.137.3 --add-host=hppiigit:192.168.137.34
+  options: --init --cpus=2 --memory=6g --pids-limit=2048 --cgroup-parent=user.slice --dns=192.168.137.6 --dns=192.168.137.3 --add-host=hppiigit:192.168.137.34
   valid_volumes: []
   docker_host: '-'
   force_pull: false
