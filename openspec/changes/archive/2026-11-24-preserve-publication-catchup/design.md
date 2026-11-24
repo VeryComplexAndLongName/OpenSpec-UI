@@ -12,3 +12,7 @@ Restore the server or database, bypass expired credentials/finite retries, infer
 
 ## Risks / Trade-offs
 The offline production database and installed timer state cannot be audited until server access returns. Persistent rows must survive recovery; restoring an older database backup can lose confirmations. LinkedIn uncertain creates and exhausted attempts still require operator reconciliation. The first rollout must preserve the existing database and credential files. No migration or new required environment variable is needed. No command/event or webui/server contract changes; those contract suites are not affected.
+
+## Verification
+
+Full verification: required Gitea PR Quality run 7560 passed on implementation head 5031aa1a01674eadffd9327ce500544b71e17773 before merge. CI logs explicitly show packages/server/src/scheduled-runs-contract.test.ts (4 tests) and packages/webui/src/transport/contract.test.ts (8 tests) passed; no command/event or host protocol was changed. Scoped Node publication tests passed 23/23. The offline production database and installed timer state remain unaudited, and server rollout awaits recovery; no real test publication was performed.
