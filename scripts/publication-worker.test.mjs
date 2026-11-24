@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { api, identity, run as actualRun, validateJob, publish, validatePackage, probeRequested } from "./publication-worker.mjs";
+import { api, identity, run as actualRun, validateJob, publish, validatePackage, probeRequested, npmPublicationTag } from "./publication-worker.mjs";
 import { signReceipt } from "./publication-receipt.mjs";
 
 const bytes = Buffer.from("immutable release");
@@ -111,6 +111,7 @@ test('native publisher checks inner product identity before a registry write', a
   let called;
   await publish(job, '/tmp/file.tgz', {
     env: { NPM_TOKEN: 'forbidden', NODE_AUTH_TOKEN: 'forbidden', VSCE_PAT: 'forbidden' },
+    fetcher: async () => new Response(JSON.stringify({ name: '@openspec-ui/cli', version: '1.0.0' })),
     getIdentity: async () => 'ephemeral', inspect: () => JSON.stringify(base),
     invoke: (command, args, options) => { called = { command, args, options }; return { status: 0 }; },
   });
@@ -125,4 +126,22 @@ test('an altered build receipt cannot cause a registry request', async () => {
     ? { job: { ...job, receipt: undefined } } : { state: 'failed' },
     fetcher: () => assert.fail('No registry lookup or artifact download'),
     publishArtifact: () => assert.fail('No registry write') }), /receipt/u);
+});
+
+
+test('late older npm recovery cannot move latest backwards', async () => {
+  const remote = async () => new Response(JSON.stringify({ name: '@openspec-ui/cli', version: '2.10.0' }));
+  assert.equal(await npmPublicationTag('2.9.99', remote), 'recovery-2-9-99');
+  assert.equal(await npmPublicationTag('2.10.0', remote), 'latest');
+  assert.equal(await npmPublicationTag('2.11.0', remote), 'latest');
+  assert.equal(await npmPublicationTag('1.0.0', async () => new Response(null, { status: 404 })), 'latest');
+  await assert.rejects(npmPublicationTag('2.0.0', async () => new Response(null, { status: 503 })));
+  await assert.rejects(npmPublicationTag('2.0.0', async () => new Response(JSON.stringify({ name: 'other', version: '9.0.0' }))));
+  let command;
+  await publish({ ...job, version: '1.2.3' }, '/tmp/file.tgz', {
+    env: {}, fetcher: remote, getIdentity: async () => 'fixture',
+    inspect: () => JSON.stringify({ name: '@openspec-ui/cli', version: '1.2.3' }),
+    invoke: (_, args) => { command = args; return { status: 0 }; },
+  });
+  assert.equal(command[command.indexOf('--tag') + 1], 'recovery-1-2-3');
 });

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash, generateKeyPairSync, verify } from 'node:crypto';
 import test from 'node:test';
-import { assetIdentity, reconcileAsset, zipEntries, mergeManifests, tagAt, alreadyPrepared } from './mirror-tested-release.mjs';
+import { assetIdentity, reconcileAsset, zipEntries, mergeManifests, tagAt, alreadyPrepared, mergeReleaseHistory } from './mirror-tested-release.mjs';
 import { mirrorGit, bytes, githubToken, json } from './publication-transport.mjs';
 import { signReceipt, signRuntime, RUNTIME_FILES } from './publication-receipt.mjs';
 
@@ -104,4 +104,38 @@ test('a verified producer checkpoint prevents scheduled self-downloads and still
   assert.equal(alreadyPrepared(document, commit, 'c'.repeat(40), keys.publicKey), false);
   assert.equal(alreadyPrepared(null, commit, commit, keys.publicKey), false);
   assert.throws(() => alreadyPrepared({ ...document, worker_source: null }, commit, commit, keys.publicKey));
+});
+
+
+test('release history retains intermediate versions across an outage and repeated generation', () => {
+  const product = (version, date = '2026-11-24T00:00:00Z') => ({ id: 'ci-cli', public: true, version, released_at: date });
+  const prior = { schema_version: 1, repository: 'VeryComplexAndLongName/OpenSpec-UI', products: [product('1.0.0')] };
+  const before = { products: [product('1.1.0')] };
+  const now = { products: [product('1.2.0'), { ...product('9.0.0'), public: false }] };
+  const history = mergeReleaseHistory(prior, before, now);
+  assert.deepEqual(history.products.map((p) => p.version), ['1.0.0', '1.1.0', '1.2.0']);
+  assert.deepEqual(mergeReleaseHistory(history, now, now), history);
+  const refreshed = mergeReleaseHistory(history, before, { products: [product('1.0.0', '2026-11-25T00:00:00Z')] });
+  assert.equal(refreshed.products[0].released_at, '2026-11-24T00:00:00Z');
+  assert.throws(() => mergeReleaseHistory({ ...prior, repository: 'other' }, before, now));
+});
+
+test('candidate overflow fails before silently evicting undiscovered work', () => {
+  const base = { schema_version: 1, products: [] };
+  assert.throws(() => mergeManifests(base, base, [], Array(1001).fill({})), /refusing to discard/u);
+});
+
+
+test('discovery retains more than one hundred signed pending candidates', () => {
+  const keys = generateKeyPairSync('ed25519');
+  const pem = keys.privateKey.export({ type: 'pkcs8', format: 'pem' });
+  const candidates = Array.from({ length: 101 }, (_, index) => {
+    const item = { ...assetIdentity('npm', `1.0.${index}`, 'a'.repeat(40)), sha256: 'b'.repeat(64) };
+    item.receipt = signReceipt(item, { id: 12, head_sha: item.commit, event: 'push', conclusion: 'success', workflow: 'quality.yml' }, pem);
+    return item;
+  });
+  const base = { schema_version: 1, products: [] };
+  const result = mergeManifests(base, base, [], candidates, keys.publicKey);
+  assert.equal(result.publications.publications.length, 101);
+  assert.deepEqual(result.publications.publications, candidates);
 });

@@ -163,13 +163,32 @@ export function validatePackage(job, filename, inspect = execFileSync) {
   }
 }
 
-export async function publish(job, filename, { env = process.env, invoke = spawnSync, getIdentity = identity, inspect = execFileSync } = {}) {
+export async function npmPublicationTag(version, fetcher = fetch) {
+  const response = await fetcher('https://registry.npmjs.org/@openspec-ui%2fcli/latest',
+    { redirect: 'error', signal: AbortSignal.timeout(45_000) });
+  if (response.status === 404) return 'latest';
+  if (!response.ok) throw new Error(`npm latest lookup HTTP ${response.status}`);
+  const data = await response.json();
+  if (data.name !== '@openspec-ui/cli' || !/^\d+\.\d+\.\d+$/u.test(data.version)) {
+    throw new Error('Cannot establish the stable npm latest version');
+  }
+  const proposed = version.split('.').map(BigInt);
+  const latest = data.version.split('.').map(BigInt);
+  for (let index = 0; index < 3; index += 1) {
+    if (proposed[index] > latest[index]) return 'latest';
+    if (proposed[index] < latest[index]) return `recovery-${version.replaceAll('.', '-')}`;
+  }
+  return 'latest';
+}
+
+export async function publish(job, filename, { env = process.env, invoke = spawnSync, getIdentity = identity, inspect = execFileSync, fetcher = fetch } = {}) {
   validatePackage(job, filename, inspect);
   const clean = registryEnvironment(job.channel, env);
   if (job.channel === "npm") clean.NPM_ID_TOKEN = await getIdentity("npm:registry.npmjs.org", env);
+  const tag = job.channel === "npm" ? await npmPublicationTag(job.version, fetcher) : null;
   const command = job.channel === "npm" ? "npm" : "vsce";
   const args = job.channel === "npm"
-    ? ["publish", filename, "--access", "public", "--provenance=false", "--ignore-scripts", "--registry=https://registry.npmjs.org"]
+    ? ["publish", filename, "--tag", tag, "--access", "public", "--provenance=false", "--ignore-scripts", "--registry=https://registry.npmjs.org"]
     : ["publish", "--azure-credential", "--packagePath", filename];
   const result = invoke(command, args, { cwd: path.dirname(filename), env: clean, stdio: "inherit", timeout: 180_000 });
   if (result.status !== 0 || result.error) throw new Error(`${command} publication failed`);
@@ -200,7 +219,7 @@ export async function run(channel, { call = api, fetcher = fetch, publishArtifac
       directory = await mkdtemp(path.join(tmpdir(), "openspec-publication-"));
       const artifact = path.join(directory, filename);
       await writeFile(artifact, bytes);
-      await publishArtifact(job, artifact);
+      await publishArtifact(job, artifact, { fetcher });
     }
   } catch (error) {
     failure = error;
