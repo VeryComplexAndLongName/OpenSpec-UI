@@ -119,7 +119,7 @@ export async function stage(item, quality, file, baseProduct, token) {
   return { ...approved, released_at: release.published_at, size_bytes: file.length };
 }
 
-export function mergeManifests(base, previous, accepted, priorPublications, receiptKey, workerSource) {
+export function mergeManifests(base, previous, accepted, priorPublications, receiptKey, workerSource, priorHistory) {
   if (base.schema_version !== 1 || previous.schema_version !== 1) throw new Error('Manifest schema differs');
   const products = base.products.map((product) => {
     const old = previous.products.find((one) => one.id === product.id);
@@ -132,10 +132,29 @@ export function mergeManifests(base, previous, accepted, priorPublications, rece
       artifacts: [{ kind: current.channel === 'npm' ? 'npm-tarball' : 'vsix', url: current.artifact_url,
         size_bytes: current.size_bytes, sha256: current.sha256 }] };
   });
-  const publications = [...accepted, ...priorPublications.filter((old) => !accepted.some((one) => one.channel === old.channel && one.version === old.version))].slice(0, 100);
+  const publications = [...accepted, ...priorPublications.filter((old) => !accepted.some((one) => one.channel === old.channel && one.version === old.version))];
+  if (publications.length > 1000) throw new Error('Publication backlog exceeds 1000 retained candidates; refusing to discard undiscovered work');
   for (const item of publications) verifyReceipt(item, receiptKey);
-  return { releases: { ...base, products }, publications: { schema_version: 1, repository: PUBLIC,
+  const history = mergeReleaseHistory(priorHistory, previous, { ...base, products });
+  return { 'release-history': history, releases: { ...base, products }, publications: { schema_version: 1, repository: PUBLIC,
     producer_commit: base.commit, worker_source: workerSource, publications } };
+}
+
+export function mergeReleaseHistory(prior, previous, current) {
+  if (prior && (prior.schema_version !== 1 || prior.repository !== PUBLIC || !Array.isArray(prior.products))) {
+    throw new Error('Invalid published release history');
+  }
+  const versions = new Map();
+  for (const product of [...(prior?.products ?? []), ...previous.products, ...current.products]) {
+    if (product.public === false || !product.released_at) continue;
+    if (typeof product.id !== 'string' || !/^\d+\.\d+\.\d+$/u.test(product.version)
+        || !Number.isFinite(Date.parse(product.released_at))) throw new Error('Invalid dated public release');
+    const key = `${product.id}@${product.version}`;
+    const original = versions.get(key);
+    // The published archive's original date survives later metadata refreshes.
+    versions.set(key, { ...product, released_at: original?.released_at ?? product.released_at });
+  }
+  return { schema_version: 1, repository: PUBLIC, products: [...versions.values()] };
 }
 
 export function alreadyPrepared(document, commit, mirrored, receiptKey) {
@@ -152,16 +171,18 @@ async function publishManifest(documents, token, commit, directory) {
   const tip = execFileSync('git', ['rev-parse', 'FETCH_HEAD'], { encoding: 'utf8' }).trim();
   const old = (name) => JSON.parse(execFileSync('git', ['show', `${tip}:${name}.json`], { encoding: 'utf8' }));
   const releases = old('releases');
+  let history;
+  try { history = old('release-history'); } catch { history = { products: [] }; }
   let publications;
   try { publications = old('publications'); } catch { publications = { publications: [] }; }
   const fingerprint = (value) => JSON.stringify(value.products);
-  if (fingerprint(releases) === fingerprint(documents.releases) && JSON.stringify(publications) === JSON.stringify(documents.publications)) return;
+  if (fingerprint(history) === fingerprint(documents['release-history']) && fingerprint(releases) === fingerprint(documents.releases) && JSON.stringify(publications) === JSON.stringify(documents.publications)) return;
   const tree = path.join(directory, 'manifest');
   execFileSync('git', ['worktree', 'add', '--detach', tree, tip], { stdio: 'pipe' });
   try {
     for (const [name, document] of Object.entries(documents)) await writeFile(path.join(tree, `${name}.json`), JSON.stringify(document, null, 2) + '\n');
     const git = (args) => execFileSync('git', ['-C', tree, ...args], { stdio: 'pipe', encoding: 'utf8' });
-    git(['add', 'releases.json', 'publications.json']);
+    git(['add', 'releases.json', 'publications.json', 'release-history.json']);
     git(['-c', 'user.name=OpenSpec Gitea', '-c', 'user.email=openspec-ci@localhost', 'commit', '-m', `Release manifest for ${commit}`]);
     const revision = git(['rev-parse', 'HEAD']).trim();
     mirrorGit('OpenSpec-UI', revision, token, 'release-manifest');
@@ -213,9 +234,10 @@ export async function main() {
       if (result) accepted.push(result);
     }
     const previous = await json(`https://raw.githubusercontent.com/${PUBLIC}/release-manifest/releases.json`);
+    const history = await json(`https://raw.githubusercontent.com/${PUBLIC}/release-manifest/release-history.json`, { missing: true });
     const files = Object.fromEntries(await Promise.all(RUNTIME_FILES.map(async (name) => [name, digest(await readFile(name))])));
     const workerSource = signRuntime(current, quality, files, decodeKey(process.env.RELEASE_SIGNING_PRIVATE_KEY_BASE64));
-    await publishManifest(mergeManifests(base, previous, accepted, prior?.publications || [], undefined, workerSource), token, current, directory);
+    await publishManifest(mergeManifests(base, previous, accepted, prior?.publications || [], undefined, workerSource, history), token, current, directory);
   } finally { await rm(directory, { recursive: true }); }
 }
 
