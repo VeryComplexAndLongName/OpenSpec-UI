@@ -25,3 +25,7 @@ coverage are outside this MVP.
 
 An older report may supply a testcase name. Its result remains historical.
 An imported report replaced during editing requires a fresh selection.
+
+## Verification
+
+Gitea Quality run 8605 passed on implementation head 358927475fc5cfe6807c619e247e114bf540a834. The authenticated HTTP contract in packages/server/src/change-actions-rest.test.ts passed, including the save guard. The browser contract in packages/server/e2e/junit-review.spec.ts passed on a real local server. The VS Code JUnit adapter passed native confirmation and cancellation tests. See the scoped commands and outcomes in tasks.md. Historical report attribution remains qualified and remote artifact import is tracked separately.
