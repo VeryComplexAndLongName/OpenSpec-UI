@@ -23,3 +23,5 @@
 Targeted local evidence: Core JUnit parser and check mapping tests passed (18 tests). All nine unchanged PR Review tests passed with the initial run. The revised JUnit mapping test passed independently after reducing its Git fixture setup. The authenticated HTTP contract passed 11 tests, the standalone dialog passed 11 tests, and the VS Code JUnit adapter passed 4 tests. The Chromium smoke in e2e/junit-review.spec.ts passed with a real local server. Scoped TypeScript and ESLint checks, OpenSpec strict validation, and changeset and authored release-note checks passed. Gitea runs complete verification.
 
 Vocabulary and dialog verification: both selected web UI files passed, 14 tests.
+
+Full verification passed in Gitea Quality run 8605 on implementation head 358927475fc5cfe6807c619e247e114bf540a834.
