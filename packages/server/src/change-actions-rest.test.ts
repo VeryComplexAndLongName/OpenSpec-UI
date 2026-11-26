@@ -77,7 +77,7 @@ describe("a change's actions, for the standalone app's cards", () => {
     });
   });
 
-  it.each([{ scenarioMapping: { mode: "save" } }, { junitImport: { head: "a".repeat(40), testedCommit: "a".repeat(40), xml: "<testsuite/>" } }])("uses the worktree write guard for a PR Review write %j", async (prReview) => {
+  it.each([{ scenarioMapping: { mode: "save" } }, { junitMapping: { mode: "save" } }, { junitImport: { head: "a".repeat(40), testedCommit: "a".repeat(40), xml: "<testsuite/>" } }])("uses the worktree write guard for a PR Review write %j", async (prReview) => {
     const workspace = os.tmpdir();
     const refusal = "The worktree records do not check out.";
     const server = createHttpServer((req, res) => void handleChangeActionRequest(req, res, {
@@ -103,7 +103,7 @@ describe("a change's actions, for the standalone app's cards", () => {
     }
   });
 
-  it("imports JUnit through the authenticated HTTP action and returns committed scenario results", async () => {
+  it("imports JUnit through authenticated HTTP and previews and saves a testcase association", async () => {
     await withServer(async (post, workspace) => {
       const exec = promisify(execFile);
       const git = async (...args: string[]) => (await exec("git", [...await gitIsolationArgs(), "-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", ...args], { cwd: workspace })).stdout.trim();
@@ -114,16 +114,28 @@ describe("a change's actions, for the standalone app's cards", () => {
       await git("init", "-b", "main"); await git("add", "."); await git("commit", "-m", "Fixture");
       const head = await git("rev-parse", "HEAD");
       const reply = await post({ cwd: workspace, changeName: "demo", action: "showPrReview", input: { prReview: { junitImport: {
-        head, testedCommit: head, xml: '<testsuite><testcase classname="Session" name="expires"><skipped/></testcase></testsuite>',
+        head, testedCommit: head, xml: '<testsuite><testcase classname="Session" name="expires"><skipped/></testcase><testcase name="other expiry"/></testsuite>',
       } } } });
       expect(reply.status).toBe(200);
       const result = await reply.json();
       expect(result.report.summary).toContain("User-declared tested commit");
       expect(result.report.summary).toContain("expires `: skipped");
-      const reopened = await (await post({ cwd: workspace, changeName: "demo", action: "showPrReview" })).json();
-      expect(reopened.report.summary).toContain("expires `: skipped");
+      const choices = result.report.junitMappingChoices;
+      const test = { classname: "", name: "other expiry" };
+      const selection = { head, reportId: choices.reportId, scenario: choices.scenarios[0], test };
+      const request = (junitMapping: unknown) => post({ cwd: workspace, changeName: "demo", action: "showPrReview", input: { prReview: { junitMapping } } });
+      const preview = await request({ mode: "preview", selection });
+      expect(preview.status).toBe(200);
+      const { revision, diff } = (await preview.json()).report.junitMappingPreview;
+      expect(diff).toContain(test.name);
+      expect(await git("status", "--porcelain")).toBe("");
+      const saved = await request({ mode: "save", selection, revision });
+      expect(saved.status).toBe(200);
+      expect((await saved.json()).report.summary).toContain("Test mapping saved");
+      expect(JSON.parse(await readFile(path.join(directory, "scenario-tests.json"), "utf8")).scenarios[0].tests)
+        .toEqual([{ classname: "Session", name: "expires" }, test]);
     });
-  });
+  }, 45_000);
 
   it("returns the PR review and preserves unavailable comparison and evidence", async () => {
     await withServer(async (post, workspace) => {

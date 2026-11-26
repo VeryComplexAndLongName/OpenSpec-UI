@@ -8,7 +8,7 @@
 
 import { useEffect, useState } from "react";
 import { changeAction, JUNIT_XML_MAX_BYTES, PR_REVIEW_EXAMPLE, say, type ChangeActionAnswer, type ChangeActionId, type ChangeActionInput, type JUnitImport } from "@openspec-ui/core/browser";
-import { Clipboard, Upload, Wrench } from "lucide-react";
+import { Clipboard, Link2, Upload, Wrench } from "lucide-react";
 import { renderMarkdown } from "../markdown.js";
 import { ChangeHarnessSettingsView } from "./ChangeHarnessSettingsView.js";
 import type { HarnessSettingsApi } from "./harness-settings-parts.js";
@@ -87,7 +87,7 @@ export function ChangeActionDialog({ target, perform, harnessApi, onClose }: {
           onReviewAction={(selection) => {
             setCopyStatus("");
             send({ prReview: { ...selection, ...(checksRequested ? { refreshGitHubChecks: true } : {}),
-              ...(step.answer.kind === "pr-review" && step.answer.report.sinceLastReview && (selection.scenarioMapping || selection.junitImport || selection.prepareCiRepairTask)
+              ...(step.answer.kind === "pr-review" && step.answer.report.sinceLastReview && (selection.scenarioMapping || selection.junitImport || selection.junitMapping || selection.prepareCiRepairTask)
                 ? { sinceLastReview: true } : {}) } });
           }} />
       ) : step.answer.kind === "done" ? (
@@ -129,8 +129,10 @@ function PrReview({ review, onCopy, copyStatus, onRefresh, onReviewAction }: {
 }): JSX.Element {
   const head = review.head;
   const preview = review.mappingPreview;
+  const junitPreview = review.junitMappingPreview;
   const repair = review.ciRepairTask;
   const [importing, setImporting] = useState(false);
+  const [linkingTest, setLinkingTest] = useState(false);
   return (
     <>
       <button className="button primary" type="button" onClick={() => void onCopy(review.summary)}>Copy PR summary</button>
@@ -145,6 +147,11 @@ function PrReview({ review, onCopy, copyStatus, onRefresh, onReviewAction }: {
       </button>}
       {importing && onReviewAction !== undefined && head !== undefined &&
         <JUnitImportForm head={head} onImport={(junitImport) => onReviewAction({ junitImport })} />}
+      {onReviewAction && head && review.junitMappingChoices && !junitPreview &&
+        <button className="button" type="button" title="Link scenario to JUnit test" aria-label="Link scenario to JUnit test"
+          aria-expanded={linkingTest} onClick={() => setLinkingTest(!linkingTest)}>
+          <Link2 size={16} aria-hidden="true" />
+        </button>}
       {onReviewAction !== undefined && head !== undefined && head !== review.lastReviewed &&
         <button className="button" type="button" onClick={() => onReviewAction({ markReviewedCommit: head })}>Mark as reviewed</button>}
       {onReviewAction !== undefined && review.lastReviewed !== undefined &&
@@ -163,11 +170,66 @@ function PrReview({ review, onCopy, copyStatus, onRefresh, onReviewAction }: {
           } })}>Save Scenario Mapping</button>
           <button className="button" type="button" onClick={() => onReviewAction(review.sinceLastReview ? { sinceLastReview: true } : {})}>Show PR Review</button>
         </section> : review.mappingChoices && <ScenarioCheckPicker head={head} choices={review.mappingChoices} onReviewAction={onReviewAction} />)}
+      {onReviewAction && head && (junitPreview
+        ? <section aria-label="JUnit mapping preview">
+          <h4>JUnit mapping preview</h4>
+          <pre aria-label="JUnit mapping diff"><code>{junitPreview.diff}</code></pre>
+          <button className="button primary" type="button" onClick={() => onReviewAction({ junitMapping: {
+            mode: "save", selection: junitPreview.selection, revision: junitPreview.revision,
+          } })}>Save Test Mapping</button>
+          <button className="button" type="button" onClick={() => onReviewAction(review.sinceLastReview ? { sinceLastReview: true } : {})}>Show PR Review</button>
+        </section>
+        : linkingTest && review.junitMappingChoices && <JUnitTestPicker key={head + review.junitMappingChoices.reportId}
+          head={head} choices={review.junitMappingChoices} onReviewAction={onReviewAction} />)}
       {review.diff !== null && (review.diff.length > 0 ? <details className="openspec-md-preview" open><summary>Committed diff</summary>
         <pre aria-label="Committed diff"><code>{review.diff}</code></pre>
       </details> : <p>{review.truncated ? "The patch exceeds the display limit." : "No committed changes in this comparison."}</p>)}
     </>
   );
+}
+
+function JUnitTestPicker({ head, choices, onReviewAction }: {
+  head: string;
+  choices: NonNullable<Extract<ChangeActionAnswer, { kind: "pr-review" }>["report"]["junitMappingChoices"]>;
+  onReviewAction: (selection: NonNullable<ChangeActionInput["prReview"]>) => void;
+}): JSX.Element {
+  const [scenarioIndex, setScenarioIndex] = useState("");
+  const [testIndex, setTestIndex] = useState("");
+  const [query, setQuery] = useState("");
+  const scenario = choices.scenarios[Number.parseInt(scenarioIndex, 10)];
+  const test = choices.tests[Number.parseInt(testIndex, 10)];
+  const filter = query.trim().toLowerCase();
+  return <form aria-label="Link a JUnit test" onSubmit={(event) => {
+    event.preventDefault();
+    if (scenario && test) onReviewAction({ junitMapping: { mode: "preview", selection: {
+      head, reportId: choices.reportId, scenario, test: { classname: test.classname, name: test.name },
+    } } });
+  }}>
+    <p>{choices.testedCommit === head ? "User-declared tested commit" : "Historical report for user-declared commit"} <code>{choices.testedCommit}</code></p>
+    <label>OpenSpec scenario
+      <select value={scenarioIndex} onChange={(event) => setScenarioIndex(event.currentTarget.value)}>
+        <option value="">Select a scenario</option>
+        {choices.scenarios.map((entry, index) => <option key={index} value={index}>
+          {`${entry.capability} / ${entry.requirement} / ${entry.scenario}`}
+        </option>)}
+      </select>
+    </label>
+    <label>Search JUnit tests<input type="search" value={query} onChange={(event) => {
+      setQuery(event.currentTarget.value);
+      setTestIndex("");
+    }} /></label>
+    <label>JUnit testcase
+      <select value={testIndex} onChange={(event) => setTestIndex(event.currentTarget.value)}>
+        <option value="">Select a testcase</option>
+        {choices.tests.map((entry, index) => {
+          const title = entry.classname ? `${entry.classname} / ${entry.name}` : entry.name;
+          return title.toLowerCase().includes(filter)
+            ? <option key={index} value={index}>{title} ({entry.state})</option> : null;
+        })}
+      </select>
+    </label>
+    <button className="button" type="submit" disabled={!scenario || !test}>Show Test Mapping Preview</button>
+  </form>;
 }
 
 function JUnitImportForm({ head, onImport }: { head: string; onImport: (value: JUnitImport) => void }): JSX.Element {

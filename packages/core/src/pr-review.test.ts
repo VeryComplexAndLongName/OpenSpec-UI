@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanPrReviewCommit, prReviewMarkdown, readPrReview } from "./pr-review.js";
 import type { Forge, PullRequestsByBranch } from "./gh-pr-gateway.js";
+import { editJUnitMapping, importJUnit, readJUnitReview } from "./junit-evidence.js";
 import type { AuditEntry } from "./security.js";
 import { gitIsolationArgs } from "./test-support/git-isolation.js";
 
@@ -54,6 +55,44 @@ function openTarget(base: string, head: string): Promise<PullRequestsByBranch> {
 }
 
 describe("PR review", () => {
+  it("previews and saves an exact JUnit mapping while rejecting changed evidence and duplicate identities", async () => {
+    const { root, changeDir, main } = await fixture();
+    const file = path.join(changeDir, "scenario-tests.json");
+    const head = await git(root, "rev-parse", "HEAD");
+    const scenario = { capability: "checkout", requirement: "Shipping", scenario: "Address changes" };
+    const xml = '<testsuite><testcase classname="Shipping" name="updates"/><testcase name="duplicate"/><testcase name="duplicate"/></testsuite>';
+    await importJUnit(root, "demo", { head, testedCommit: main, xml }, head);
+    const choices = (await readJUnitReview(root, "demo", head, [scenario])).choices!;
+    expect(choices.tests).toEqual([{ classname: "Shipping", name: "updates", state: "passed" }]);
+    const selection = { head, reportId: choices.reportId, scenario, test: { classname: "Shipping", name: "updates" } };
+    const preview = async () => {
+      const result = await editJUnitMapping(root, "demo", head, { mode: "preview", selection }, choices);
+      if (!("preview" in result)) throw new Error("Expected a mapping preview");
+      return result.preview;
+    };
+    const save = (revision: string) => editJUnitMapping(root, "demo", head, { mode: "save", selection, revision }, choices);
+    const planned = await preview();
+    expect(planned.diff).toContain("+++ b/scenario-tests.json");
+    await expect(readFile(file)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(editJUnitMapping(root, "demo", head, { mode: "preview",
+      selection: { ...selection, test: { classname: "", name: "duplicate" } } }, choices)).rejects.toThrow("unique testcase");
+    await writeFile(file, '{"scenarios":[]}');
+    await expect(save(planned.revision)).rejects.toThrow("mapping changed");
+    const fresh = await preview();
+    await importJUnit(root, "demo", { head, testedCommit: main, xml: "<testsuite/>" }, head);
+    await expect(save(fresh.revision)).rejects.toThrow("JUnit report moved");
+    const replacement = (await readJUnitReview(root, "demo", head, [scenario])).choices;
+    expect(replacement).toBeUndefined();
+    await importJUnit(root, "demo", { head, testedCommit: main, xml }, head);
+    const updated = (await readJUnitReview(root, "demo", head, [scenario])).choices!;
+    const newSelection = { ...selection, reportId: updated.reportId };
+    const next = await editJUnitMapping(root, "demo", head, { mode: "preview", selection: newSelection }, updated);
+    if (!("preview" in next)) throw new Error("Expected replacement mapping preview");
+    expect(await editJUnitMapping(root, "demo", head, { mode: "save", selection: newSelection, revision: next.preview.revision }, updated))
+      .toEqual({ saved: true });
+    expect(JSON.parse(await readFile(file, "utf8"))).toEqual({ scenarios: [{ ...selection.scenario, tests: [selection.test] }] });
+  });
+
   it("imports JUnit for committed scenario mappings, retains it across reviews and rejects stale or invalid replacements", async () => {
     const { root, changeDir, main } = await fixture();
     const delta = path.join(changeDir, "specs", "checkout");

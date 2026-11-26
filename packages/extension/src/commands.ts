@@ -2947,6 +2947,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         const copy = "Copy PR summary";
         const refresh = "Refresh PR checks";
         const link = "Link scenario to check";
+        const linkTest = "Link scenario to JUnit test";
         const importReport = "Import JUnit XML";
         const prepareRepair = "Prepare CI Repair Task";
         const copyRepair = "Copy CI Repair Task";
@@ -2975,6 +2976,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           if (review.head !== undefined && review.head !== review.lastReviewed) actions.push(mark);
           if (review.lastReviewed !== undefined) actions.push(sinceLastReview ? full : since);
           if (review.mappingChoices !== undefined && review.head !== undefined) actions.push(link);
+          if (review.junitMappingChoices !== undefined && review.head !== undefined) actions.push(linkTest);
           const action = await vscode.window.showInformationMessage(review.title, ...actions);
           if (action === prepareRepair) { prepareCiRepairTask = true; continue; }
           if (action === copyRepair && review.ciRepairTask !== undefined) {
@@ -3008,6 +3010,32 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           }
           if (action === since || action === full) {
             sinceLastReview = action === since;
+            continue;
+          }
+          if (action === linkTest && review.head !== undefined && review.junitMappingChoices !== undefined) {
+            const choices = review.junitMappingChoices;
+            const scenario = await vscode.window.showQuickPick(choices.scenarios.map((entry) => ({
+              label: entry.scenario, description: `${entry.capability} / ${entry.requirement}`, entry,
+            })), { placeHolder: "Choose an OpenSpec scenario" });
+            if (scenario === undefined) continue;
+            const test = await vscode.window.showQuickPick(choices.tests.map(({ name, classname, state }) => ({
+              label: name, description: classname, detail: state, entry: { classname, name },
+            })), { matchOnDescription: true, placeHolder: choices.testedCommit === review.head
+              ? `Choose a JUnit testcase (user-declared commit ${choices.testedCommit})`
+              : `Choose from historical JUnit results (user-declared commit ${choices.testedCommit})` });
+            if (test === undefined) continue;
+            const selection = { head: review.head, reportId: choices.reportId, scenario: scenario.entry, test: test.entry };
+            const planned = await readPrReview(root, item.changeName, { sinceLastReview, junitMapping: { mode: "preview", selection } });
+            if (planned.junitMappingPreview === undefined) continue;
+            const document = await vscode.workspace.openTextDocument({ language: "diff", content: planned.junitMappingPreview.diff });
+            await vscode.window.showTextDocument(document, { preview: false });
+            const save = "Save Test Mapping";
+            if (await vscode.window.showInformationMessage(save, { modal: true }, save) !== save
+                || await refusedAsAnothersChange(item.changeName, item.ownership)) continue;
+            const saved = await readPrReview(root, item.changeName, { sinceLastReview, junitMapping: {
+              mode: "save", selection, revision: planned.junitMappingPreview.revision,
+            } });
+            await openMarkdownDocument("PR Review", saved.summary);
             continue;
           }
           if (action === link && review.head !== undefined && review.mappingChoices !== undefined) {

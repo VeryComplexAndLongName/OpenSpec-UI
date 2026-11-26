@@ -8,18 +8,37 @@ import { assertValidChangeName } from "./change-name.js";
 import { openGit } from "./git-client.js";
 import { formatMessage, say } from "./message-register.js";
 import type { ReviewScenario } from "./scenario-evidence.js";
+import { editMappingFile, type ScenarioMappingPreview } from "./scenario-mapping-edit.js";
 
 const sha = z.string().regex(/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u);
 const label = z.string().min(1).max(400);
 const identity = z.strictObject({ classname: z.string().max(400), name: label });
 const testcase = identity.extend({ state: z.enum(["passed", "failed", "error", "skipped"]) });
 const snapshot = z.strictObject({ testedCommit: sha, importedAt: z.string().datetime(), tests: z.array(testcase).max(2000) });
-const associations = z.strictObject({ scenarios: z.array(z.strictObject({
-  capability: label, requirement: label, scenario: label, tests: z.array(identity).min(1).max(100),
+const scenarioIdentity = z.strictObject({ capability: label, requirement: label, scenario: label });
+const associations = z.strictObject({ scenarios: z.array(scenarioIdentity.extend({
+  tests: z.array(identity).min(1).max(100),
 })).max(1000) });
 const request = z.strictObject({ head: sha, testedCommit: sha, xml: z.string() });
+const reportId = z.string().regex(/^[a-f0-9]{64}$/u);
+const testSelection = z.strictObject({ head: sha, reportId, scenario: scenarioIdentity, test: identity });
+const testMappingRequest = z.discriminatedUnion("mode", [
+  z.strictObject({ mode: z.literal("preview"), selection: testSelection }),
+  z.strictObject({ mode: z.literal("save"), selection: testSelection, revision: reportId }),
+]);
+export type JUnitMappingRequest = z.infer<typeof testMappingRequest>;
+export type JUnitMappingPreview = ScenarioMappingPreview<z.infer<typeof testSelection>>;
 type TestCase = z.infer<typeof testcase>;
 type Snapshot = z.infer<typeof snapshot>;
+type Associations = z.infer<typeof associations>;
+const MAPPING_MAX_BYTES = 256 * 1024;
+
+export interface JUnitMappingChoices {
+  scenarios: ReviewScenario[];
+  tests: TestCase[];
+  testedCommit: string;
+  reportId: string;
+}
 
 function refused(): Error {
   return new Error(formatMessage(say("OSW-CHG-014")));
@@ -109,6 +128,57 @@ async function readJUnit(root: string, change: string): Promise<Snapshot | undef
 
 const scenarioKey = (one: ReviewScenario) => JSON.stringify([one.capability, one.requirement, one.scenario]);
 const testKey = (one: { classname: string; name: string }) => JSON.stringify([one.classname, one.name]);
+const snapshotId = (report: Snapshot) => createHash("sha256").update(JSON.stringify(report)).digest("hex");
+
+function parseAssociations(mapping: string | undefined, scenarios: ReviewScenario[]): Associations {
+  if (mapping === undefined) return { scenarios: [] };
+  if (Buffer.byteLength(mapping, "utf8") > MAPPING_MAX_BYTES) throw refused();
+  const data = associations.parse(JSON.parse(mapping));
+  const known = new Set(scenarios.map(scenarioKey));
+  for (const row of data.scenarios) {
+    if (!known.delete(scenarioKey(row)) || new Set(row.tests.map(testKey)).size !== row.tests.length) throw refused();
+  }
+  return data;
+}
+
+export async function editJUnitMapping(root: string, change: string, head: string | undefined, input: unknown,
+  choices: JUnitMappingChoices | undefined,
+): Promise<{ preview: JUnitMappingPreview } | { saved: true }> {
+  const edit = testMappingRequest.parse(input);
+  const { selection } = edit;
+  if (!choices || choices.reportId !== selection.reportId
+      || !choices.scenarios.some((one) => scenarioKey(one) === scenarioKey(selection.scenario))
+      || !choices.tests.some((one) => testKey(one) === testKey(selection.test))) {
+    throw new Error("Choose a scenario and a unique testcase from the current JUnit report.");
+  }
+  return editMappingFile(root, change, head, edit, {
+    filename: "scenario-tests.json",
+    maxBytes: MAPPING_MAX_BYTES,
+    append(previous) {
+      let data: Associations;
+      try { data = parseAssociations(previous, choices.scenarios); }
+      catch { throw new Error("Resolve invalid or duplicate entries in scenario-tests.json before adding a test."); }
+      const row = data.scenarios.find((one) => scenarioKey(one) === scenarioKey(selection.scenario));
+      if (row?.tests.some((test) => testKey(test) === testKey(selection.test))) {
+        throw new Error("This testcase is already linked to the selected scenario.");
+      }
+      if (row) row.tests.push(selection.test);
+      else data.scenarios.push({ ...selection.scenario, tests: [selection.test] });
+      const next = JSON.stringify(data, null, 2) + "\n";
+      if (Buffer.byteLength(next, "utf8") > MAPPING_MAX_BYTES || !associations.safeParse(data).success) {
+        throw new Error("The association exceeds the scenario-tests.json format limits.");
+      }
+      return next;
+    },
+    async verifyEvidence() {
+      const current = await readJUnit(root, change);
+      if (!current || snapshotId(current) !== selection.reportId) {
+        throw new Error("The JUnit report moved. Open a fresh review before saving.");
+      }
+    },
+  });
+}
+
 // Values are displayed as code, never as report-supplied Markdown or HTML.
 function literal(text: string): string {
   const safe = text.replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, " ");
@@ -122,13 +192,7 @@ export function junitScenarioSummary(scenarios: ReviewScenario[], mapping: strin
   const rows = new Map<string, z.infer<typeof identity>[]>();
   if (mapping !== undefined) {
     try {
-      if (Buffer.byteLength(mapping, "utf8") > 256 * 1024) throw refused();
-      const known = new Set(scenarios.map(scenarioKey));
-      for (const row of associations.parse(JSON.parse(mapping)).scenarios) {
-        const key = scenarioKey(row);
-        if (!known.has(key) || rows.has(key) || new Set(row.tests.map(testKey)).size !== row.tests.length) throw refused();
-        rows.set(key, row.tests);
-      }
+      for (const row of parseAssociations(mapping, scenarios).scenarios) rows.set(scenarioKey(row), row.tests);
     } catch {
       rows.clear();
       lines.push("- scenario-tests.json is invalid or names duplicate/unknown scenarios or tests.");
@@ -155,9 +219,19 @@ export function junitScenarioSummary(scenarios: ReviewScenario[], mapping: strin
   return lines;
 }
 
-export async function readJUnitScenarioSummary(root: string, change: string, head: string, scenarios: ReviewScenario[]): Promise<string[]> {
+export async function readJUnitReview(root: string, change: string, head: string, scenarios: ReviewScenario[]):
+Promise<{ lines: string[]; choices?: JUnitMappingChoices }> {
   const git = openGit(root);
   const mapping = await git.raw(["show", `${head}:openspec/changes/${change}/scenario-tests.json`]).catch(() => undefined);
-  try { return junitScenarioSummary(scenarios, mapping, await readJUnit(root, change), head); }
-  catch { return [...junitScenarioSummary(scenarios, mapping, undefined, head), "- Saved JUnit evidence could not be read; import a new report."]; }
+  let report: Snapshot | undefined;
+  try { report = await readJUnit(root, change); }
+  catch { return { lines: [...junitScenarioSummary(scenarios, mapping, undefined, head), "- Saved JUnit evidence could not be read; import a new report."] }; }
+  const lines = junitScenarioSummary(scenarios, mapping, report, head);
+  if (!report || scenarios.length === 0) return { lines };
+  const counts = new Map<string, number>();
+  for (const test of report.tests) counts.set(testKey(test), (counts.get(testKey(test)) ?? 0) + 1);
+  const tests = report.tests.filter((test) => counts.get(testKey(test)) === 1);
+  if (tests.length === 0) return { lines: [...lines, "- No unique testcases are available to link from this report."] };
+  return { lines, choices: { tests, testedCommit: report.testedCommit, reportId: snapshotId(report),
+    scenarios: scenarios.map(({ capability, requirement, scenario }) => ({ capability, requirement, scenario })) } };
 }
