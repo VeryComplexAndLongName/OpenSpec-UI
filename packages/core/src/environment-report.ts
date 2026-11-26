@@ -21,6 +21,7 @@ import { AGENT_REGISTRY } from "./agents/registry.js";
 import { readGitAuthor } from "./git.js";
 import { resolveHarnessConfig } from "./harness-config.js";
 import { hostKindLabel, readWorkspaceLeaseHolder, type WorkspaceLeaseConflict } from "./workspace-lease.js";
+import { readWorkspaceToolchain } from "./workspace-toolchain.js";
 
 /** How much a finding matters.
  *
@@ -160,7 +161,7 @@ export async function readEnvironmentReport(options: EnvironmentReportOptions): 
   if (nodeFinding) findings.push(nodeFinding);
 
   const [openspec, npm, agents, holder, author] = await Promise.all([
-    detectTool("openspec"),
+    detectTool("openspec", { exactVersion: true }),
     engines["npm"] === undefined ? Promise.resolve<DetectedAgent>({ detected: true }) : detectTool("npm"),
     detectAgents(),
     (options.readLeaseHolder ?? readWorkspaceLeaseHolder)(workspaceRoot),
@@ -178,6 +179,7 @@ export async function readEnvironmentReport(options: EnvironmentReportOptions): 
 
   const npmFinding = runtimeFinding("npm", npm.detected ? npm.version : undefined, engines["npm"]);
   if (npmFinding) findings.push(npmFinding);
+  findings.push(...await readWorkspaceToolchain(workspaceRoot, openspec));
 
   // Every agent this build carries, from the registry rather than a
   // second list — an agent added later is covered without anybody
