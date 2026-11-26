@@ -78,6 +78,7 @@ export const ACTION_VERBS: readonly ActionVerb[] = [
 export const ACTION_NOUNS: readonly string[] = [
   "Change", "Change Harness", "Workspace Harness", "Change Copy", "Plan", "Run", "Item", "Task", "Tasks",
   "Question", "Questions", "Permission", "Message", "Relation", "Relations", "Diff", "Timeline", "Scenario Mapping", "Mapping Preview",
+  "Test Mapping", "Test Mapping Preview",
   "Comparison", "Cost", "Ancestry", "Details", "Status", "Readiness", "Advice", "History", "Stages",
   "Graph", "Worktree", "Worktrees", "Leftover", "Template", "Specs", "Report", "Rules", "Instructions", "PR Review", "PR summary",
   "JUnit XML", "CI Repair Task", "Scoped Instructions", "Dependabot", "LLM Key", "Key", "Team", "People", "Owner", "Implementer",
