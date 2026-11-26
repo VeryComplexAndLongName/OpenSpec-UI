@@ -2949,6 +2949,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         const link = "Link scenario to check";
         const linkTest = "Link scenario to JUnit test";
         const importReport = "Import JUnit XML";
+        const importCi = "Import CI JUnit Report";
         const prepareRepair = "Prepare CI Repair Task";
         const copyRepair = "Copy CI Repair Task";
         const mark = "Mark as reviewed";
@@ -2958,14 +2959,17 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         let sinceLastReview = false;
         let markReviewedCommit: string | undefined;
         let junitImport: JUnitImport | undefined;
+        let ciJUnitImport: { head: string; execution: number } | undefined;
         let prepareCiRepairTask = false;
         for (;;) {
           const review = await readPrReview(root, item.changeName, { githubChecks: refreshChecks, sinceLastReview,
             ...(prepareCiRepairTask ? { prepareCiRepairTask: true } : {}),
             ...(junitImport === undefined ? {} : { junitImport }),
+            ...(ciJUnitImport === undefined ? {} : { ciJUnitImport }),
             ...(markReviewedCommit === undefined ? {} : { markReviewedCommit }) });
           markReviewedCommit = undefined;
           junitImport = undefined;
+          ciJUnitImport = undefined;
           const doc = await vscode.workspace.openTextDocument({
             language: "markdown", content: prReviewMarkdown(review),
           });
@@ -2973,6 +2977,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           const actions = [copy, refresh, prepareRepair];
           if (review.ciRepairTask !== undefined) actions.push(copyRepair);
           if (review.head !== undefined) actions.push(importReport);
+          if (review.head !== undefined && review.ciJUnitForge !== undefined) actions.push(importCi);
           if (review.head !== undefined && review.head !== review.lastReviewed) actions.push(mark);
           if (review.lastReviewed !== undefined) actions.push(sinceLastReview ? full : since);
           if (review.mappingChoices !== undefined && review.head !== undefined) actions.push(link);
@@ -2998,6 +3003,17 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
             junitImport = imported;
             continue;
           }
+          if (action === importCi && review.head !== undefined && review.ciJUnitForge !== undefined) {
+            if (await refusedAsAnothersChange(item.changeName, item.ownership)) continue;
+            const valid = (value: string) => /^[1-9]\d*$/u.test(value) && Number.isSafeInteger(Number(value));
+            const entry = (await vscode.window.showInputBox({
+              prompt: review.ciJUnitForge === "Gitea" ? "Gitea Actions run ID" : "GitLab job ID",
+              validateInput: (value) => valid(value.trim()) ? undefined : "Enter a positive numeric ID.",
+            }))?.trim();
+            if (entry === undefined || !valid(entry) || await refusedAsAnothersChange(item.changeName, item.ownership)) continue;
+            ciJUnitImport = { head: review.head, execution: Number(entry) };
+            continue;
+          }
           if (action === refresh) {
             refreshChecks = true;
             continue;
@@ -3020,9 +3036,8 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
             if (scenario === undefined) continue;
             const test = await vscode.window.showQuickPick(choices.tests.map(({ name, classname, state }) => ({
               label: name, description: classname, detail: state, entry: { classname, name },
-            })), { matchOnDescription: true, placeHolder: choices.testedCommit === review.head
-              ? `Choose a JUnit testcase (user-declared commit ${choices.testedCommit})`
-              : `Choose from historical JUnit results (user-declared commit ${choices.testedCommit})` });
+            })), { matchOnDescription: true, placeHolder:
+              `${choices.testedCommit === review.head ? "Choose a JUnit testcase" : "Choose from historical JUnit results"} (${choices.ciSource?.forge ?? "user-declared"} commit ${choices.testedCommit})` });
             if (test === undefined) continue;
             const selection = { head: review.head, reportId: choices.reportId, scenario: scenario.entry, test: test.entry };
             const planned = await readPrReview(root, item.changeName, { sinceLastReview, junitMapping: { mode: "preview", selection } });

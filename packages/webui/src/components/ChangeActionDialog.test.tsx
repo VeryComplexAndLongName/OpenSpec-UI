@@ -76,6 +76,22 @@ describe("ChangeActionDialog", () => {
     expect(await screen.findByLabelText("Committed diff")).toHaveTextContent("+Full");
   });
 
+  it("submits a CI JUnit import for the displayed head only after an execution ID is entered", async () => {
+    const head = "a".repeat(40);
+    const report = { title: "PR Review", summary: "Scenario evidence", diff: null, truncated: false, head, ciJUnitForge: "Gitea" as const };
+    const perform = vi.fn<PerformChangeAction>().mockResolvedValue({ kind: "pr-review", report });
+    const target = { action: "showPrReview" as const, changeName: "demo" };
+    render(<ChangeActionDialog target={target} perform={perform} onClose={() => undefined} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Import CI JUnit Report" }));
+    const input = screen.getByLabelText("Gitea Actions run ID");
+    fireEvent.change(input, { target: { value: "0" } });
+    fireEvent.submit(screen.getByRole("form", { name: "Import CI JUnit Report" }));
+    expect(perform).toHaveBeenCalledTimes(1);
+    fireEvent.change(input, { target: { value: "42" } });
+    fireEvent.submit(screen.getByRole("form", { name: "Import CI JUnit Report" }));
+    expect(perform).toHaveBeenLastCalledWith(target, { prReview: { ciJUnitImport: { head, execution: 42 } } });
+  });
+
   it("shows the fictional example and copies its summary without refreshing", async () => {
     const copy = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
     try {

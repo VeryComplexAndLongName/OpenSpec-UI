@@ -55,6 +55,23 @@ function openTarget(base: string, head: string): Promise<PullRequestsByBranch> {
 }
 
 describe("PR review", () => {
+  it("retains the CI JUnit source and refuses to replace it from a stale review", async () => {
+    const { root, head, main } = await fixture();
+    const source = { forge: "GitLab" as const, repository: "team/app", execution: 7, pipeline: 33 };
+    const readCiJUnit = vi.fn().mockResolvedValue({
+      source, testedCommit: main, xml: '<testsuite><testcase name="expires"/></testsuite>',
+    });
+    const forge = () => Promise.resolve({ name: "GitLab", readCiJUnit } as unknown as Forge);
+    const options = { forge, pullRequests: () => openTarget(main, head) };
+    const report = await readPrReview(root, "demo", { ...options, ciJUnitImport: { head, execution: 7 } });
+    expect(report.summary).toContain("job #7, pipeline #33");
+    expect(report.summary).toContain("Historical report");
+    expect(readCiJUnit).toHaveBeenCalledWith(7);
+    await expect(readPrReview(root, "demo", { ...options, ciJUnitImport: { head: main, execution: 19 } })).rejects.toThrow("current PR Review");
+    expect(readCiJUnit).toHaveBeenCalledTimes(1);
+    expect((await readPrReview(root, "demo", options)).summary).toContain("job #7, pipeline #33");
+  });
+
   it("previews and saves an exact JUnit mapping while rejecting changed evidence and duplicate identities", async () => {
     const { root, changeDir, main } = await fixture();
     const file = path.join(changeDir, "scenario-tests.json");

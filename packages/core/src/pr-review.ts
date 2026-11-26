@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import type { SimpleGit } from "simple-git";
 import { changeNameOf, isRunEntry, VERIFY_CHECKS_AGENT_NAME } from "./audit-runs.js";
 import { CHANGE_DIFF_MAX_BYTES } from "./change-diff.js";
+import { ciJUnitRequest } from "./ci-junit.js";
 import { readScopeSummary } from "./change-scope.js";
 import { isValidChangeName } from "./change-name.js";
 import { forgeFor } from "./forge.js";
@@ -43,6 +44,7 @@ export interface PrReviewReport {
   mappingPreview?: ScenarioMappingPreview;
   junitMappingChoices?: JUnitMappingChoices;
   junitMappingPreview?: JUnitMappingPreview;
+  ciJUnitForge?: "Gitea" | "GitLab";
   ciRepairTask?: string;
 }
 
@@ -191,6 +193,7 @@ export async function readPrReview(root: string, changeName: string, sources: {
   scenarioMapping?: unknown;
   junitImport?: unknown;
   junitMapping?: unknown;
+  ciJUnitImport?: unknown;
   prepareCiRepairTask?: boolean;
 } = {}): Promise<PrReviewReport> {
   if (!isValidChangeName(changeName)) throw new Error("Choose an active OpenSpec change.");
@@ -201,6 +204,11 @@ export async function readPrReview(root: string, changeName: string, sources: {
   const title = `PR Review for ${changeName}`;
   const git = openGit(root);
   const head = await resolveCommit(git, "HEAD");
+  const ciRequest = sources.ciJUnitImport === undefined ? undefined : ciJUnitRequest.parse(sources.ciJUnitImport);
+  if (ciRequest && (ciRequest.head !== head || sources.junitImport !== undefined
+      || sources.markReviewedCommit !== undefined || sources.junitMapping !== undefined || sources.scenarioMapping !== undefined)) {
+    throw new Error("Open the current PR Review and import CI evidence in a separate action.");
+  }
   if (sources.junitImport !== undefined) await importJUnit(root, changeName, sources.junitImport, head);
   const marker = `refs/openspec-ui/reviewed/${createHash("sha256").update(changeName).digest("hex")}`;
   if (sources.markReviewedCommit !== undefined) {
@@ -216,6 +224,8 @@ export async function readPrReview(root: string, changeName: string, sources: {
   let checks: string[] = ["- Checks require a unique open PR or merge request from this branch."];
   let forgeReport: GitHubChecksReport | undefined;
   let forgeName = "GitHub";
+  let ciJUnitForge: PrReviewReport["ciJUnitForge"];
+  let ciImported = false;
   let comparison: Awaited<ReturnType<typeof compare>> = { kind: "unavailable", reason: say("OSW-CHG-004").text };
   if (head !== undefined) {
     const [branchRef, dirty, remotes] = await Promise.all([
@@ -227,9 +237,15 @@ export async function readPrReview(root: string, changeName: string, sources: {
     heading.push(`- Reviewed head: ${literal(head)}${branch ? ` on ${literal(branch)}` : " (detached)"}.`);
     if (dirty) heading.push("- Uncommitted working-tree changes are excluded.");
     const remote = remotes.split(/\r?\n/u).includes("origin");
-    const forge = branch && remote && (sources.pullRequests === undefined || refreshChecks)
+    const forge = remote && ((branch && (sources.pullRequests === undefined || refreshChecks)) || ciRequest !== undefined)
       ? await (sources.forge ?? forgeFor)(root).catch(() => undefined) : undefined;
     forgeName = forge?.name ?? forgeName;
+    if (forge?.readCiJUnit && (forge.name === "Gitea" || forge.name === "GitLab")) ciJUnitForge = forge.name;
+    if (ciRequest && ciJUnitForge && forge?.readCiJUnit) {
+      const report = await forge.readCiJUnit(ciRequest.execution);
+      await importJUnit(root, changeName, { head, testedCommit: report.testedCommit, xml: report.xml }, head, report.source);
+      ciImported = true;
+    }
     const read = branch && remote ? await (sources.pullRequests === undefined
       ? forge?.pullRequestsByBranch() : sources.pullRequests(root))?.catch(() => undefined) : undefined;
     const targets = read?.available ? read.openTargets?.get(branch) ?? [] : [];
@@ -278,6 +294,7 @@ export async function readPrReview(root: string, changeName: string, sources: {
         : await compareTrees(git, head, lastReviewed, lastReviewed);
     }
   }
+  if (ciRequest && !ciImported) throw new Error("CI JUnit import requires a Gitea or GitLab origin with readable artifact metadata.");
   if (lastReviewed !== undefined) heading.push(`- Last reviewed locally: ${literal(lastReviewed)}.`);
   if (comparison.kind === "unavailable") {
     heading.push(`- Comparison unavailable. ${comparison.reason}`);
@@ -347,5 +364,6 @@ export async function readPrReview(root: string, changeName: string, sources: {
     ...(mappingPreview === undefined ? {} : { mappingPreview }),
     ...(junitMappingChoices === undefined ? {} : { junitMappingChoices }),
     ...(junitMappingPreview === undefined ? {} : { junitMappingPreview }),
+    ...(ciJUnitForge === undefined ? {} : { ciJUnitForge }),
     ...(repair?.task === undefined ? {} : { ciRepairTask: repair.task }) };
 }
