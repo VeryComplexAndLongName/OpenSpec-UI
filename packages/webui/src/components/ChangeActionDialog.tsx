@@ -8,7 +8,7 @@
 
 import { useEffect, useState } from "react";
 import { changeAction, JUNIT_XML_MAX_BYTES, PR_REVIEW_EXAMPLE, say, type ChangeActionAnswer, type ChangeActionId, type ChangeActionInput, type JUnitImport } from "@openspec-ui/core/browser";
-import { Clipboard, Download, Link2, Upload, Wrench } from "lucide-react";
+import { Clipboard, Download, Link2, ListChecks, Upload, Wrench } from "lucide-react";
 import { renderMarkdown } from "../markdown.js";
 import { ChangeHarnessSettingsView } from "./ChangeHarnessSettingsView.js";
 import type { HarnessSettingsApi } from "./harness-settings-parts.js";
@@ -87,7 +87,7 @@ export function ChangeActionDialog({ target, perform, harnessApi, onClose }: {
           onReviewAction={(selection) => {
             setCopyStatus("");
             send({ prReview: { ...selection, ...(checksRequested ? { refreshGitHubChecks: true } : {}),
-              ...(step.answer.kind === "pr-review" && step.answer.report.sinceLastReview && (selection.scenarioMapping || selection.junitImport || selection.junitMapping || selection.ciJUnitImport || selection.prepareCiRepairTask)
+              ...(step.answer.kind === "pr-review" && step.answer.report.sinceLastReview && (selection.scenarioMapping || selection.junitImport || selection.junitMapping || selection.ciJUnitImport || selection.reviewFinding || selection.prepareCiRepairTask)
                 ? { sinceLastReview: true } : {}) } });
           }} />
       ) : step.answer.kind === "done" ? (
@@ -135,6 +135,7 @@ function PrReview({ review, onCopy, copyStatus, onRefresh, onReviewAction }: {
   const [importingFromCi, setImportingFromCi] = useState(false);
   const [executionId, setExecutionId] = useState("");
   const [linkingTest, setLinkingTest] = useState(false);
+  const [editingFindings, setEditingFindings] = useState(false);
   const execution = Number(executionId);
   const validExecution = /^[1-9]\d*$/u.test(executionId) && Number.isSafeInteger(execution);
   return (
@@ -179,6 +180,13 @@ function PrReview({ review, onCopy, copyStatus, onRefresh, onReviewAction }: {
         <button className="button" type="button" onClick={() => onReviewAction(review.sinceLastReview ? {} : { sinceLastReview: true })}>
           {review.sinceLastReview ? "Show Full PR Diff" : "Show Changes Since Last Review"}
         </button>}
+      {onReviewAction && head && review.findings &&
+        <button className="button" type="button" title="Edit Review Findings" aria-label="Edit Review Findings"
+          aria-expanded={editingFindings} onClick={() => setEditingFindings(!editingFindings)}>
+          <ListChecks size={16} aria-hidden="true" />
+        </button>}
+      {editingFindings && onReviewAction && head && review.findings &&
+        <ReviewFindingsForm key={head + review.findings.revision} head={head} findings={review.findings} onReviewAction={onReviewAction} />}
       <span role="status">{copyStatus}</span>
       <div className="openspec-md-preview">{renderMarkdown(review.summary)}</div>
       {repair !== undefined && <details><summary>CI repair task draft</summary><pre aria-label="CI repair task draft"><code>{repair}</code></pre></details>}
@@ -207,6 +215,54 @@ function PrReview({ review, onCopy, copyStatus, onRefresh, onReviewAction }: {
       </details> : <p>{review.truncated ? "The patch exceeds the display limit." : "No committed changes in this comparison."}</p>)}
     </>
   );
+}
+
+function ReviewFindingsForm({ head, findings, onReviewAction }: {
+  head: string;
+  findings: NonNullable<Extract<ChangeActionAnswer, { kind: "pr-review" }>["report"]["findings"]>;
+  onReviewAction: (selection: NonNullable<ChangeActionInput["prReview"]>) => void;
+}): JSX.Element {
+  const [description, setDescription] = useState("");
+  const [file, setFile] = useState("");
+  const [line, setLine] = useState("");
+  const [id, setId] = useState("");
+  const [choice, setChoice] = useState("");
+  const [note, setNote] = useState("");
+  const entry = findings.entries.find((one) => one.id === id);
+  const action = entry?.actions.find((one) => one === choice);
+  const lineNumber = Number(line);
+  const validLine = line === "" || (file.trim() !== "" && /^[1-9]\d*$/u.test(line) && lineNumber <= 1_000_000);
+  return <div>
+    <form aria-label="Add a review finding" onSubmit={(event) => {
+      event.preventDefault();
+      if (description.trim() && validLine) onReviewAction({ reviewFinding: {
+        kind: "add", head, revision: findings.revision, description: description.trim(),
+        ...(file.trim() === "" ? {} : { location: { path: file.trim(), ...(line === "" ? {} : { line: lineNumber }) } }),
+      } });
+    }}>
+      <label>Finding<input value={description} maxLength={500} onChange={(event) => setDescription(event.currentTarget.value)} /></label>
+      <label>Repository path (optional)<input value={file} maxLength={500} onChange={(event) => setFile(event.currentTarget.value)} /></label>
+      <label>Line (optional)<input inputMode="numeric" value={line} onChange={(event) => setLine(event.currentTarget.value)} /></label>
+      <button type="submit" className="button" disabled={!description.trim() || !validLine}>Add Review Finding</button>
+    </form>
+    {findings.entries.length > 0 && <form aria-label="Record a review decision" onSubmit={(event) => {
+      event.preventDefault();
+      if (entry && action && note.trim()) onReviewAction({ reviewFinding: {
+        kind: "decide", id: entry.id, head, revision: findings.revision, action, note: note.trim(),
+      } });
+    }}>
+      <label>Recorded finding<select value={id} onChange={(event) => { setId(event.currentTarget.value); setChoice(""); setNote(""); }}>
+        <option value="">Select a finding</option>
+        {findings.entries.map((one) => <option key={one.id} value={one.id}>{one.description} ({one.status})</option>)}
+      </select></label>
+      <label>Decision<select aria-label="Decision" value={choice} onChange={(event) => setChoice(event.currentTarget.value)}>
+        <option value="">Select a decision</option>
+        {entry?.actions.map((one) => <option key={one} value={one}>{one}</option>)}
+      </select></label>
+      <label>Decision note<input value={note} maxLength={500} onChange={(event) => setNote(event.currentTarget.value)} /></label>
+      <button type="submit" className="button" disabled={!action || !note.trim()}>Save Review Decision</button>
+    </form>}
+  </div>;
 }
 
 function JUnitTestPicker({ head, choices, onReviewAction }: {

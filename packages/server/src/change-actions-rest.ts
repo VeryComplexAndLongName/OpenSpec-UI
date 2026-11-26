@@ -155,6 +155,7 @@ async function perform(request: ChangeActionRequest, at: ChangeActionRoot, seams
         junitImport: request.input?.prReview?.junitImport,
         junitMapping: request.input?.prReview?.junitMapping,
         ciJUnitImport: request.input?.prReview?.ciJUnitImport,
+        reviewFinding: request.input?.prReview?.reviewFinding,
         ...(typeof request.input?.prReview?.markReviewedCommit === "string"
           ? { markReviewedCommit: request.input.prReview.markReviewedCommit } : {}),
       }) };
@@ -317,6 +318,7 @@ export async function handleChangeActionRequest(req: IncomingMessage, res: Serve
       || parsed.input?.prReview?.scenarioMapping?.mode === "save"
       || parsed.input?.prReview?.junitMapping?.mode === "save"
       || parsed.input?.prReview?.ciJUnitImport !== undefined
+      || parsed.input?.prReview?.reviewFinding !== undefined
       || parsed.input?.prReview?.junitImport !== undefined);
     if ((changeAction(parsed.action)?.writes === true || reviewWrite) && at.refusal !== undefined) {
       sendJson(res, 409, { error: at.refusal });

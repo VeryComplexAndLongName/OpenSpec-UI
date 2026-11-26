@@ -16,6 +16,7 @@ import {
   previewIssueChange,
   createChangeFromIssue,
   type JUnitImport,
+  type ChangeActionInput,
   DEFAULT_STALE_TASK_THRESHOLD_DAYS,
   TASK_CHECKBOX_LINE_RE,
   VERIFIED_CLAUDE_CLI_VERSION,
@@ -2950,6 +2951,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         const linkTest = "Link scenario to JUnit test";
         const importReport = "Import JUnit XML";
         const importCi = "Import CI JUnit Report";
+        const editFindings = "Edit Review Findings";
         const prepareRepair = "Prepare CI Repair Task";
         const copyRepair = "Copy CI Repair Task";
         const mark = "Mark as reviewed";
@@ -2960,16 +2962,19 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         let markReviewedCommit: string | undefined;
         let junitImport: JUnitImport | undefined;
         let ciJUnitImport: { head: string; execution: number } | undefined;
+        let reviewFinding: NonNullable<ChangeActionInput["prReview"]>["reviewFinding"];
         let prepareCiRepairTask = false;
         for (;;) {
           const review = await readPrReview(root, item.changeName, { githubChecks: refreshChecks, sinceLastReview,
             ...(prepareCiRepairTask ? { prepareCiRepairTask: true } : {}),
             ...(junitImport === undefined ? {} : { junitImport }),
             ...(ciJUnitImport === undefined ? {} : { ciJUnitImport }),
+            ...(reviewFinding === undefined ? {} : { reviewFinding }),
             ...(markReviewedCommit === undefined ? {} : { markReviewedCommit }) });
           markReviewedCommit = undefined;
           junitImport = undefined;
           ciJUnitImport = undefined;
+          reviewFinding = undefined;
           const doc = await vscode.workspace.openTextDocument({
             language: "markdown", content: prReviewMarkdown(review),
           });
@@ -2978,6 +2983,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           if (review.ciRepairTask !== undefined) actions.push(copyRepair);
           if (review.head !== undefined) actions.push(importReport);
           if (review.head !== undefined && review.ciJUnitForge !== undefined) actions.push(importCi);
+          if (review.head !== undefined && review.findings !== undefined) actions.push(editFindings);
           if (review.head !== undefined && review.head !== review.lastReviewed) actions.push(mark);
           if (review.lastReviewed !== undefined) actions.push(sinceLastReview ? full : since);
           if (review.mappingChoices !== undefined && review.head !== undefined) actions.push(link);
@@ -3012,6 +3018,34 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
             }))?.trim();
             if (entry === undefined || !valid(entry) || await refusedAsAnothersChange(item.changeName, item.ownership)) continue;
             ciJUnitImport = { head: review.head, execution: Number(entry) };
+            continue;
+          }
+          if (action === editFindings && review.head && review.findings) {
+            if (await refusedAsAnothersChange(item.changeName, item.ownership)) continue;
+            const selected = await vscode.window.showQuickPick([
+              { label: "Add Review Finding", entry: undefined },
+              ...review.findings.entries.map((entry) => ({ label: entry.description, description: entry.status, entry })),
+            ], { placeHolder: "Choose a finding or add one" });
+            if (!selected) continue;
+            const context = { head: review.head, revision: review.findings.revision };
+            if (selected.entry) {
+              const decision = await vscode.window.showQuickPick(selected.entry.actions.map((value) => ({ label: value, value })),
+                { placeHolder: "Choose a review decision" });
+              if (!decision) continue;
+              const note = (await vscode.window.showInputBox({ prompt: "Decision note or verification result" }))?.trim();
+              if (note && !await refusedAsAnothersChange(item.changeName, item.ownership)) {
+                reviewFinding = { kind: "decide", ...context, id: selected.entry.id, action: decision.value, note };
+              }
+            } else {
+              const description = (await vscode.window.showInputBox({ prompt: "Finding description" }))?.trim();
+              if (!description) continue;
+              const location = (await vscode.window.showInputBox({ prompt: "Repository path, optionally followed by :line" }))?.trim();
+              if (location === undefined || await refusedAsAnothersChange(item.changeName, item.ownership)) continue;
+              const position = /^(.+):([1-9]\d*)$/u.exec(location);
+              reviewFinding = { kind: "add", ...context, description, ...(location === "" ? {} : {
+                location: position ? { path: position[1]!, line: Number(position[2]) } : { path: location },
+              }) };
+            }
             continue;
           }
           if (action === refresh) {

@@ -3534,6 +3534,27 @@ describe("PR Review JUnit command adapter", () => {
   });
 });
 
+describe("PR Review findings command adapter", () => {
+  it("saves a new finding against the head and ledger revision shown to the reviewer", async () => {
+    const head = "a".repeat(40);
+    const revision = "b".repeat(64);
+    readPrReviewMock.mockResolvedValue({ title: "Review", summary: "Review", diff: null, truncated: false, head,
+      findings: { revision, entries: [] } });
+    vscodeMock.window.showInformationMessage.mockResolvedValueOnce("Edit Review Findings").mockResolvedValueOnce(undefined);
+    vscodeMock.window.showQuickPick.mockResolvedValueOnce({ label: "Add Review Finding", entry: undefined });
+    vscodeMock.window.showInputBox.mockResolvedValueOnce("Invalid session").mockResolvedValueOnce("src/session.ts:7");
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+    await vscodeMock._registeredCommands.get("openspec-ui.showPrReview")?.({
+      contextValue: "openspec-ui.activeChange", changeName: "demo", archived: false,
+    });
+    expect(readPrReviewMock).toHaveBeenNthCalledWith(2, "/workspace/repo", "demo", {
+      githubChecks: false, sinceLastReview: false, reviewFinding: {
+        kind: "add", head, revision, description: "Invalid session", location: { path: "src/session.ts", line: 7 },
+      },
+    });
+  });
+});
+
 describe("PR Review CI repair command adapter", () => {
   it("forwards explicit preparation and separately copies the previewed brief without starting a run", async () => {
     const task = "# Investigate CI\nQuoted diagnostic with the checked commit.";
