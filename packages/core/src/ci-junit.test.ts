@@ -11,11 +11,14 @@ const artifact = { id: 23, name: "openspec-junit", expired: false, size_in_bytes
   workflow_run: { id: 12, head_sha: sha, repository_id: 8 } };
 
 function giteaApiFixture(listing: unknown) {
+  const archiveUrl = `${giteaApi}/actions/artifacts/23/zip`;
+  const rawUrl = archiveUrl + "/raw?signature=fixture";
   const gateway = new Map<string, Response>([
     [giteaApi, Response.json({ id: 8 })],
     [`${giteaApi}/actions/runs/12`, Response.json({ id: 12, head_sha: sha, repository_id: 0 })],
     [`${giteaApi}/actions/runs/12/artifacts`, Response.json(listing)],
-    [`${giteaApi}/actions/artifacts/23/zip`, new Response(new Uint8Array(zip))],
+    [archiveUrl, Response.redirect(rawUrl)],
+    [rawUrl, new Response(new Uint8Array(zip))],
   ]);
   const fetch = vi.fn<typeof globalThis.fetch>(async (url) => gateway.get(String(url)) ?? new Response(null, { status: 404 }));
   return { api: giteaApi, repository: "team/app", headers: { Authorization: "token fixture" }, fetch };
@@ -37,6 +40,9 @@ describe("CI JUnit artifact import", () => {
     const origin = giteaApiFixture({ total_count: 1, artifacts: [artifact] });
     await expect(readGiteaJUnit(origin, 12)).resolves.toEqual({
       testedCommit: sha, xml, source: { forge: "Gitea", repository: "team/app", execution: 12, artifact: 23 },
+    });
+    expect(origin.fetch).toHaveBeenLastCalledWith(new URL(`${giteaApi}/actions/artifacts/23/zip/raw?signature=fixture`), {
+      signal: expect.any(AbortSignal), redirect: "error", credentials: "omit",
     });
   });
 

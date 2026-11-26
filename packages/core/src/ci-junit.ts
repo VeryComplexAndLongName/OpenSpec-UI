@@ -31,7 +31,9 @@ interface ForgeArtifactOrigin {
   fetch?: typeof fetch;
 }
 
-async function readBounded(origin: ForgeArtifactOrigin, suffix: string, limit: number, allowGitLabStorage = false): Promise<Buffer> {
+async function readBounded(origin: ForgeArtifactOrigin, suffix: string, limit: number,
+  redirectKind?: "gitea-zip" | "gitlab-artifact",
+): Promise<Buffer> {
   const url = new URL(origin.api + suffix);
   const fetchImpl = origin.fetch ?? globalThis.fetch;
   const signal = AbortSignal.timeout(20_000);
@@ -40,8 +42,10 @@ async function readBounded(origin: ForgeArtifactOrigin, suffix: string, limit: n
     const location = response.headers.get("location");
     await response.body?.cancel();
     const target = location ? new URL(location, url) : undefined;
-    if (!allowGitLabStorage || url.origin !== "https://gitlab.com"
-        || target?.origin !== "https://storage.googleapis.com" || target.username || target.password) {
+    const giteaRaw = redirectKind === "gitea-zip" && target?.origin === url.origin && target.pathname === url.pathname + "/raw";
+    const gitlabStorage = redirectKind === "gitlab-artifact" && url.origin === "https://gitlab.com"
+      && target?.origin === "https://storage.googleapis.com";
+    if (!target || target.username || target.password || (!giteaRaw && !gitlabStorage)) {
       throw new Error("The CI artifact redirected outside the supported storage endpoint.");
     }
     // Signed storage URLs authorize the download themselves. Never forward the forge credential.
@@ -151,7 +155,7 @@ export async function readGiteaJUnit(origin: ForgeArtifactOrigin, execution: num
       || identity.repository_id !== repository.id || identity.head_sha !== run.head_sha) {
     throw new Error("The Gitea artifact is expired, oversized or belongs to different run metadata.");
   }
-  const report = await readGiteaArchive(await readBounded(origin, `/actions/artifacts/${artifact.id}/zip`, archiveLimit));
+  const report = await readGiteaArchive(await readBounded(origin, `/actions/artifacts/${artifact.id}/zip`, archiveLimit, "gitea-zip"));
   return verifiedReport({ forge: "Gitea", repository: origin.repository, execution, artifact: artifact.id }, run.head_sha, report.revision, report.xml);
 }
 
@@ -164,8 +168,8 @@ export async function readGitLabJUnit(origin: ForgeArtifactOrigin, execution: nu
   if (job.id !== execution || job.commit.id !== job.pipeline.sha) {
     throw new Error("GitLab returned inconsistent job and pipeline metadata.");
   }
-  const revision = (await readBounded(origin, `${base}/artifacts/${revisionName}`, 80, true)).toString("utf8");
+  const revision = (await readBounded(origin, `${base}/artifacts/${revisionName}`, 80, "gitlab-artifact")).toString("utf8");
   if (revision.trim() !== job.commit.id) throw new Error("The CI checkout revision does not match the execution metadata.");
-  const xml = (await readBounded(origin, `${base}/artifacts/${reportName}`, JUNIT_XML_MAX_BYTES, true)).toString("utf8");
+  const xml = (await readBounded(origin, `${base}/artifacts/${reportName}`, JUNIT_XML_MAX_BYTES, "gitlab-artifact")).toString("utf8");
   return verifiedReport({ forge: "GitLab", repository: origin.repository, execution, pipeline: job.pipeline.id }, job.commit.id, revision, xml);
 }
