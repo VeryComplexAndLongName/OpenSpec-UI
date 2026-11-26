@@ -8,7 +8,7 @@
 
 import { useEffect, useState } from "react";
 import { changeAction, JUNIT_XML_MAX_BYTES, PR_REVIEW_EXAMPLE, say, type ChangeActionAnswer, type ChangeActionId, type ChangeActionInput, type JUnitImport } from "@openspec-ui/core/browser";
-import { Clipboard, Link2, Upload, Wrench } from "lucide-react";
+import { Clipboard, Download, Link2, Upload, Wrench } from "lucide-react";
 import { renderMarkdown } from "../markdown.js";
 import { ChangeHarnessSettingsView } from "./ChangeHarnessSettingsView.js";
 import type { HarnessSettingsApi } from "./harness-settings-parts.js";
@@ -87,7 +87,7 @@ export function ChangeActionDialog({ target, perform, harnessApi, onClose }: {
           onReviewAction={(selection) => {
             setCopyStatus("");
             send({ prReview: { ...selection, ...(checksRequested ? { refreshGitHubChecks: true } : {}),
-              ...(step.answer.kind === "pr-review" && step.answer.report.sinceLastReview && (selection.scenarioMapping || selection.junitImport || selection.junitMapping || selection.prepareCiRepairTask)
+              ...(step.answer.kind === "pr-review" && step.answer.report.sinceLastReview && (selection.scenarioMapping || selection.junitImport || selection.junitMapping || selection.ciJUnitImport || selection.prepareCiRepairTask)
                 ? { sinceLastReview: true } : {}) } });
           }} />
       ) : step.answer.kind === "done" ? (
@@ -132,7 +132,11 @@ function PrReview({ review, onCopy, copyStatus, onRefresh, onReviewAction }: {
   const junitPreview = review.junitMappingPreview;
   const repair = review.ciRepairTask;
   const [importing, setImporting] = useState(false);
+  const [importingFromCi, setImportingFromCi] = useState(false);
+  const [executionId, setExecutionId] = useState("");
   const [linkingTest, setLinkingTest] = useState(false);
+  const execution = Number(executionId);
+  const validExecution = /^[1-9]\d*$/u.test(executionId) && Number.isSafeInteger(execution);
   return (
     <>
       <button className="button primary" type="button" onClick={() => void onCopy(review.summary)}>Copy PR summary</button>
@@ -147,6 +151,23 @@ function PrReview({ review, onCopy, copyStatus, onRefresh, onReviewAction }: {
       </button>}
       {importing && onReviewAction !== undefined && head !== undefined &&
         <JUnitImportForm head={head} onImport={(junitImport) => onReviewAction({ junitImport })} />}
+      {onReviewAction && head && review.ciJUnitForge &&
+        <button className="button" type="button" title="Import CI JUnit Report" aria-label="Import CI JUnit Report"
+          aria-expanded={importingFromCi} onClick={() => setImportingFromCi(!importingFromCi)}>
+          <Download size={16} aria-hidden="true" />
+        </button>}
+      {importingFromCi && onReviewAction && head && review.ciJUnitForge &&
+        <form aria-label="Import CI JUnit Report" onSubmit={(event) => {
+          event.preventDefault();
+          if (validExecution) onReviewAction({ ciJUnitImport: { head, execution } });
+        }}>
+          <label>{review.ciJUnitForge === "Gitea" ? "Gitea Actions run ID" : "GitLab job ID"}
+            <input inputMode="numeric" value={executionId} onChange={(event) => setExecutionId(event.currentTarget.value)} />
+          </label>
+          <button className="button" type="submit" disabled={!validExecution}>
+            <Download size={16} aria-hidden="true" /> Import CI JUnit Report
+          </button>
+        </form>}
       {onReviewAction && head && review.junitMappingChoices && !junitPreview &&
         <button className="button" type="button" title="Link scenario to JUnit test" aria-label="Link scenario to JUnit test"
           aria-expanded={linkingTest} onClick={() => setLinkingTest(!linkingTest)}>
@@ -205,7 +226,8 @@ function JUnitTestPicker({ head, choices, onReviewAction }: {
       head, reportId: choices.reportId, scenario, test: { classname: test.classname, name: test.name },
     } } });
   }}>
-    <p>{choices.testedCommit === head ? "User-declared tested commit" : "Historical report for user-declared commit"} <code>{choices.testedCommit}</code></p>
+    <p>{choices.testedCommit !== head && "Historical report. "}
+      {choices.ciSource ? `${choices.ciSource.forge} tested commit` : "User-declared tested commit"} <code>{choices.testedCommit}</code></p>
     <label>OpenSpec scenario
       <select value={scenarioIndex} onChange={(event) => setScenarioIndex(event.currentTarget.value)}>
         <option value="">Select a scenario</option>

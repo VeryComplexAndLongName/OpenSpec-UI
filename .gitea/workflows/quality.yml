@@ -46,6 +46,19 @@ jobs:
           timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
           npm run verify
           OPENSPEC_STEP
+      - name: Export a revision-qualified JUnit example
+        run: |
+          timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
+          mkdir -p "$GITHUB_WORKSPACE/junit-evidence"
+          git rev-parse HEAD > "$GITHUB_WORKSPACE/junit-evidence/tested-commit.txt"
+          npm exec --workspace @openspec-ui/core -- vitest run --project core src/junit-evidence.test.ts \
+            --reporter=junit --outputFile="$GITHUB_WORKSPACE/junit-evidence/junit.xml"
+          OPENSPEC_STEP
+      - uses: https://github.com/christopherhx/gitea-upload-artifact@81f940d004763f986ba3582c007fd842dd5cb0d7
+        with:
+          name: openspec-junit
+          path: junit-evidence/
+          if-no-files-found: error
       - run: |
           timeout 1200 bash -eo pipefail <<'OPENSPEC_STEP'
           npm run build

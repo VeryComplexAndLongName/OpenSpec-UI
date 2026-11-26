@@ -81,7 +81,7 @@ export const ACTION_NOUNS: readonly string[] = [
   "Test Mapping", "Test Mapping Preview",
   "Comparison", "Cost", "Ancestry", "Details", "Status", "Readiness", "Advice", "History", "Stages",
   "Graph", "Worktree", "Worktrees", "Leftover", "Template", "Specs", "Report", "Rules", "Instructions", "PR Review", "PR summary",
-  "JUnit XML", "CI Repair Task", "Scoped Instructions", "Dependabot", "LLM Key", "Key", "Team", "People", "Owner", "Implementer",
+  "JUnit XML", "CI JUnit Report", "CI Repair Task", "Scoped Instructions", "Dependabot", "LLM Key", "Key", "Team", "People", "Owner", "Implementer",
   "Presence", "Lock", "Lease", "Checks", "GitHub checks", "PR checks", "Manifest", "Workspace", "Pipeline", "Dashboard", "Views",
   "Archive", "Archive Preview", "Spec Overlaps", "Archive Filter", "Specs Filter", "Graph Filter", "Process", "Implementation", "Typecheck",
   "Tests", "Lint", "CLI View", "Changes", "Actions", "Compliance", "Ledger Process", "Feedback", "diagnostics",

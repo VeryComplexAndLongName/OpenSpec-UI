@@ -39,6 +39,43 @@ commit; an uncommitted mapping does not change the review. Existing
 
 ## Import the results
 
+### From Gitea or GitLab CI
+
+Choose **Import CI JUnit Report** in PR Review. Enter the number from the
+Gitea Actions run page or the GitLab job page in the repository configured as
+`origin`. Use `GITEA_TOKEN` or `GITLAB_TOKEN` with read access to the project
+and its artifacts. Import reads CI evidence without starting a job.
+
+The job writes `tested-commit.txt` using `git rev-parse HEAD` in the checkout it
+tests and exports a JUnit report to `junit.xml`. In Gitea, upload those two files
+at the root of an artifact named `openspec-junit`. In GitLab, add both files
+to `artifacts:paths` at the job artifact root. A report listed only under
+`artifacts:reports` may not be available at that file path.
+
+Example GitLab artifact settings:
+
+```yaml
+artifacts:
+  when: always
+  paths:
+    - junit.xml
+    - tested-commit.txt
+```
+
+For a working Gitea example, see the **Export a revision-qualified JUnit
+example** step in `.gitea/workflows/quality.yml`. Keep the report within 128 KiB
+and the Gitea archive within 256 KiB. The GitLab download supports artifacts
+served by the configured instance and the GitLab.com Google Cloud Storage
+redirect. Configure self-hosted GitLab to proxy object-storage downloads
+through GitLab if its artifact endpoint redirects elsewhere.
+
+PR Review shows the source repo, execution and tested commit. The reported
+checkout must agree with the provider's run or job metadata. This establishes
+the report's provenance from the configured CI producer. A report for an older
+locally known commit remains historical.
+
+### From a local file
+
 Export a relevant test suite to JUnit XML. A minimal report is:
 
 ```xml

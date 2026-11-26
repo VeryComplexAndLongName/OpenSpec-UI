@@ -3,6 +3,7 @@ import crossSpawn from "cross-spawn";
 import { readGitHubChecks, type GitHubCheckTarget, type GitHubChecksReport, type ReviewCheckOptions } from "./github-checks.js";
 import { say, type MessageCode, type SaidMessage } from "./message-register.js";
 import { assertIssueNumber, readForgeIssue, type ForgeIssue } from "./forge-issue.js";
+import type { CiJUnitReport } from "./ci-junit.js";
 
 /** A pull request's state as `gh` reports it. */
 export type BranchPullRequestState = "OPEN" | "CLOSED" | "MERGED";
@@ -368,6 +369,7 @@ export function createPullRequestGateway(options: PullRequestGatewayOptions): Pu
 export interface Forge {
   readonly issueWebBase?: string;
   readIssue?(number: number): Promise<ForgeIssue>;
+  readCiJUnit?(execution: number): Promise<CiJUnitReport>;
   /** What the forge is called, for a sentence that names it. */
   readonly name: string;
   pullRequestsByBranch(): Promise<PullRequestsByBranch>;
