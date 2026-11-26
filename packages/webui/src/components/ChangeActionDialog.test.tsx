@@ -129,6 +129,37 @@ describe("ChangeActionDialog", () => {
     expect(await screen.findByText("Mapping saved")).toBeVisible();
   });
 
+  it("searches imported JUnit identities and saves only after preview", async () => {
+    const head = "a".repeat(40);
+    const reportId = "b".repeat(64);
+    const revision = "c".repeat(64);
+    const scenario = { capability: "auth", requirement: "Session", scenario: "Expiry" };
+    const test = { classname: "Session", name: "expires" };
+    const selection = { head, reportId, scenario, test };
+    const shown = { title: "Review", summary: "No test linked.", diff: null, truncated: false, head,
+      junitMappingChoices: { reportId, testedCommit: head, scenarios: [scenario], tests: [
+        { ...test, state: "passed" as const }, { classname: "", name: "logs in", state: "passed" as const },
+      ] } };
+    const perform = vi.fn<PerformChangeAction>()
+      .mockResolvedValueOnce({ kind: "pr-review", report: shown })
+      .mockResolvedValueOnce({ kind: "pr-review", report: { ...shown, junitMappingPreview: { selection, revision, diff: "+expires" } } })
+      .mockResolvedValueOnce({ kind: "pr-review", report: { ...shown, summary: "Test mapping saved" } });
+    const target = { action: "showPrReview" as const, changeName: "demo" };
+    render(<ChangeActionDialog target={target} perform={perform} onClose={() => undefined} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Link scenario to JUnit test" }));
+    fireEvent.change(screen.getByLabelText("Search JUnit tests"), { target: { value: "Expires" } });
+    expect(screen.queryByRole("option", { name: /logs in/ })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("OpenSpec scenario"), { target: { value: "0" } });
+    fireEvent.change(screen.getByLabelText("JUnit testcase"), { target: { value: "0" } });
+    fireEvent.click(screen.getByRole("button", { name: "Show Test Mapping Preview" }));
+    expect(perform).toHaveBeenLastCalledWith(target, { prReview: { junitMapping: { mode: "preview", selection } } });
+    expect(await screen.findByLabelText("JUnit mapping diff")).toHaveTextContent("+expires");
+    expect(perform).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole("button", { name: "Save Test Mapping" }));
+    expect(perform).toHaveBeenLastCalledWith(target, { prReview: { junitMapping: { mode: "save", selection, revision } } });
+    expect(await screen.findByText("Test mapping saved")).toBeVisible();
+  });
+
   it("sends a reading action at once and shows what came back", async () => {
     const perform = vi.fn<PerformChangeAction>(async () => ({ kind: "report", title: "Show Ancestry demo", markdown: "- **older** change" }));
     render(<ChangeActionDialog target={{ action: "showAncestry", changeName: "demo" }} perform={perform} onClose={() => undefined} />);

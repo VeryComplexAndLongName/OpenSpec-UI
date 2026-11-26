@@ -12,7 +12,7 @@ import { openGit } from "./git-client.js";
 import { createGitWrapper } from "./git.js";
 import { prepareCiRepairTask } from "./ci-repair-task.js";
 import { say } from "./message-register.js";
-import { importJUnit, readJUnitScenarioSummary } from "./junit-evidence.js";
+import { editJUnitMapping, importJUnit, readJUnitReview, type JUnitMappingChoices, type JUnitMappingPreview } from "./junit-evidence.js";
 import { readRepositoryAuditEntries } from "./repository-audit.js";
 import { readScenarioEvidence, scenarioCheckState } from "./scenario-evidence.js";
 import { editScenarioMapping, type ScenarioMappingChoices, type ScenarioMappingPreview } from "./scenario-mapping-edit.js";
@@ -41,6 +41,8 @@ export interface PrReviewReport {
   sinceLastReview?: boolean;
   mappingChoices?: ScenarioMappingChoices;
   mappingPreview?: ScenarioMappingPreview;
+  junitMappingChoices?: JUnitMappingChoices;
+  junitMappingPreview?: JUnitMappingPreview;
   ciRepairTask?: string;
 }
 
@@ -188,6 +190,7 @@ export async function readPrReview(root: string, changeName: string, sources: {
   markReviewedCommit?: string;
   scenarioMapping?: unknown;
   junitImport?: unknown;
+  junitMapping?: unknown;
   prepareCiRepairTask?: boolean;
 } = {}): Promise<PrReviewReport> {
   if (!isValidChangeName(changeName)) throw new Error("Choose an active OpenSpec change.");
@@ -292,6 +295,8 @@ export async function readPrReview(root: string, changeName: string, sources: {
   const scenarioLines: string[] = [];
   let mappingChoices: ScenarioMappingChoices | undefined;
   let mappingPreview: ScenarioMappingPreview | undefined;
+  let junitMappingChoices: JUnitMappingChoices | undefined;
+  let junitMappingPreview: JUnitMappingPreview | undefined;
   if (head !== undefined) {
     const linked = await readScenarioEvidence(git, head, changeName);
     if (linked.scenarios.length > 0 || linked.warnings.length > 0) {
@@ -306,7 +311,9 @@ export async function readPrReview(root: string, changeName: string, sources: {
           : entry.checks.map((check) => `  - ${literal(check)}: ${literal(scenarioCheckState(check, head, forgeReport, forgeName))}.`)));
       }
     }
-    scenarioLines.push(...await readJUnitScenarioSummary(root, changeName, head, linked.scenarios));
+    const junit = await readJUnitReview(root, changeName, head, linked.scenarios);
+    scenarioLines.push(...junit.lines);
+    junitMappingChoices = junit.choices;
     if (linked.scenarios.length > 0 && forgeReport?.kind === "checks" && forgeReport.head === head && forgeReport.resultsComplete) {
       const counts = new Map<string, number>();
       for (const check of forgeReport.checks) counts.set(check.name, (counts.get(check.name) ?? 0) + 1);
@@ -314,6 +321,11 @@ export async function readPrReview(root: string, changeName: string, sources: {
       if (uniqueChecks.length > 0) mappingChoices = { checks: uniqueChecks,
         scenarios: linked.scenarios.map(({ capability, requirement, scenario }) => ({ capability, requirement, scenario })) };
     }
+  }
+  if (sources.junitMapping !== undefined) {
+    const edit = await editJUnitMapping(root, changeName, head, sources.junitMapping, junitMappingChoices);
+    if ("preview" in edit) junitMappingPreview = edit.preview;
+    else scenarioLines.push("", "**Test mapping saved.** Commit `scenario-tests.json` to include it in the review.");
   }
   if (sources.scenarioMapping !== undefined) {
     const edit = await editScenarioMapping(root, changeName, sources.scenarioMapping, head, mappingChoices);
@@ -333,5 +345,7 @@ export async function readPrReview(root: string, changeName: string, sources: {
     ...(sinceLastReview ? { sinceLastReview } : {}),
     ...(mappingChoices === undefined ? {} : { mappingChoices }),
     ...(mappingPreview === undefined ? {} : { mappingPreview }),
+    ...(junitMappingChoices === undefined ? {} : { junitMappingChoices }),
+    ...(junitMappingPreview === undefined ? {} : { junitMappingPreview }),
     ...(repair?.task === undefined ? {} : { ciRepairTask: repair.task }) };
 }

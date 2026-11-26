@@ -5,7 +5,16 @@ scenario. A passing CI job alone does not establish that its scenarios were test
 
 ## Declare the association
 
-Create `scenario-tests.json` beside the change's `proposal.md` and commit it:
+Import a JUnit report as described below, then choose **Link scenario to
+JUnit test** in PR Review. Select the scenario and search by the testcase name
+or class. Check the proposed diff and select **Save Test Mapping**. Commit the
+resulting `scenario-tests.json` beside the change's `proposal.md`.
+
+A historical report can supply test names. Its outcomes remain historical.
+The picker excludes duplicate testcase identities. If the report, checked-out
+commit or mapping changes before saving, open a fresh preview.
+
+The same mapping can be authored by hand:
 
 ```json
 {
@@ -27,7 +36,6 @@ modified delta, and exact `classname`/`name` attributes from the JUnit testcase.
 An absent classname is the empty string. The mapping is read from the reviewed
 commit; an uncommitted mapping does not change the review. Existing
 `scenario-checks.json` job associations remain separate and continue to work.
-The first MVP edits testcase mappings as JSON; it does not offer a test picker.
 
 ## Import the results
 

@@ -3478,6 +3478,29 @@ describe("PR Review JUnit command adapter", () => {
   const head = "a".repeat(40);
   const imported = { head, testedCommit: "b".repeat(40), xml: "<testsuite/>" };
   const report = { title: "Review", summary: "Qualified JUnit evidence", diff: null, truncated: false, head };
+  it.each([true, false])("shows the JUnit mapping diff before native confirmation (%s)", async (confirm) => {
+    const scenario = { capability: "auth", requirement: "Session", scenario: "Expiry" };
+    const test = { classname: "Session", name: "expires" };
+    const reportId = "b".repeat(64);
+    const revision = "c".repeat(64);
+    const selection = { head, scenario, test, reportId };
+    readPrReviewMock.mockResolvedValue({ ...report, junitMappingChoices: {
+      scenarios: [scenario], tests: [{ ...test, state: "passed" }], testedCommit: head, reportId,
+    } }).mockResolvedValueOnce({ ...report, junitMappingChoices: {
+      scenarios: [scenario], tests: [{ ...test, state: "passed" }], testedCommit: head, reportId,
+    } }).mockResolvedValueOnce({ ...report, junitMappingPreview: { selection, revision, diff: "+expires" } });
+    vscodeMock.window.showQuickPick.mockResolvedValueOnce({ entry: scenario }).mockResolvedValueOnce({ entry: test });
+    vscodeMock.window.showInformationMessage.mockResolvedValueOnce("Link scenario to JUnit test")
+      .mockResolvedValueOnce(confirm ? "Save Test Mapping" : undefined).mockResolvedValueOnce(undefined);
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+    await vscodeMock._registeredCommands.get("openspec-ui.showPrReview")?.({
+      contextValue: "openspec-ui.activeChange", changeName: "junit-demo", archived: false,
+    });
+    expect(vscodeMock.workspace.openTextDocument).toHaveBeenCalledWith({ language: "diff", content: "+expires" });
+    expect(readPrReviewMock).toHaveBeenNthCalledWith(2, "/workspace/repo", "junit-demo",
+      { sinceLastReview: false, junitMapping: { mode: "preview", selection } });
+    expect(readPrReviewMock.mock.calls.filter((call) => call[2].junitMapping?.mode === "save")).toHaveLength(Number(confirm));
+  });
   it("forwards native input to readPrReview with the displayed head", async () => {
     readPrReviewMock.mockResolvedValue(report);
     pickJUnitReportMock.mockResolvedValue(imported);
