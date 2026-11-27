@@ -25,3 +25,7 @@ the state of an already running process are outside this MVP.
 A deferred or cancelled change may still be an unresolved dependency. It does
 not satisfy another change's blocker. An external OpenSpec invocation works
 with its own lifecycle rules.
+
+## Verification
+
+Gitea Quality run 8776 passed on implementation head f9dc090da1c4a5eca099c5cbbfbb0bad6f5a6c17. Reviewed optimistic writes, worktree ownership, active Pipeline filtering, preserved blockers, run and archive guards and the disposition history. Chromium deferred the proposal and restored it with its reason. Real Git tests verified that the archive pass skips a cancelled change and refuses an existing archive containing one. Strict validation passed for the new main specification in an isolated archive run.
