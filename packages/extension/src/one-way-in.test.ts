@@ -95,7 +95,7 @@ describe("a command that asks before it acts says so", () => {
     "generateScopedInstructions", "runChange", "createChange", "createChangeFromIssue", "createTemplate",
     "openChangeCopy", "findChange", "copyTasks", "insertTemplate",
     "confirmKey", "joinTeam", "generateReport", "sendMessage", "stopRun",
-    "addRelation", "removeRelation", "filterArchive", "filterSpecs", "filterGraph",
+    "addRelation", "removeRelation", "setChangeDisposition", "filterArchive", "filterSpecs", "filterGraph",
     "setLlmKey", "answerQuestion", "showActions",
   ].map((name) => `openspec-ui.${name}`);
 

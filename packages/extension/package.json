@@ -130,7 +130,7 @@
         "command": "openspec-ui.setChangeDisposition",
         "title": "Set Change Disposition...",
         "category": "OpenSpec Workbench",
-        "icon": "$(history)"
+        "icon": "$(milestone)"
       },
       {
         "command": "openspec-ui.configureChangeHarness",

@@ -92,7 +92,7 @@ export const CHANGE_ACTIONS: readonly ChangeAction[] = [
   // Everything its worktree holds, committed on its branch and pushed
   // (a-change-is-committed-where-it-is-made).
   action("commitChange", "Commit Change", "git-commit", true),
-  action("setChangeDisposition", "Set Change Disposition...", "history", true),
+  action("setChangeDisposition", "Set Change Disposition...", "milestone", true),
   action("configureChangeHarness", "Configure Change Harness", "gear", true),
   action("addRelation", "Add Relation...", "link", true),
   action("removeRelation", "Remove Relation...", "debug-disconnect", true),
