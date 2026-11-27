@@ -14,3 +14,4 @@
 - [x] Validate defer-or-cancel-changes in strict OpenSpec mode.
 
 The 30 focused core tests and two real-Git archive cases passed. Chromium deferred the change from its card, read the reason and restored it. Type checks, scoped lint, changeset checking and strict OpenSpec validation passed.
+The native action was exercised in its owning worktree. All 184 cases in the VS Code command test file passed.
