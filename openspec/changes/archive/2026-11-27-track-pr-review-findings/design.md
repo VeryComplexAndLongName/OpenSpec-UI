@@ -27,3 +27,7 @@ and changing the existing merge gate are outside this MVP.
 The ledger is local and may include project details. The summary labels
 verification for another commit as historical. Finding text is rendered as
 data and is never passed as an execution instruction.
+
+## Verification
+
+Gitea Quality run 8730 passed on implementation head 224a451b1b5825641291fb357b469751c884898a. Reviewed revision checks, decision transitions, path validation, file update preconditions and isolation of the Git-local ledger. Scoped tests covered stale revisions, fixing and verification on descendant commits, historical status in a linked worktree, the REST ownership guard and the VS Code command. The standalone browser added and dismissed a finding during PR Review.

@@ -20,3 +20,5 @@
 - [x] Validate track-pr-review-findings in strict OpenSpec mode.
 
 Targeted checks passed in core, REST, standalone and VS Code. Chromium completed the review flow with finding creation and dismissal. Type checks, scoped lint, changeset and strict OpenSpec validation passed.
+
+Full verification passed in Gitea Quality run 8730 on implementation head 224a451b1b5825641291fb357b469751c884898a.
