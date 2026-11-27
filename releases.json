@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-11-27T08:30:47.132Z",
+  "generated_at": "2026-11-27T09:35:18.460Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "2108c3331902ffb9199a7de1189b5ba2267da47f",
+  "commit": "4f87367fa01300b80c45ae87a1f9a8fafef62522",
   "products": [
     {
       "id": "vscode-extension",
