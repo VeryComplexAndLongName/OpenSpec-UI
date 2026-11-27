@@ -8,6 +8,10 @@ import { resolveChainStart } from "./chain-preflight.js";
 import { buildHints } from "./hints.js";
 import { archiveChange } from "./openspec.js";
 
+// The real file and repository probes took under one second on Windows.
+// Allow for contention when CI runs the filesystem cases together.
+vi.setConfig({ testTimeout: 20_000 });
+
 it("keeps history and files while holding a change, requires a current decision, and refuses a chain or archive", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "osw-disposition-"));
   try {
