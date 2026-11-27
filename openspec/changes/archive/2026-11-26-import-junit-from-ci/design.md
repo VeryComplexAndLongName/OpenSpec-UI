@@ -28,3 +28,7 @@ semantic coverage.
 The evidence relies on the configured repository's CI producer. Bounded reads,
 redirect rules, exact archive entries, and the existing JUnit parser protect
 the local import. A report for an older known commit remains historical.
+
+## Verification
+
+Gitea Quality run 8626 passed on implementation head 85dfb918e0815c683c47f2c1d5a2ddf51b8814cb. Reviewed artifact and revision provenance, repository and artifact selection, redirect restrictions, bounds and preservation of reports on rejected imports. Gitea run 8626 artifact 18630 validated 17 testcases on 85dfb918e0815c683c47f2c1d5a2ddf51b8814cb. The GitLab path passed a Workbench browser test with a local API fixture. The standalone package smoke exercised installation of the built CLI tarball.
