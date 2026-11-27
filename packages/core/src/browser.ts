@@ -272,6 +272,7 @@ export * from "./change-comparison.js";
 // Every action is a verb and a noun (ADR 0045): a leaf with no imports.
 export * from "./action-vocabulary.js";
 export * from "./change-actions.js";
+export * from "./change-disposition-facts.js";
 export { PR_REVIEW_EXAMPLE } from "./pr-review-example.js";
 export * from "./change-ancestry.js";
 export * from "./message-register.js";

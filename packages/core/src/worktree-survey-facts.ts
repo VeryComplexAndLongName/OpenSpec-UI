@@ -45,6 +45,7 @@ export interface SurveyedTask {
  * anything routed by name would reach the wrong one (ADR 0026). */
 export interface SurveyedChange {
   changeName: string;
+  disposition?: import("./change-disposition-facts.js").ChangeDispositionDecision;
   tasksDone: number;
   tasksTotal: number;
   /** Why the counts are zero where they are because `tasks.md` could not

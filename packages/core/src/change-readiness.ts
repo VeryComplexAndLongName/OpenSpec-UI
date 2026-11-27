@@ -13,6 +13,8 @@
 
 import path from "node:path";
 import { agentStatusDirectory, readAgentStatuses, type AgentStatusReport } from "./agent-status.js";
+import { readChangeDisposition } from "./change-disposition.js";
+import { lastDisposition } from "./change-disposition-facts.js";
 import { readChangeGraph, type ChangeGraph } from "./change-graph.js";
 import { listChangeWorktrees, type ChangeWorktree } from "./change-worktrees.js";
 import { createGitWrapper, type GitWrapper } from "./git.js";
@@ -186,6 +188,7 @@ export async function readChangeReadiness(options: ChangeReadinessOptions): Prom
   for (const changeName of active) {
     const worktree = worktreeByChange.get(changeName);
     const capabilities = capabilitiesOf(byName.get(changeName));
+    const disposition = lastDisposition(await readChangeDisposition(worktree?.path ?? workspaceRoot, changeName).catch(() => undefined));
     if (worktree) filesByChange.set(changeName, await changedFilesOf(git, worktree, base));
 
     // Unmet, meaning the named change is still active. A blocker that
@@ -228,16 +231,17 @@ export async function readChangeReadiness(options: ChangeReadinessOptions): Prom
       run,
       blockers: unmet,
       capabilities,
+      ...(disposition !== undefined ? { disposition } : {}),
       ...(worktree ? { worktreePath: worktree.path } : {}),
       canJoin: [],
       blockedFrom: [],
-      ...(run.state === "ready" && !worktree
+      ...(run.state === "ready" && (disposition?.state ?? "active") === "active" && !worktree
         ? { needsWorktree: `openspec-ui-cli create worktree ${changeName}` }
         : {}),
     });
   }
 
-  const ready = changes.filter((change) => change.run.state === "ready");
+  const ready = changes.filter((change) => change.run.state === "ready" && (change.disposition?.state ?? "active") === "active");
   for (const change of ready) {
     for (const other of ready) {
       if (other === change) continue;

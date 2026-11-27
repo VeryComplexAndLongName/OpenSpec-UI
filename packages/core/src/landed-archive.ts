@@ -14,6 +14,8 @@
 // default branch as it is now and updates its own branch
 // (an-archive-keeps-up-with-main).
 
+import { CHANGE_DISPOSITION_FILE, parseChangeDisposition } from "./change-disposition.js";
+import { lastDisposition } from "./change-disposition-facts.js";
 import type { GitWrapper } from "./git.js";
 import { isMergeMethodRefusal, PENDING_REASON, type Forge, type MergeMethod, type PullRequestRef } from "./gh-pr-gateway.js";
 import { say, type MessageCode } from "./message-register.js";
@@ -276,11 +278,24 @@ export async function archiveLandedChanges(deps: LandedArchiveDeps): Promise<Lan
 
   const names = (await deps.git.listTreeNames(ref, CHANGES)).filter((name) => name !== "archive");
   const closed: string[] = [];
+  const held = new Set<string>();
   const debts = new Map<string, string[]>();
   for (const name of names) {
     const tasks = await deps.git.showFile(ref, `${CHANGES}/${name}/tasks.md`);
     const items = parseTaskChecklist(tasks ?? "");
     const owed = describeTaskDebts(items);
+    const source = await deps.git.showFile(ref, `${CHANGES}/${name}/${CHANGE_DISPOSITION_FILE}`);
+    try {
+      if (source !== undefined && (lastDisposition(parseChangeDisposition(source))?.state ?? "active") !== "active") {
+        held.add(name);
+        continue;
+      }
+    } catch {
+      held.add(name);
+      const refusal = say("OSW-CHG-034");
+      result.notArchived.push({ changeName: name, reason: refusal.text, code: refusal.code });
+      continue;
+    }
     if (items.length > 0 && owesNothing(owed)) {
       closed.push(name);
     } else if (items.length > 0) {
@@ -331,7 +346,22 @@ export async function archiveLandedChanges(deps: LandedArchiveDeps): Promise<Lan
   // merges, the next pass reads a default branch without them.
   for (const [branch, pullRequest] of byBranch) {
     if (branch.startsWith(LANDED_ARCHIVE_BRANCH_PREFIX) && pullRequest.state === "OPEN") {
-      let outcome = await followArchivePullRequest(deps.forge, pullRequest.number);
+      const remoteBranch = `${remote}/${branch}`;
+      let outcome: ArchiveFollowOutcome | undefined;
+      if (held.size > 0) {
+        const archiveRoot = `${CHANGES}/archive`;
+        const [base, proposed] = await Promise.all([
+          deps.git.listTreeNames(ref, archiveRoot), deps.git.listTreeNames(remoteBranch, archiveRoot),
+        ]);
+        const onMain = new Set(base);
+        const includesHeld = proposed.filter((entry) => !onMain.has(entry))
+          .map((entry) => entry.replace(/^\d{4}-\d{2}-\d{2}-/u, "")).filter((name) => held.has(name));
+        if (includesHeld.length > 0) {
+          const refusal = say("OSW-CHG-036", { changes: includesHeld.join(", ") });
+          outcome = { state: "blocked", cause: "refused", reason: refusal.text, code: refusal.code };
+        }
+      }
+      outcome ??= await followArchivePullRequest(deps.forge, pullRequest.number);
       // Refused while the default branch has moved on: a repository that
       // merges only what is up to date with it would refuse it on every
       // pass from now on. The archive is mechanical, so it is made again on
@@ -339,7 +369,6 @@ export async function archiveLandedChanges(deps: LandedArchiveDeps): Promise<Lan
       // a lease - a push somebody else made meanwhile refuses this one.
       if (outcome.state === "blocked" && outcome.cause === "refused" && result.due.length > 0) {
         const refused = outcome;
-        const remoteBranch = `${remote}/${branch}`;
         const behind = (await deps.git.aheadBehind(remoteBranch, ref))?.behind ?? 0;
         const leased = behind > 0 ? await deps.git.resolveCommit(remoteBranch) : undefined;
         if (leased !== undefined) {

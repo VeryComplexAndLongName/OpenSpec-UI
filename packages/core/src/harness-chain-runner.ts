@@ -64,6 +64,7 @@ import { checkAllowlist, type AllowlistConfig, type AuditEntry, type AuditLog } 
 import type { AgentUsage } from "./agent-usage.js";
 import { readTaskChecklist, TASK_CHECKBOX_LINE_RE, writeTaskCheckStates } from "./task-checklist.js";
 import { buildUsageReport, mergeUsageTotals, unitKey, type UsageTotal } from "./usage-report.js";
+import { assertActiveDisposition } from "./change-disposition.js";
 import { say, type SaidMessage } from "./message-register.js";
 import { cleanPrReviewCommit } from "./pr-review.js";
 
@@ -1088,6 +1089,7 @@ export class HarnessChainRunner {
 
     let harnessConfig: HarnessConfig;
     try {
+      await assertActiveDisposition(cwd, changeName);
       harnessConfig = await resolveHarnessConfig(cwd, changeName);
     } catch (error) {
       yield failedEvent(runId, error instanceof Error ? error.message : String(error));

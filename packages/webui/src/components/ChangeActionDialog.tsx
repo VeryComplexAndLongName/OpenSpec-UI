@@ -7,7 +7,7 @@
 // This file draws and asks; what each action does is the server's and core's.
 
 import { useEffect, useState } from "react";
-import { changeAction, JUNIT_XML_MAX_BYTES, PR_REVIEW_EXAMPLE, say, type ChangeActionAnswer, type ChangeActionId, type ChangeActionInput, type JUnitImport } from "@openspec-ui/core/browser";
+import { changeAction, JUNIT_XML_MAX_BYTES, PR_REVIEW_EXAMPLE, say, type ChangeActionAnswer, type ChangeActionId, type ChangeActionInput, type JUnitImport, lastDisposition, type ChangeDisposition, type ChangeDispositionRequest, type ChangeDispositionState } from "@openspec-ui/core/browser";
 import { Clipboard, Link2, Upload, Wrench } from "lucide-react";
 import { renderMarkdown } from "../markdown.js";
 import { ChangeHarnessSettingsView } from "./ChangeHarnessSettingsView.js";
@@ -90,6 +90,8 @@ export function ChangeActionDialog({ target, perform, harnessApi, onClose }: {
               ...(step.answer.kind === "pr-review" && step.answer.report.sinceLastReview && (selection.scenarioMapping || selection.junitImport || selection.junitMapping || selection.prepareCiRepairTask)
                 ? { sinceLastReview: true } : {}) } });
           }} />
+      ) : step.answer.kind === "disposition" ? (
+        <DispositionForm reading={step.answer.disposition} onSave={(disposition) => send({ disposition })} />
       ) : step.answer.kind === "done" ? (
         <p data-testid="change-action-done">{step.answer.message}</p>
       ) : (
@@ -97,6 +99,44 @@ export function ChangeActionDialog({ target, perform, harnessApi, onClose }: {
       )}
       <button className="button" type="button" data-testid="change-action-close" onClick={onClose}>Close</button>
     </section>
+  );
+}
+
+const DISPOSITIONS: readonly ChangeDispositionState[] = ["active", "deferred", "cancelled"];
+
+function DispositionForm({ reading, onSave }: {
+  reading: ChangeDisposition;
+  onSave: (input: ChangeDispositionRequest) => void;
+}) {
+  const current = lastDisposition(reading)?.state ?? "active";
+  const [state, setState] = useState<ChangeDispositionState>(current);
+  const [reason, setReason] = useState("");
+  return (
+    <form className="openspec-change-action-form" onSubmit={(event) => {
+      event.preventDefault();
+      if (state !== current && reason.trim()) onSave({ revision: reading.revision, state, reason });
+    }}>
+      <label>Disposition
+        <select aria-label="Disposition" value={state} onChange={(event) => {
+          const selected = DISPOSITIONS.find((option) => option === event.target.value);
+          if (selected !== undefined) setState(selected);
+        }}>
+          <option value="active">Active</option>
+          <option value="deferred">Deferred</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </label>
+      <label>Reason<input required maxLength={400} value={reason} onChange={(event) => setReason(event.target.value)} /></label>
+      <button className="button" type="submit" disabled={state === current || !reason.trim()}>Save Change Disposition</button>
+      {reading.history.length > 0 ? (
+        <details>
+          <summary>Disposition history</summary>
+          <ol>{reading.history.map((entry, index) => (
+            <li key={index}><time dateTime={entry.at}>{entry.at.slice(0, 10)}</time> - {entry.state}: {entry.reason}</li>
+          ))}</ol>
+        </details>
+      ) : null}
+    </form>
   );
 }
 

@@ -7,6 +7,7 @@
 // not hand-crafted, see tasks.md 5.3).
 
 import crossSpawn from "cross-spawn";
+import { assertActiveDisposition } from "./change-disposition.js";
 import { say, type MessageCode, type SaidMessage } from "./message-register.js";
 
 // `cross-spawn` rather than `node:child_process.execFile`: on Windows
@@ -580,6 +581,7 @@ export async function archiveChange(
   options: OpenSpecCliOptions,
   archiveOptions: ArchiveChangeOptions = {},
 ): Promise<OpenSpecArchiveResult> {
+  await assertActiveDisposition(options.cwd, changeName);
   // A change is archived only when it owes nothing
   // (a-change-is-archived-with-nothing-open). Every way this product
   // archives - the Pipeline, the editor, a harness stage, the standalone

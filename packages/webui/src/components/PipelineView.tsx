@@ -28,6 +28,7 @@ import {
   COLUMN_GAP,
   LANE_HEADING,
   NODE_WIDTH,
+  changeAction,
   describeChangeCard,
   describeChangeCards,
   describeCollision,
@@ -79,8 +80,10 @@ import {
   type WorktreeSurvey,
   type ChangeAction,
   type ChangeActionFacts,
+  type ChangeDispositionDecision,
   type ChangeActionState,
 } from "@openspec-ui/core/browser";
+import { Codicon } from "./Codicon.js";
 import { CardActions, ConfirmActionForm, cardActionRows, cardActionStates, type ChangeActionsHost } from "./CardActions.js";
 import { HintList } from "./HintList.js";
 import { ModalLayer } from "./ModalLayer.js";
@@ -706,7 +709,9 @@ export function PipelineView({
   // cannot show the one thing it exists to show - where each change is
   // (the-board-is-of-every-change).
   const foldLanded = !onBoard && !showLanded && !landedHere.some((change) => filter.trim().length > 0 && matches(change.changeName));
+  const heldHere = (report?.changes ?? []).filter((change) => onHold(change.disposition) && !archivedOnDefault.has(change.changeName));
   const shownChanges = (report?.changes ?? [])
+    .filter((change) => !onHold(change.disposition) || archivedOnDefault.has(change.changeName))
     .filter((change) => matches(change.changeName))
     .filter((change) => !foldLanded || !landed.has(change.changeName));
   const shownReport = report === undefined ? undefined : { ...report, changes: shownChanges };
@@ -727,11 +732,27 @@ export function PipelineView({
         // default branch is not work: the archive's own card stands for it
         // (a-landed-change-leaves-the-board).
         if (archivedOnDefault.has(change.changeName)) continue;
-        if (!matches(change.changeName)) continue;
+        if (!matches(change.changeName) || onHold(change.disposition)) continue;
         elsewhere.set(change.changeName, { directory: one, change });
       }
     }
   }
+  const heldElsewhere = (others.value?.directories ?? []).flatMap((directory) => !directory.readable || directory.isThis ? [] :
+    directory.changes.filter((change) => onHold(change.disposition) && !archivedOnDefault.has(change.changeName)
+      && !(directory.ownChange === change.changeName && namesHere.has(change.changeName)))
+      .map((change) => ({
+        changeName: change.changeName,
+        directory: directory.path,
+        disposition: change.disposition,
+        editable: directory.ownChange === change.changeName && elsewhereActionFacts(change, directory)?.where === "worktree"
+          && !runningHere(directory, change.changeName),
+      })));
+  const heldRows = [...heldHere.map((change) => ({
+    changeName: change.changeName,
+    directory: change.worktreePath ?? here?.path ?? "",
+    disposition: change.disposition,
+    editable: change.run.state !== "running",
+  })), ...heldElsewhere].filter((row) => matches(row.changeName));
   // What was archived lately, in the column it ends in. A change leaves
   // `openspec/changes` when it is archived, so without this reading the
   // last column of the board is empty by construction - and a column that
@@ -1045,6 +1066,7 @@ export function PipelineView({
           </div>
         </section>
 
+        <HeldChanges rows={heldRows} actions={changeActions} />
         {/* From the report this already read: no second fetch, and no
           suggestion computed here — `buildHints` derived them in core
           before the payload was sent. */}
@@ -1229,6 +1251,34 @@ function localActionFacts(card: ChangeCard): ChangeActionFacts {
 /** The same for a change read from its own worktree, beside this
  * checkout's; `undefined` for one its directory is not the worktree of,
  * which stays read-only (ADR 0026, amended 2026-10-05). */
+function onHold(disposition: ChangeDispositionDecision | undefined): boolean {
+  return disposition?.state === "deferred" || disposition?.state === "cancelled";
+}
+
+function HeldChanges({ rows, actions }: {
+  rows: Array<{ changeName: string; directory: string; disposition: ChangeDispositionDecision | undefined; editable: boolean }>;
+  actions: ChangeActionsHost | undefined;
+}) {
+  if (rows.length === 0) return null;
+  const action = changeAction("setChangeDisposition");
+  return (
+    <details className="openspec-shell-panel" open>
+      <summary>Deferred and cancelled changes ({rows.length})</summary>
+      <ul>{rows.map(({ changeName, disposition, directory, editable }) => (
+        <li key={`${directory} ${changeName}`}>
+          <strong>{changeName}</strong> <span title={directory}>- {disposition?.state}: {disposition?.reason}</span>
+          {action !== undefined && actions?.offered.has(action.id) ? (
+            <button className="openspec-pipeline-action" data-group={action.group} type="button" aria-label={`Set Change Disposition for ${changeName}`} title={action.title}
+              disabled={!editable} onClick={() => actions.perform(action.id, changeName, { confirmed: false })}>
+              <Codicon name={action.icon} />
+            </button>
+          ) : null}
+        </li>
+      ))}</ul>
+    </details>
+  );
+}
+
 function elsewhereActionFacts(change: SurveyedChange, directory: Extract<SurveyedDirectory, { readable: true }>): ChangeActionFacts | undefined {
   if (directory.ownChange !== change.changeName) return undefined;
   const runs = directory.runs.filter((run) => run.changeName === change.changeName && !run.gone);
@@ -2357,7 +2407,7 @@ function ForeignChanges({ directory, testId, labels, openCards, archivedOnMain, 
 }) {
   // The change this directory is the worktree of is already a card above.
   const taskCards = useContext(TaskCardContext);
-  const changes = directory.changes.filter((change) => change.changeName !== directory.belongsTo);
+  const changes = directory.changes.filter((change) => change.changeName !== directory.belongsTo && (!onHold(change.disposition) || archivedOnMain.has(change.changeName)));
   if (changes.length === 0) {
     return (
       <p className="openspec-shell-note" data-testid={`${testId}-empty`}>

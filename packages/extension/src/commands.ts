@@ -61,6 +61,10 @@ import {
   workedElsewhere,
   ACTION_GROUPS,
   changeActionStates,
+  assertActiveDisposition,
+  lastDisposition,
+  readChangeDisposition,
+  setChangeDisposition,
   say,
   withMessageCode,
   type ChangeActionFacts,
@@ -411,7 +415,8 @@ async function changeActionFactsOf(item: ChangeTreeItem, workspaceRoot: string):
   } catch {
     openTasks = undefined;
   }
-  return { where, running, ...(openTasks !== undefined ? { openTasks } : {}) };
+  const disposition = lastDisposition(await readChangeDisposition(workedIn(item, workspaceRoot).root, item.changeName).catch(() => undefined));
+  return { where, running, ...(openTasks !== undefined ? { openTasks } : {}), ...(disposition ? { disposition: disposition.state } : {}) };
 }
 
 /** The person confirmed the action on the change's card, so the command does
@@ -1809,6 +1814,47 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       void show(withMessageCode(said.text, said.code));
       deps.refreshTrees();
     }),
+    vscode.commands.registerCommand("openspec-ui.setChangeDisposition", async (invokedItem?: ChangeTreeItem) => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
+      if (!item) { warnNoTreeSelection("change"); return; }
+      if (item.archived || await refusedAsAnothersChange(item.changeName, item.ownership)) return;
+      const at = workedIn(item, workspaceRoot);
+      try {
+        const reading = await readChangeDisposition(at.root, item.changeName);
+        const current = lastDisposition(reading)?.state ?? "active";
+        const choices = ([
+          { label: "Active", value: "active" },
+          { label: "Deferred", value: "deferred" },
+          { label: "Cancelled", value: "cancelled" },
+          { label: "Show History", value: "history" },
+        ] as const).filter((option) => option.value !== current && (option.value !== "history" || reading.history.length > 0));
+        const selected = await vscode.window.showQuickPick(choices, {
+          title: `Set Change Disposition for ${item.changeName}`,
+          placeHolder: `Current: ${current}`,
+        });
+        if (!selected) return;
+        if (selected.value === "history") {
+          const content = reading.history.map((entry) => `${entry.at} - ${entry.state}: ${entry.reason}`).join("\n");
+          const document = await vscode.workspace.openTextDocument({ content, language: "plaintext" });
+          await vscode.window.showTextDocument(document, { preview: true });
+          return;
+        }
+        const reason = await vscode.window.showInputBox({
+          title: `Set Change Disposition for ${item.changeName}`,
+          prompt: "Give a reason for this decision",
+          validateInput: (value) => value.trim().length > 0 && value.trim().length <= 400 ? undefined : "Enter a reason up to 400 characters.",
+        });
+        if (reason === undefined) return;
+        if ((await changeActionFactsOf(item, workspaceRoot)).running) throw new Error(say("OSW-CHG-035").text);
+        await setChangeDisposition(at.root, item.changeName, { revision: reading.revision, state: selected.value, reason });
+        deps.refreshTrees();
+        void vscode.window.showInformationMessage(say("OSW-CHG-033", { change: item.changeName, state: selected.value }).text);
+      } catch (error) {
+        await showCommandError("set change disposition", error);
+      }
+    }),
     vscode.commands.registerCommand("openspec-ui.configureChangeHarness", async (invokedItem?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
@@ -1894,6 +1940,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         // Where the change is worked: its own worktree, or this checkout.
         // Its harness is read there, and the run runs there.
         const at = workedIn(item, workspaceRoot);
+        await assertActiveDisposition(at.root, item.changeName);
         const config = await resolveHarnessConfig(at.root, item.changeName);
         const plan = buildRunPlan(config, {
           hasVsCodeAgent: true,

@@ -267,6 +267,38 @@ Why: The re-read source differs from the confirmed preview.
 
 What to do: Review a fresh preview and confirm again.
 
+### OSW-CHG-033
+
+> info: {change} is now {state}.
+
+Why: The current disposition and decision history were saved.
+
+What to do: Open the change's disposition to see its history or change the decision.
+
+### OSW-CHG-034
+
+> error: The disposition file is invalid.
+
+Why: The recorded disposition cannot be read, so the archive cannot determine whether the change is active.
+
+What to do: Repair workbench-disposition.json and commit the correction before retrying the archive.
+
+### OSW-CHG-035
+
+> error: Stop the run before changing this disposition.
+
+Why: The change still has a live run.
+
+What to do: Wait for the run to finish or stop it from the Pipeline, then try again.
+
+### OSW-CHG-036
+
+> error: This archive includes a change that was put aside: {changes}.
+
+Why: The proposal was deferred, cancelled or could not be read after this archive pull request was opened.
+
+What to do: Restore the change or replace this archive pull request without it.
+
 ## RUN: runs, chains, stages, checkpoints, limits
 
 ### OSW-RUN-001
@@ -1546,6 +1578,14 @@ What to do: Nothing, unless the passed-over agents were the ones you wanted.
 Why: A change must opt in to operator approval with a boolean value.
 
 What to do: Set the value to true or false in the change's harness.json.
+
+### OSW-HRN-129
+
+> error: The change's disposition prevents this run. {reason}
+
+Why: Deferred and cancelled changes keep their artifacts but are put aside from active work.
+
+What to do: Open Set Change Disposition in the Pipeline and choose Active. Repair an invalid disposition file before retrying.
 
 ## AGT: agents and adapters: missing, signed out, failed
 
