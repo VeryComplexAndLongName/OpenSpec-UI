@@ -14,3 +14,5 @@
 - [x] Validate check-workspace-toolchain in strict OpenSpec mode.
 
 The 23 focused core tests passed. The real CLI diagnosed both an OpenSpec version mismatch and an instruction fingerprint mismatch in JSON mode. Scoped type checking, lint, changeset and strict OpenSpec validation passed.
+
+Full verification passed in Gitea Quality run 8749 on implementation head 1a753bf9fd81c7256c49cba40762e26560257553.
