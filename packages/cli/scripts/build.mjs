@@ -34,6 +34,7 @@ await build({
     "undici",
     "ws",
     "yaml",
+    "yauzl",
     "zod",
   ],
   banner: { js: "#!/usr/bin/env node" },

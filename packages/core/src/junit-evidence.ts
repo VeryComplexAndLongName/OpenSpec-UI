@@ -5,6 +5,7 @@ import { SaxesParser } from "saxes";
 import { z } from "zod";
 import { JUNIT_XML_MAX_BYTES } from "./change-actions.js";
 import { assertValidChangeName } from "./change-name.js";
+import { ciJUnitSource, type CiJUnitSource } from "./ci-junit.js";
 import { openGit } from "./git-client.js";
 import { formatMessage, say } from "./message-register.js";
 import type { ReviewScenario } from "./scenario-evidence.js";
@@ -14,7 +15,8 @@ const sha = z.string().regex(/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u);
 const label = z.string().min(1).max(400);
 const identity = z.strictObject({ classname: z.string().max(400), name: label });
 const testcase = identity.extend({ state: z.enum(["passed", "failed", "error", "skipped"]) });
-const snapshot = z.strictObject({ testedCommit: sha, importedAt: z.string().datetime(), tests: z.array(testcase).max(2000) });
+const snapshot = z.strictObject({ testedCommit: sha, importedAt: z.string().datetime(), tests: z.array(testcase).max(2000),
+  ciSource: ciJUnitSource.optional() });
 const scenarioIdentity = z.strictObject({ capability: label, requirement: label, scenario: label });
 const associations = z.strictObject({ scenarios: z.array(scenarioIdentity.extend({
   tests: z.array(identity).min(1).max(100),
@@ -38,6 +40,7 @@ export interface JUnitMappingChoices {
   tests: TestCase[];
   testedCommit: string;
   reportId: string;
+  ciSource?: CiJUnitSource;
 }
 
 function refused(): Error {
@@ -94,7 +97,9 @@ async function evidencePath(root: string, change: string, create = false): Promi
   return path.join(directory, createHash("sha256").update(change).digest("hex") + ".json");
 }
 
-export async function importJUnit(root: string, change: string, input: unknown, displayedHead: string | undefined): Promise<void> {
+export async function importJUnit(root: string, change: string, input: unknown, displayedHead: string | undefined,
+  ciSource?: CiJUnitSource,
+): Promise<void> {
   const parsed = request.safeParse(input);
   if (!parsed.success) throw refused();
   const value = parsed.data;
@@ -103,7 +108,8 @@ export async function importJUnit(root: string, change: string, input: unknown, 
   if (value.head !== displayedHead || await currentHead() !== value.head) throw new Error(formatMessage(say("OSW-CHG-015")));
   const declared = (await git.raw(["rev-parse", "--verify", "--end-of-options", `${value.testedCommit}^{commit}`]).catch(() => "")).trim();
   if (declared !== value.testedCommit) throw new Error(formatMessage(say("OSW-CHG-016")));
-  const data: Snapshot = { testedCommit: declared, importedAt: new Date().toISOString(), tests: parseJUnit(value.xml) };
+  const data: Snapshot = { testedCommit: declared, importedAt: new Date().toISOString(), tests: parseJUnit(value.xml),
+    ...(ciSource === undefined ? {} : { ciSource: ciJUnitSource.parse(ciSource) }) };
   const file = await evidencePath(root, change, true);
   const temporary = file + "." + randomUUID();
   try {
@@ -200,9 +206,17 @@ export function junitScenarioSummary(scenarios: ReviewScenario[], mapping: strin
   } else lines.push("- Commit scenario-tests.json beside the proposal to associate scenarios with exact JUnit tests.");
   if (!report) lines.push("- No JUnit report imported. Import one with an explicitly declared tested commit.");
   else {
-    lines.push(`- User-declared tested commit: ${literal(report.testedCommit)}. Imported at ${literal(report.importedAt)}.`);
-    lines.push(report.testedCommit === head ? "- The declared revision matches the reviewed commit; this attribution is not independently verified."
-      : "- Historical report: the declared revision differs from the reviewed commit. These are not current passing results.");
+    if (report.ciSource) {
+      const source = report.ciSource;
+      const execution = source.forge === "Gitea" ? `run #${source.execution}, artifact #${source.artifact}`
+        : `job #${source.execution}, pipeline #${source.pipeline}`;
+      lines.push(`- CI source: ${source.forge} ${literal(source.repository)}, ${execution}. The CI checkout and execution metadata agreed on ${literal(report.testedCommit)}.`);
+      lines.push(`- Imported at ${literal(report.importedAt)}.`);
+    } else {
+      lines.push(`- User-declared tested commit: ${literal(report.testedCommit)}. Imported at ${literal(report.importedAt)}.`);
+      if (report.testedCommit === head) lines.push("- The declared revision matches the reviewed commit; this attribution is not independently verified.");
+    }
+    if (report.testedCommit !== head) lines.push("- Historical report: the tested revision differs from the reviewed commit. These are not current passing results.");
   }
   if (scenarios.length === 0) lines.push("- No added or modified scenarios were found in the reviewed commit.");
   lines.push("- Test results are observations, not proof of scenario coverage; suite/job totals do not establish an individual test result.");
@@ -233,5 +247,6 @@ Promise<{ lines: string[]; choices?: JUnitMappingChoices }> {
   const tests = report.tests.filter((test) => counts.get(testKey(test)) === 1);
   if (tests.length === 0) return { lines: [...lines, "- No unique testcases are available to link from this report."] };
   return { lines, choices: { tests, testedCommit: report.testedCommit, reportId: snapshotId(report),
+    ...(report.ciSource === undefined ? {} : { ciSource: report.ciSource }),
     scenarios: scenarios.map(({ capability, requirement, scenario }) => ({ capability, requirement, scenario })) } };
 }

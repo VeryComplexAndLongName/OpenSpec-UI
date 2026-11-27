@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import type { SimpleGit } from "simple-git";
 import { changeNameOf, isRunEntry, VERIFY_CHECKS_AGENT_NAME } from "./audit-runs.js";
 import { CHANGE_DIFF_MAX_BYTES } from "./change-diff.js";
+import { ciJUnitRequest } from "./ci-junit.js";
 import { readScopeSummary } from "./change-scope.js";
 import { isValidChangeName } from "./change-name.js";
 import { forgeFor } from "./forge.js";
@@ -14,6 +15,7 @@ import { prepareCiRepairTask } from "./ci-repair-task.js";
 import { say } from "./message-register.js";
 import { editJUnitMapping, importJUnit, readJUnitReview, type JUnitMappingChoices, type JUnitMappingPreview } from "./junit-evidence.js";
 import { readRepositoryAuditEntries } from "./repository-audit.js";
+import { editReviewFindings, readReviewFindings, type ReviewFindings } from "./review-findings.js";
 import { readScenarioEvidence, scenarioCheckState } from "./scenario-evidence.js";
 import { editScenarioMapping, type ScenarioMappingChoices, type ScenarioMappingPreview } from "./scenario-mapping-edit.js";
 import type { AuditEntry } from "./security.js";
@@ -43,6 +45,8 @@ export interface PrReviewReport {
   mappingPreview?: ScenarioMappingPreview;
   junitMappingChoices?: JUnitMappingChoices;
   junitMappingPreview?: JUnitMappingPreview;
+  ciJUnitForge?: "Gitea" | "GitLab";
+  findings?: ReviewFindings;
   ciRepairTask?: string;
 }
 
@@ -191,6 +195,8 @@ export async function readPrReview(root: string, changeName: string, sources: {
   scenarioMapping?: unknown;
   junitImport?: unknown;
   junitMapping?: unknown;
+  ciJUnitImport?: unknown;
+  reviewFinding?: unknown;
   prepareCiRepairTask?: boolean;
 } = {}): Promise<PrReviewReport> {
   if (!isValidChangeName(changeName)) throw new Error("Choose an active OpenSpec change.");
@@ -201,6 +207,15 @@ export async function readPrReview(root: string, changeName: string, sources: {
   const title = `PR Review for ${changeName}`;
   const git = openGit(root);
   const head = await resolveCommit(git, "HEAD");
+  if (sources.reviewFinding !== undefined && (sources.ciJUnitImport !== undefined || sources.junitImport !== undefined
+      || sources.markReviewedCommit !== undefined || sources.junitMapping !== undefined || sources.scenarioMapping !== undefined)) {
+    throw new Error("Record the review finding in a separate action.");
+  }
+  const ciRequest = sources.ciJUnitImport === undefined ? undefined : ciJUnitRequest.parse(sources.ciJUnitImport);
+  if (ciRequest && (ciRequest.head !== head || sources.junitImport !== undefined
+      || sources.markReviewedCommit !== undefined || sources.junitMapping !== undefined || sources.scenarioMapping !== undefined)) {
+    throw new Error("Open the current PR Review and import CI evidence in a separate action.");
+  }
   if (sources.junitImport !== undefined) await importJUnit(root, changeName, sources.junitImport, head);
   const marker = `refs/openspec-ui/reviewed/${createHash("sha256").update(changeName).digest("hex")}`;
   if (sources.markReviewedCommit !== undefined) {
@@ -216,6 +231,8 @@ export async function readPrReview(root: string, changeName: string, sources: {
   let checks: string[] = ["- Checks require a unique open PR or merge request from this branch."];
   let forgeReport: GitHubChecksReport | undefined;
   let forgeName = "GitHub";
+  let ciJUnitForge: PrReviewReport["ciJUnitForge"];
+  let ciImported = false;
   let comparison: Awaited<ReturnType<typeof compare>> = { kind: "unavailable", reason: say("OSW-CHG-004").text };
   if (head !== undefined) {
     const [branchRef, dirty, remotes] = await Promise.all([
@@ -227,9 +244,15 @@ export async function readPrReview(root: string, changeName: string, sources: {
     heading.push(`- Reviewed head: ${literal(head)}${branch ? ` on ${literal(branch)}` : " (detached)"}.`);
     if (dirty) heading.push("- Uncommitted working-tree changes are excluded.");
     const remote = remotes.split(/\r?\n/u).includes("origin");
-    const forge = branch && remote && (sources.pullRequests === undefined || refreshChecks)
+    const forge = remote && ((branch && (sources.pullRequests === undefined || refreshChecks)) || ciRequest !== undefined)
       ? await (sources.forge ?? forgeFor)(root).catch(() => undefined) : undefined;
     forgeName = forge?.name ?? forgeName;
+    if (forge?.readCiJUnit && (forge.name === "Gitea" || forge.name === "GitLab")) ciJUnitForge = forge.name;
+    if (ciRequest && ciJUnitForge && forge?.readCiJUnit) {
+      const report = await forge.readCiJUnit(ciRequest.execution);
+      await importJUnit(root, changeName, { head, testedCommit: report.testedCommit, xml: report.xml }, head, report.source);
+      ciImported = true;
+    }
     const read = branch && remote ? await (sources.pullRequests === undefined
       ? forge?.pullRequestsByBranch() : sources.pullRequests(root))?.catch(() => undefined) : undefined;
     const targets = read?.available ? read.openTargets?.get(branch) ?? [] : [];
@@ -278,6 +301,7 @@ export async function readPrReview(root: string, changeName: string, sources: {
         : await compareTrees(git, head, lastReviewed, lastReviewed);
     }
   }
+  if (ciRequest && !ciImported) throw new Error("CI JUnit import requires a Gitea or GitLab origin with readable artifact metadata.");
   if (lastReviewed !== undefined) heading.push(`- Last reviewed locally: ${literal(lastReviewed)}.`);
   if (comparison.kind === "unavailable") {
     heading.push(`- Comparison unavailable. ${comparison.reason}`);
@@ -332,10 +356,33 @@ export async function readPrReview(root: string, changeName: string, sources: {
     if ("preview" in edit) mappingPreview = edit.preview;
     else scenarioLines.push("", "**Mapping saved.** Commit `scenario-checks.json` to include it in the review.");
   }
+  let findings: ReviewFindings | undefined;
+  const findingLines: string[] = [];
+  if (sources.reviewFinding !== undefined) {
+    findings = await editReviewFindings(git, changeName, head, sources.reviewFinding);
+  } else if (head) {
+    try { findings = await readReviewFindings(git, changeName); }
+    catch { findingLines.push("", "### Review findings", "", "- The local review findings could not be read."); }
+  }
+  if (findings?.entries.length) {
+    findingLines.push("", "### Review findings", "");
+    for (const entry of findings.entries) {
+      const last = entry.decisions.at(-1);
+      const location = entry.location ? ` at ${literal(entry.location.path + (entry.location.line ? ":" + entry.location.line : ""))}` : "";
+      const historical = entry.status === "verified" && last?.commit !== head ? " (historical)" : "";
+      findingLines.push(`- ${entry.status}${historical}: ${literal(entry.description)}${location}. Opened on ${literal(entry.openedAt)}.`);
+      if (entry.status === "verified") {
+        const fixed = entry.decisions.at(-2);
+        if (fixed?.action === "fixed") findingLines.push(`  - Correction on ${literal(fixed.commit)}: ${literal(fixed.note)}.`);
+      }
+      if (last) findingLines.push(`  - ${last.action === "reopen" ? "Reopened" : "Decision"} on ${literal(last.commit)}: ${literal(last.note)}.`);
+    }
+  }
   const repair = sources.prepareCiRepairTask ? prepareCiRepairTask(changeName, head, forgeName, forgeReport) : undefined;
   const summary = [...heading, "", ...evidence(entries, changeName, head),
     ...(refreshChecks ? ["", `### ${forgeName} checks`, "", ...checks] : []),
     ...scopeLines,
+    ...findingLines,
     ...scenarioLines,
     ...(repair?.lines ?? []),
   ].join("\n");
@@ -347,5 +394,7 @@ export async function readPrReview(root: string, changeName: string, sources: {
     ...(mappingPreview === undefined ? {} : { mappingPreview }),
     ...(junitMappingChoices === undefined ? {} : { junitMappingChoices }),
     ...(junitMappingPreview === undefined ? {} : { junitMappingPreview }),
+    ...(ciJUnitForge === undefined ? {} : { ciJUnitForge }),
+    ...(findings === undefined ? {} : { findings }),
     ...(repair?.task === undefined ? {} : { ciRepairTask: repair.task }) };
 }

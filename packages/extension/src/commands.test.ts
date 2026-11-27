@@ -3478,6 +3478,19 @@ describe("PR Review JUnit command adapter", () => {
   const head = "a".repeat(40);
   const imported = { head, testedCommit: "b".repeat(40), xml: "<testsuite/>" };
   const report = { title: "Review", summary: "Qualified JUnit evidence", diff: null, truncated: false, head };
+  it("requests a GitLab job ID on the native CI JUnit action", async () => {
+    readPrReviewMock.mockResolvedValue({ ...report, ciJUnitForge: "GitLab" });
+    vscodeMock.window.showInformationMessage.mockResolvedValueOnce("Import CI JUnit Report").mockResolvedValueOnce(undefined);
+    vscodeMock.window.showInputBox.mockResolvedValueOnce("7");
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+    await vscodeMock._registeredCommands.get("openspec-ui.showPrReview")?.({
+      contextValue: "openspec-ui.activeChange", changeName: "junit-demo", archived: false,
+    });
+    expect(vscodeMock.window.showInputBox).toHaveBeenCalledWith(expect.objectContaining({ prompt: "GitLab job ID" }));
+    expect(readPrReviewMock).toHaveBeenNthCalledWith(2, "/workspace/repo", "junit-demo", {
+      githubChecks: false, sinceLastReview: false, ciJUnitImport: { head, execution: 7 },
+    });
+  });
   it.each([true, false])("shows the JUnit mapping diff before native confirmation (%s)", async (confirm) => {
     const scenario = { capability: "auth", requirement: "Session", scenario: "Expiry" };
     const test = { classname: "Session", name: "expires" };
@@ -3518,6 +3531,27 @@ describe("PR Review JUnit command adapter", () => {
       ownership: { kind: "unverified", label: "another-worktree", path: "/wt/theirs" } });
     expect(pickJUnitReportMock).not.toHaveBeenCalled();
     expect(readPrReviewMock.mock.calls.every((call) => call[2].junitImport === undefined)).toBe(true);
+  });
+});
+
+describe("PR Review findings command adapter", () => {
+  it("saves a new finding against the head and ledger revision shown to the reviewer", async () => {
+    const head = "a".repeat(40);
+    const revision = "b".repeat(64);
+    readPrReviewMock.mockResolvedValue({ title: "Review", summary: "Review", diff: null, truncated: false, head,
+      findings: { revision, entries: [] } });
+    vscodeMock.window.showInformationMessage.mockResolvedValueOnce("Edit Review Findings").mockResolvedValueOnce(undefined);
+    vscodeMock.window.showQuickPick.mockResolvedValueOnce({ label: "Add Review Finding", entry: undefined });
+    vscodeMock.window.showInputBox.mockResolvedValueOnce("Invalid session").mockResolvedValueOnce("src/session.ts:7");
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+    await vscodeMock._registeredCommands.get("openspec-ui.showPrReview")?.({
+      contextValue: "openspec-ui.activeChange", changeName: "demo", archived: false,
+    });
+    expect(readPrReviewMock).toHaveBeenNthCalledWith(2, "/workspace/repo", "demo", {
+      githubChecks: false, sinceLastReview: false, reviewFinding: {
+        kind: "add", head, revision, description: "Invalid session", location: { path: "src/session.ts", line: 7 },
+      },
+    });
   });
 });
 
