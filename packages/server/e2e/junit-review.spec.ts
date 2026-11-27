@@ -94,6 +94,19 @@ test("imports JUnit, previews and saves a testcase mapping, and copies qualified
       .getByRole("button", { name: "Import CI JUnit Report", exact: true }).click();
     await reviewExpect(dialog).toContainText("job #7, pipeline #12");
     await expect(dialog).toContainText("execution metadata agreed");
+    await dialog.getByRole("button", { name: "Edit Review Findings", exact: true }).click();
+    await dialog.getByLabel("Finding", { exact: true }).fill("Check missing postal code");
+    await dialog.getByLabel("Repository path (optional)").fill("openspec/changes/junit-demo/proposal.md");
+    await dialog.getByLabel("Line (optional)").fill("1");
+    await dialog.getByRole("button", { name: "Add Review Finding", exact: true }).click();
+    await reviewExpect(dialog).toContainText("Check missing postal code");
+    await dialog.getByRole("button", { name: "Edit Review Findings", exact: true }).click();
+    await dialog.getByLabel("Recorded finding").selectOption({ label: "Check missing postal code (open)" });
+    await dialog.getByLabel("Decision", { exact: true }).selectOption("dismissed");
+    await dialog.getByLabel("Decision note").fill("The request is unrelated to the expiry fixture.");
+    await dialog.getByRole("button", { name: "Save Review Decision", exact: true }).click();
+    await reviewExpect(dialog).toContainText("dismissed:");
+    await expect(dialog).toContainText("The request is unrelated to the expiry fixture.");
   } finally {
     if (previousForgeUrl === undefined) delete process.env.GITLAB_URL;
     else process.env.GITLAB_URL = previousForgeUrl;

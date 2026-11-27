@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanPrReviewCommit, prReviewMarkdown, readPrReview } from "./pr-review.js";
 import type { Forge, PullRequestsByBranch } from "./gh-pr-gateway.js";
 import { editJUnitMapping, importJUnit, readJUnitReview } from "./junit-evidence.js";
+import { openGit } from "./git-client.js";
+import { editReviewFindings, readReviewFindings } from "./review-findings.js";
 import type { AuditEntry } from "./security.js";
 import { gitIsolationArgs } from "./test-support/git-isolation.js";
 
@@ -55,6 +57,38 @@ function openTarget(base: string, head: string): Promise<PullRequestsByBranch> {
 }
 
 describe("PR review", () => {
+  it("tracks a review findings lifecycle and guards stale worktree and ledger writes", async () => {
+    const { root, head, main } = await fixture();
+    const repository = openGit(root);
+    const initial = await readReviewFindings(repository, "demo");
+    const request = { kind: "add", head, revision: initial.revision, description: "Handle empty postal code",
+      location: { path: "implementation.txt", line: 1 } };
+    const added = await editReviewFindings(repository, "demo", head, request);
+    const entry = added.entries[0]!;
+    expect(entry.status).toBe("open");
+    await expect(editReviewFindings(repository, "demo", head, request)).rejects.toThrow("findings changed");
+    const dismissed = await editReviewFindings(repository, "demo", head, { kind: "decide", head, revision: added.revision,
+      id: entry.id, action: "dismissed", note: "The caller explicitly supports a missing address." });
+    expect(dismissed.entries[0]?.status).toBe("dismissed");
+    const reopened = await editReviewFindings(repository, "demo", head, { kind: "decide", head, revision: dismissed.revision,
+      id: entry.id, action: "reopen", note: "The scenario applies to this caller." });
+    await git(root, "commit", "--allow-empty", "-m", "Fixture correction");
+    const fixedHead = await git(root, "rev-parse", "HEAD");
+    const fix = { kind: "decide", revision: reopened.revision, id: entry.id, action: "fixed", note: "Handle empty input." };
+    await expect(editReviewFindings(repository, "demo", head, { ...fix, head })).rejects.toThrow("current commit");
+    const fixed = await editReviewFindings(repository, "demo", fixedHead, { ...fix, head: fixedHead });
+    const sources = { pullRequests: () => openTarget(main, fixedHead) };
+    const verified = await readPrReview(root, "demo", { ...sources, reviewFinding: {
+      kind: "decide", head: fixedHead, revision: fixed.revision, id: entry.id, action: "verified", note: "Expiry scenario passed.",
+    } });
+    expect(verified.summary).toContain("Correction on");
+    expect(verified.summary).toContain("Expiry scenario passed.");
+    await git(root, "commit", "--allow-empty", "-m", "Later head");
+    const linked = path.join(root, "findings-linked");
+    await git(root, "worktree", "add", "--detach", linked, "HEAD");
+    expect((await readPrReview(linked, "demo")).summary).toContain("verified (historical)");
+  });
+
   it("retains the CI JUnit source and refuses to replace it from a stale review", async () => {
     const { root, head, main } = await fixture();
     const source = { forge: "GitLab" as const, repository: "team/app", execution: 7, pipeline: 33 };

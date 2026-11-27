@@ -77,7 +77,7 @@ describe("a change's actions, for the standalone app's cards", () => {
     });
   });
 
-  it.each([{ scenarioMapping: { mode: "save" } }, { junitMapping: { mode: "save" } }, { ciJUnitImport: { head: "a".repeat(40), execution: 7 } },
+  it.each([{ scenarioMapping: { mode: "save" } }, { junitMapping: { mode: "save" } }, { ciJUnitImport: { head: "a".repeat(40), execution: 7 } }, { reviewFinding: { kind: "add" } },
     { junitImport: { head: "a".repeat(40), testedCommit: "a".repeat(40), xml: "<testsuite/>" } }])("uses the worktree write guard for a PR Review write %j", async (prReview) => {
     const workspace = os.tmpdir();
     const refusal = "The worktree records do not check out.";

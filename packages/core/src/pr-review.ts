@@ -15,6 +15,7 @@ import { prepareCiRepairTask } from "./ci-repair-task.js";
 import { say } from "./message-register.js";
 import { editJUnitMapping, importJUnit, readJUnitReview, type JUnitMappingChoices, type JUnitMappingPreview } from "./junit-evidence.js";
 import { readRepositoryAuditEntries } from "./repository-audit.js";
+import { editReviewFindings, readReviewFindings, type ReviewFindings } from "./review-findings.js";
 import { readScenarioEvidence, scenarioCheckState } from "./scenario-evidence.js";
 import { editScenarioMapping, type ScenarioMappingChoices, type ScenarioMappingPreview } from "./scenario-mapping-edit.js";
 import type { AuditEntry } from "./security.js";
@@ -45,6 +46,7 @@ export interface PrReviewReport {
   junitMappingChoices?: JUnitMappingChoices;
   junitMappingPreview?: JUnitMappingPreview;
   ciJUnitForge?: "Gitea" | "GitLab";
+  findings?: ReviewFindings;
   ciRepairTask?: string;
 }
 
@@ -194,6 +196,7 @@ export async function readPrReview(root: string, changeName: string, sources: {
   junitImport?: unknown;
   junitMapping?: unknown;
   ciJUnitImport?: unknown;
+  reviewFinding?: unknown;
   prepareCiRepairTask?: boolean;
 } = {}): Promise<PrReviewReport> {
   if (!isValidChangeName(changeName)) throw new Error("Choose an active OpenSpec change.");
@@ -204,6 +207,10 @@ export async function readPrReview(root: string, changeName: string, sources: {
   const title = `PR Review for ${changeName}`;
   const git = openGit(root);
   const head = await resolveCommit(git, "HEAD");
+  if (sources.reviewFinding !== undefined && (sources.ciJUnitImport !== undefined || sources.junitImport !== undefined
+      || sources.markReviewedCommit !== undefined || sources.junitMapping !== undefined || sources.scenarioMapping !== undefined)) {
+    throw new Error("Record the review finding in a separate action.");
+  }
   const ciRequest = sources.ciJUnitImport === undefined ? undefined : ciJUnitRequest.parse(sources.ciJUnitImport);
   if (ciRequest && (ciRequest.head !== head || sources.junitImport !== undefined
       || sources.markReviewedCommit !== undefined || sources.junitMapping !== undefined || sources.scenarioMapping !== undefined)) {
@@ -349,10 +356,33 @@ export async function readPrReview(root: string, changeName: string, sources: {
     if ("preview" in edit) mappingPreview = edit.preview;
     else scenarioLines.push("", "**Mapping saved.** Commit `scenario-checks.json` to include it in the review.");
   }
+  let findings: ReviewFindings | undefined;
+  const findingLines: string[] = [];
+  if (sources.reviewFinding !== undefined) {
+    findings = await editReviewFindings(git, changeName, head, sources.reviewFinding);
+  } else if (head) {
+    try { findings = await readReviewFindings(git, changeName); }
+    catch { findingLines.push("", "### Review findings", "", "- The local review findings could not be read."); }
+  }
+  if (findings?.entries.length) {
+    findingLines.push("", "### Review findings", "");
+    for (const entry of findings.entries) {
+      const last = entry.decisions.at(-1);
+      const location = entry.location ? ` at ${literal(entry.location.path + (entry.location.line ? ":" + entry.location.line : ""))}` : "";
+      const historical = entry.status === "verified" && last?.commit !== head ? " (historical)" : "";
+      findingLines.push(`- ${entry.status}${historical}: ${literal(entry.description)}${location}. Opened on ${literal(entry.openedAt)}.`);
+      if (entry.status === "verified") {
+        const fixed = entry.decisions.at(-2);
+        if (fixed?.action === "fixed") findingLines.push(`  - Correction on ${literal(fixed.commit)}: ${literal(fixed.note)}.`);
+      }
+      if (last) findingLines.push(`  - ${last.action === "reopen" ? "Reopened" : "Decision"} on ${literal(last.commit)}: ${literal(last.note)}.`);
+    }
+  }
   const repair = sources.prepareCiRepairTask ? prepareCiRepairTask(changeName, head, forgeName, forgeReport) : undefined;
   const summary = [...heading, "", ...evidence(entries, changeName, head),
     ...(refreshChecks ? ["", `### ${forgeName} checks`, "", ...checks] : []),
     ...scopeLines,
+    ...findingLines,
     ...scenarioLines,
     ...(repair?.lines ?? []),
   ].join("\n");
@@ -365,5 +395,6 @@ export async function readPrReview(root: string, changeName: string, sources: {
     ...(junitMappingChoices === undefined ? {} : { junitMappingChoices }),
     ...(junitMappingPreview === undefined ? {} : { junitMappingPreview }),
     ...(ciJUnitForge === undefined ? {} : { ciJUnitForge }),
+    ...(findings === undefined ? {} : { findings }),
     ...(repair?.task === undefined ? {} : { ciRepairTask: repair.task }) };
 }

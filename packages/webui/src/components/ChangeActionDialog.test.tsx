@@ -92,6 +92,24 @@ describe("ChangeActionDialog", () => {
     expect(perform).toHaveBeenLastCalledWith(target, { prReview: { ciJUnitImport: { head, execution: 42 } } });
   });
 
+  it("submits a review finding with a file position and the displayed ledger revision", async () => {
+    const head = "a".repeat(40);
+    const revision = "b".repeat(64);
+    const report = { title: "PR Review", summary: "Scenario evidence", diff: null, truncated: false, head,
+      findings: { revision, entries: [] } };
+    const perform = vi.fn<PerformChangeAction>().mockResolvedValue({ kind: "pr-review", report });
+    const target = { action: "showPrReview" as const, changeName: "demo" };
+    render(<ChangeActionDialog target={target} perform={perform} onClose={() => undefined} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Review Findings" }));
+    fireEvent.change(screen.getByLabelText("Finding"), { target: { value: "Invalid session" } });
+    fireEvent.change(screen.getByLabelText("Repository path (optional)"), { target: { value: "src/session.ts" } });
+    fireEvent.change(screen.getByLabelText("Line (optional)"), { target: { value: "7" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add Review Finding" }));
+    expect(perform).toHaveBeenLastCalledWith(target, { prReview: {
+      reviewFinding: { kind: "add", head, revision, description: "Invalid session", location: { path: "src/session.ts", line: 7 } },
+    } });
+  });
+
   it("shows the fictional example and copies its summary without refreshing", async () => {
     const copy = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
     try {
