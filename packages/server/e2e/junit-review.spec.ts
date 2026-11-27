@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 import { execFile } from "node:child_process";
+import { once } from "node:events";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createServer as createHttpServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -12,6 +15,9 @@ test("imports JUnit, previews and saves a testcase mapping, and copies qualified
   const reviewExpect = expect.configure({ timeout: 20_000 });
   const root = await mkdtemp(path.join(os.tmpdir(), "osw-junit-browser-"));
   let server: OpenSpecUiServer | undefined;
+  let forge: ReturnType<typeof createHttpServer> | undefined;
+  const previousForgeUrl = process.env.GITLAB_URL;
+  const previousForgeToken = process.env.GITLAB_TOKEN;
   const execute = promisify(execFile);
   const git = async (...args: string[]) => (await execute("git", [...await gitIsolationArgs(), "-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", ...args], { cwd: root })).stdout.trim();
   try {
@@ -29,6 +35,20 @@ test("imports JUnit, previews and saves a testcase mapping, and copies qualified
     }] }));
     await git("init", "-b", "main"); await git("add", "."); await git("commit", "-m", "JUnit browser fixture");
     const head = await git("rev-parse", "HEAD");
+    forge = createHttpServer((request, response) => {
+      const job = "/api/v4/projects/team%2Fapp/jobs/7";
+      if (request.url === job) response.end(JSON.stringify({ id: 7, commit: { id: head }, pipeline: { id: 12, sha: head } }));
+      else if (request.url === `${job}/artifacts/tested-commit.txt`) response.end(head);
+      else if (request.url === `${job}/artifacts/junit.xml`) response.end('<testsuite><testcase classname="SessionTests" name="accept"/></testsuite>');
+      else if (request.url?.startsWith("/api/v4/projects/team%2Fapp/merge_requests?")) response.end("[]");
+      else { response.statusCode = 404; response.end(); }
+    });
+    forge.listen(0, "127.0.0.1");
+    await once(forge, "listening");
+    const forgeUrl = `http://127.0.0.1:${(forge.address() as AddressInfo).port}`;
+    process.env.GITLAB_URL = forgeUrl;
+    process.env.GITLAB_TOKEN = "junit-browser-fixture";
+    await git("remote", "add", "origin", `${forgeUrl}/team/app.git`);
     server = createServer({ workspaceRoot: root, host: "127.0.0.1", port: 0, runners: new Map() });
     const address = await server.listen();
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
@@ -68,8 +88,33 @@ test("imports JUnit, previews and saves a testcase mapping, and copies qualified
     await dialog.getByRole("button", { name: "Save Test Mapping" }).click();
     await reviewExpect(dialog).toContainText("Test mapping saved.");
     expect(await git("diff", "--", "openspec/changes/junit-demo/scenario-tests.json")).toContain('"name": "new case"');
+    await dialog.getByRole("button", { name: "Import CI JUnit Report", exact: true }).click();
+    await dialog.getByLabel("GitLab job ID").fill("7");
+    await dialog.getByRole("form", { name: "Import CI JUnit Report" })
+      .getByRole("button", { name: "Import CI JUnit Report", exact: true }).click();
+    await reviewExpect(dialog).toContainText("job #7, pipeline #12");
+    await expect(dialog).toContainText("execution metadata agreed");
+    await dialog.getByRole("button", { name: "Edit Review Findings", exact: true }).click();
+    await dialog.getByLabel("Finding", { exact: true }).fill("Check missing postal code");
+    await dialog.getByLabel("Repository path (optional)").fill("openspec/changes/junit-demo/proposal.md");
+    await dialog.getByLabel("Line (optional)").fill("1");
+    await dialog.getByRole("button", { name: "Add Review Finding", exact: true }).click();
+    await reviewExpect(dialog).toContainText("Check missing postal code");
+    await dialog.getByRole("button", { name: "Edit Review Findings", exact: true }).click();
+    await dialog.getByLabel("Recorded finding").selectOption({ label: "Check missing postal code (open)" });
+    await dialog.getByLabel("Decision", { exact: true }).selectOption("dismissed");
+    await dialog.getByLabel("Decision note").fill("The request is unrelated to the expiry fixture.");
+    await dialog.getByRole("button", { name: "Save Review Decision", exact: true }).click();
+    await reviewExpect(dialog).toContainText("dismissed:");
+    await expect(dialog).toContainText("The request is unrelated to the expiry fixture.");
   } finally {
+    if (previousForgeUrl === undefined) delete process.env.GITLAB_URL;
+    else process.env.GITLAB_URL = previousForgeUrl;
+    if (previousForgeToken === undefined) delete process.env.GITLAB_TOKEN;
+    else process.env.GITLAB_TOKEN = previousForgeToken;
     await server?.close();
+    const fixtureForge = forge;
+    if (fixtureForge) await new Promise<void>((resolve) => fixtureForge.close(() => resolve()));
     await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 });

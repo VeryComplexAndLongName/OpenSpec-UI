@@ -7,8 +7,21 @@
 // This file draws and asks; what each action does is the server's and core's.
 
 import { useEffect, useState } from "react";
-import { changeAction, JUNIT_XML_MAX_BYTES, PR_REVIEW_EXAMPLE, say, type ChangeActionAnswer, type ChangeActionId, type ChangeActionInput, type JUnitImport, lastDisposition, type ChangeDisposition, type ChangeDispositionRequest, type ChangeDispositionState } from "@openspec-ui/core/browser";
-import { Clipboard, Link2, Upload, Wrench } from "lucide-react";
+import {
+  changeAction,
+  JUNIT_XML_MAX_BYTES,
+  lastDisposition,
+  PR_REVIEW_EXAMPLE,
+  say,
+  type ChangeActionAnswer,
+  type ChangeActionId,
+  type ChangeActionInput,
+  type ChangeDisposition,
+  type ChangeDispositionRequest,
+  type ChangeDispositionState,
+  type JUnitImport,
+} from "@openspec-ui/core/browser";
+import { Clipboard, Download, Link2, ListChecks, Upload, Wrench } from "lucide-react";
 import { renderMarkdown } from "../markdown.js";
 import { ChangeHarnessSettingsView } from "./ChangeHarnessSettingsView.js";
 import type { HarnessSettingsApi } from "./harness-settings-parts.js";
@@ -87,7 +100,7 @@ export function ChangeActionDialog({ target, perform, harnessApi, onClose }: {
           onReviewAction={(selection) => {
             setCopyStatus("");
             send({ prReview: { ...selection, ...(checksRequested ? { refreshGitHubChecks: true } : {}),
-              ...(step.answer.kind === "pr-review" && step.answer.report.sinceLastReview && (selection.scenarioMapping || selection.junitImport || selection.junitMapping || selection.prepareCiRepairTask)
+              ...(step.answer.kind === "pr-review" && step.answer.report.sinceLastReview && (selection.scenarioMapping || selection.junitImport || selection.junitMapping || selection.ciJUnitImport || selection.reviewFinding || selection.prepareCiRepairTask)
                 ? { sinceLastReview: true } : {}) } });
           }} />
       ) : step.answer.kind === "disposition" ? (
@@ -172,7 +185,12 @@ function PrReview({ review, onCopy, copyStatus, onRefresh, onReviewAction }: {
   const junitPreview = review.junitMappingPreview;
   const repair = review.ciRepairTask;
   const [importing, setImporting] = useState(false);
+  const [importingFromCi, setImportingFromCi] = useState(false);
+  const [executionId, setExecutionId] = useState("");
   const [linkingTest, setLinkingTest] = useState(false);
+  const [editingFindings, setEditingFindings] = useState(false);
+  const execution = Number(executionId);
+  const validExecution = /^[1-9]\d*$/u.test(executionId) && Number.isSafeInteger(execution);
   return (
     <>
       <button className="button primary" type="button" onClick={() => void onCopy(review.summary)}>Copy PR summary</button>
@@ -187,6 +205,23 @@ function PrReview({ review, onCopy, copyStatus, onRefresh, onReviewAction }: {
       </button>}
       {importing && onReviewAction !== undefined && head !== undefined &&
         <JUnitImportForm head={head} onImport={(junitImport) => onReviewAction({ junitImport })} />}
+      {onReviewAction && head && review.ciJUnitForge &&
+        <button className="button" type="button" title="Import CI JUnit Report" aria-label="Import CI JUnit Report"
+          aria-expanded={importingFromCi} onClick={() => setImportingFromCi(!importingFromCi)}>
+          <Download size={16} aria-hidden="true" />
+        </button>}
+      {importingFromCi && onReviewAction && head && review.ciJUnitForge &&
+        <form aria-label="Import CI JUnit Report" onSubmit={(event) => {
+          event.preventDefault();
+          if (validExecution) onReviewAction({ ciJUnitImport: { head, execution } });
+        }}>
+          <label>{review.ciJUnitForge === "Gitea" ? "Gitea Actions run ID" : "GitLab job ID"}
+            <input inputMode="numeric" value={executionId} onChange={(event) => setExecutionId(event.currentTarget.value)} />
+          </label>
+          <button className="button" type="submit" disabled={!validExecution}>
+            <Download size={16} aria-hidden="true" /> Import CI JUnit Report
+          </button>
+        </form>}
       {onReviewAction && head && review.junitMappingChoices && !junitPreview &&
         <button className="button" type="button" title="Link scenario to JUnit test" aria-label="Link scenario to JUnit test"
           aria-expanded={linkingTest} onClick={() => setLinkingTest(!linkingTest)}>
@@ -198,6 +233,13 @@ function PrReview({ review, onCopy, copyStatus, onRefresh, onReviewAction }: {
         <button className="button" type="button" onClick={() => onReviewAction(review.sinceLastReview ? {} : { sinceLastReview: true })}>
           {review.sinceLastReview ? "Show Full PR Diff" : "Show Changes Since Last Review"}
         </button>}
+      {onReviewAction && head && review.findings &&
+        <button className="button" type="button" title="Edit Review Findings" aria-label="Edit Review Findings"
+          aria-expanded={editingFindings} onClick={() => setEditingFindings(!editingFindings)}>
+          <ListChecks size={16} aria-hidden="true" />
+        </button>}
+      {editingFindings && onReviewAction && head && review.findings &&
+        <ReviewFindingsForm key={head + review.findings.revision} head={head} findings={review.findings} onReviewAction={onReviewAction} />}
       <span role="status">{copyStatus}</span>
       <div className="openspec-md-preview">{renderMarkdown(review.summary)}</div>
       {repair !== undefined && <details><summary>CI repair task draft</summary><pre aria-label="CI repair task draft"><code>{repair}</code></pre></details>}
@@ -228,6 +270,54 @@ function PrReview({ review, onCopy, copyStatus, onRefresh, onReviewAction }: {
   );
 }
 
+function ReviewFindingsForm({ head, findings, onReviewAction }: {
+  head: string;
+  findings: NonNullable<Extract<ChangeActionAnswer, { kind: "pr-review" }>["report"]["findings"]>;
+  onReviewAction: (selection: NonNullable<ChangeActionInput["prReview"]>) => void;
+}): JSX.Element {
+  const [description, setDescription] = useState("");
+  const [file, setFile] = useState("");
+  const [line, setLine] = useState("");
+  const [id, setId] = useState("");
+  const [choice, setChoice] = useState("");
+  const [note, setNote] = useState("");
+  const entry = findings.entries.find((one) => one.id === id);
+  const action = entry?.actions.find((one) => one === choice);
+  const lineNumber = Number(line);
+  const validLine = line === "" || (file.trim() !== "" && /^[1-9]\d*$/u.test(line) && lineNumber <= 1_000_000);
+  return <div>
+    <form aria-label="Add a review finding" onSubmit={(event) => {
+      event.preventDefault();
+      if (description.trim() && validLine) onReviewAction({ reviewFinding: {
+        kind: "add", head, revision: findings.revision, description: description.trim(),
+        ...(file.trim() === "" ? {} : { location: { path: file.trim(), ...(line === "" ? {} : { line: lineNumber }) } }),
+      } });
+    }}>
+      <label>Finding<input value={description} maxLength={500} onChange={(event) => setDescription(event.currentTarget.value)} /></label>
+      <label>Repository path (optional)<input value={file} maxLength={500} onChange={(event) => setFile(event.currentTarget.value)} /></label>
+      <label>Line (optional)<input inputMode="numeric" value={line} onChange={(event) => setLine(event.currentTarget.value)} /></label>
+      <button type="submit" className="button" disabled={!description.trim() || !validLine}>Add Review Finding</button>
+    </form>
+    {findings.entries.length > 0 && <form aria-label="Record a review decision" onSubmit={(event) => {
+      event.preventDefault();
+      if (entry && action && note.trim()) onReviewAction({ reviewFinding: {
+        kind: "decide", id: entry.id, head, revision: findings.revision, action, note: note.trim(),
+      } });
+    }}>
+      <label>Recorded finding<select value={id} onChange={(event) => { setId(event.currentTarget.value); setChoice(""); setNote(""); }}>
+        <option value="">Select a finding</option>
+        {findings.entries.map((one) => <option key={one.id} value={one.id}>{one.description} ({one.status})</option>)}
+      </select></label>
+      <label>Decision<select aria-label="Decision" value={choice} onChange={(event) => setChoice(event.currentTarget.value)}>
+        <option value="">Select a decision</option>
+        {entry?.actions.map((one) => <option key={one} value={one}>{one}</option>)}
+      </select></label>
+      <label>Decision note<input value={note} maxLength={500} onChange={(event) => setNote(event.currentTarget.value)} /></label>
+      <button type="submit" className="button" disabled={!action || !note.trim()}>Save Review Decision</button>
+    </form>}
+  </div>;
+}
+
 function JUnitTestPicker({ head, choices, onReviewAction }: {
   head: string;
   choices: NonNullable<Extract<ChangeActionAnswer, { kind: "pr-review" }>["report"]["junitMappingChoices"]>;
@@ -245,7 +335,8 @@ function JUnitTestPicker({ head, choices, onReviewAction }: {
       head, reportId: choices.reportId, scenario, test: { classname: test.classname, name: test.name },
     } } });
   }}>
-    <p>{choices.testedCommit === head ? "User-declared tested commit" : "Historical report for user-declared commit"} <code>{choices.testedCommit}</code></p>
+    <p>{choices.testedCommit !== head && "Historical report. "}
+      {choices.ciSource ? `${choices.ciSource.forge} tested commit` : "User-declared tested commit"} <code>{choices.testedCommit}</code></p>
     <label>OpenSpec scenario
       <select value={scenarioIndex} onChange={(event) => setScenarioIndex(event.currentTarget.value)}>
         <option value="">Select a scenario</option>

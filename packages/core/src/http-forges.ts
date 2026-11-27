@@ -10,6 +10,7 @@ import { say, type MessageCode, type SaidMessage } from "./message-register.js";
 import { readGitHubChecks, type GitHubCheckTarget, type ReviewCheckOptions } from "./github-checks.js";
 import { readGiteaReviewChecks, readGitLabReviewChecks } from "./http-review-checks.js";
 import { assertIssueNumber, readForgeIssue } from "./forge-issue.js";
+import { readGiteaJUnit, readGitLabJUnit } from "./ci-junit.js";
 
 export type FetchLike = (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal; redirect?: "error" }) => Promise<{
   ok: boolean;
@@ -122,6 +123,10 @@ export function createGiteaForge(options: HttpForgeOptions): Forge {
   return {
     name: "Gitea",
     issueWebBase: options.base,
+    async readCiJUnit(execution) {
+      if (!options.token) throw new ForgeRefusal(say("OSW-NET-001", { token: options.tokenName }));
+      return readGiteaJUnit({ api, repository: new URL(api).origin + "/" + options.path, headers: headers() }, execution);
+    },
     async readIssue(number) {
       assertIssueNumber(number);
       return readForgeIssue(await call(options, headers(), "GET", `${api}/issues/${number}`, undefined, AbortSignal.timeout(15_000), "error"), number, "gitea");
@@ -204,6 +209,10 @@ export function createGitLabForge(options: HttpForgeOptions): Forge {
   return {
     name: "GitLab",
     issueWebBase: options.base,
+    async readCiJUnit(execution) {
+      if (!options.token) throw new ForgeRefusal(say("OSW-NET-001", { token: options.tokenName }));
+      return readGitLabJUnit({ api, repository: new URL(api).origin + "/" + options.path, headers: headers() }, execution);
+    },
     async readIssue(number) {
       assertIssueNumber(number);
       return readForgeIssue(await call(options, headers(), "GET", `${api}/issues/${number}`, undefined, AbortSignal.timeout(15_000), "error"), number, "gitlab");

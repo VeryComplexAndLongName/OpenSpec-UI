@@ -13,6 +13,8 @@ import type { ChangeDisposition, ChangeDispositionRequest, ChangeDispositionStat
 import type { PrReviewReport } from "./pr-review.js";
 import type { ScenarioMappingRequest } from "./scenario-mapping-edit.js";
 import type { JUnitMappingRequest } from "./junit-evidence.js";
+import type { CiJUnitRequest } from "./ci-junit.js";
+import type { ReviewFindingRequest } from "./review-findings.js";
 
 export type ChangeActionId =
   | "runChange"
@@ -194,7 +196,7 @@ export const JUNIT_XML_MAX_BYTES = 128 * 1024;
 export interface JUnitImport { head: string; testedCommit: string; xml: string }
 
 export interface ChangeActionInput {
-  prReview?: { refreshGitHubChecks?: true; sinceLastReview?: true; markReviewedCommit?: string; scenarioMapping?: ScenarioMappingRequest; junitImport?: JUnitImport; junitMapping?: JUnitMappingRequest; prepareCiRepairTask?: true };
+  prReview?: { refreshGitHubChecks?: true; sinceLastReview?: true; markReviewedCommit?: string; scenarioMapping?: ScenarioMappingRequest; junitImport?: JUnitImport; junitMapping?: JUnitMappingRequest; ciJUnitImport?: CiJUnitRequest; reviewFinding?: ReviewFindingRequest; prepareCiRepairTask?: true };
   relation?: { key: string; id: string };
   disposition?: ChangeDispositionRequest;
   message?: { kind: "note" | "ask"; words: string };

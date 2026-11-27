@@ -77,7 +77,8 @@ describe("a change's actions, for the standalone app's cards", () => {
     });
   });
 
-  it.each([{ scenarioMapping: { mode: "save" } }, { junitMapping: { mode: "save" } }, { junitImport: { head: "a".repeat(40), testedCommit: "a".repeat(40), xml: "<testsuite/>" } }])("uses the worktree write guard for a PR Review write %j", async (prReview) => {
+  it.each([{ scenarioMapping: { mode: "save" } }, { junitMapping: { mode: "save" } }, { ciJUnitImport: { head: "a".repeat(40), execution: 7 } }, { reviewFinding: { kind: "add" } },
+    { junitImport: { head: "a".repeat(40), testedCommit: "a".repeat(40), xml: "<testsuite/>" } }])("uses the worktree write guard for a PR Review write %j", async (prReview) => {
     const workspace = os.tmpdir();
     const refusal = "The worktree records do not check out.";
     const server = createHttpServer((req, res) => void handleChangeActionRequest(req, res, {
@@ -102,6 +103,39 @@ describe("a change's actions, for the standalone app's cards", () => {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
   });
+
+  it("imports CI JUnit through the authenticated HTTP action with GitLab job provenance", async () => {
+    await withServer(async (post, workspace) => {
+      const exec = promisify(execFile);
+      const git = async (...args: string[]) => (await exec("git", [...await gitIsolationArgs(), "-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", ...args], { cwd: workspace })).stdout.trim();
+      await git("init", "-b", "main"); await git("add", "."); await git("commit", "-m", "Fixture");
+      await git("remote", "add", "origin", "https://gitlab.com/team/app.git");
+      const head = await git("rev-parse", "HEAD");
+      const actualFetch = globalThis.fetch.bind(globalThis);
+      const api = "https://gitlab.com/api/v4/projects/team%2Fapp";
+      vi.stubEnv("GITLAB_TOKEN", "ci-junit-fixture");
+      const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (!url.startsWith(api)) return actualFetch(input, init);
+        const suffix = url.slice(api.length);
+        if (suffix === "/jobs/7") return Response.json({ id: 7, commit: { id: head }, pipeline: { id: 33, sha: head } });
+        if (suffix === "/jobs/7/artifacts/tested-commit.txt") return new Response(head);
+        if (suffix === "/jobs/7/artifacts/junit.xml") return new Response('<testsuite><testcase name="expiry"/></testsuite>');
+        if (suffix.startsWith("/merge_requests?")) return Response.json([]);
+        return new Response(null, { status: 404 });
+      });
+      try {
+        const result = await post({ cwd: workspace, changeName: "demo", action: "showPrReview",
+          input: { prReview: { ciJUnitImport: { head, execution: 7 } } } });
+        expect(result.status).toBe(200);
+        const { report } = await result.json();
+        expect(report.ciJUnitForge).toBe("GitLab");
+        expect(report.summary).toContain("job #7, pipeline #33");
+        expect(report.summary).toContain(head);
+        expect(await git("status", "--porcelain")).toBe("");
+      } finally { fetch.mockRestore(); vi.unstubAllEnvs(); }
+    });
+  }, 45_000);
 
   it("imports JUnit through authenticated HTTP and previews and saves a testcase association", async () => {
     await withServer(async (post, workspace) => {
