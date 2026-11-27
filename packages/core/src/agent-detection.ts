@@ -69,11 +69,18 @@ export interface AgentDetectionConfig {
  * differently from the agent picker in the same build, which is the
  * defect that report exists to avoid rather than to add. See
  * a-doctor-says-what-would-stop-a-run. */
-export function detectExecutable(executable: string): Promise<DetectedAgent> {
-  return detectCliAgent(executable);
+export function detectExecutable(executable: string, options: { exactVersion?: boolean } = {}): Promise<DetectedAgent> {
+  return detectCliAgent(executable, options.exactVersion ? extractExactToolVersion : extractVersionToken);
 }
 
-function detectCliAgent(executable: string): Promise<DetectedAgent> {
+export const EXACT_TOOL_VERSION = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/u;
+
+function extractExactToolVersion(output: string): string | undefined {
+  const version = output.trim().replace(/^v/u, "");
+  return EXACT_TOOL_VERSION.test(version) ? version : undefined;
+}
+
+function detectCliAgent(executable: string, versionOf = extractVersionToken): Promise<DetectedAgent> {
   return new Promise((resolve) => {
     let settled = false;
     const finish = (result: DetectedAgent) => {
@@ -109,7 +116,7 @@ function detectCliAgent(executable: string): Promise<DetectedAgent> {
       // Exit code is intentionally not checked — some CLIs exit non-zero
       // on `--version` (e.g. when it also validates auth); the fact that
       // the process spawned and ran at all is what "detected" means here.
-      finish({ detected: true, version: extractVersionToken(stdout) });
+      finish({ detected: true, version: versionOf(stdout) });
     });
   });
 }
