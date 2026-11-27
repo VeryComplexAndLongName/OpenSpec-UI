@@ -76,7 +76,7 @@ export const ACTION_VERBS: readonly ActionVerb[] = [
 
 /** What an action acts on. A noun of two words is one noun. */
 export const ACTION_NOUNS: readonly string[] = [
-  "Change", "Change Harness", "Workspace Harness", "Change Copy", "Plan", "Run", "Item", "Task", "Tasks",
+  "Change", "Change Disposition", "Change Harness", "Workspace Harness", "Change Copy", "Plan", "Run", "Item", "Task", "Tasks",
   "Question", "Questions", "Permission", "Message", "Relation", "Relations", "Diff", "Timeline", "Scenario Mapping", "Mapping Preview",
   "Test Mapping", "Test Mapping Preview", "Review Findings", "Review Finding", "Review Decision",
   "Comparison", "Cost", "Ancestry", "Details", "Status", "Readiness", "Advice", "History", "Stages",

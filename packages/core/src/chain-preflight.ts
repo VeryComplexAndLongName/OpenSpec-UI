@@ -19,6 +19,7 @@
 import { access } from "node:fs/promises";
 import path from "node:path";
 import type { AgentRunner } from "./agent-runner.js";
+import { assertActiveDisposition } from "./change-disposition.js";
 import { isValidChangeName } from "./change-name.js";
 import { findUnmetBlockers, readChangeGraph } from "./change-graph.js";
 import {
@@ -116,6 +117,12 @@ export async function resolveChainStart(request: ChainStartRequest): Promise<Cha
       ok: false,
       refusal: refusalOf(say("OSW-HRN-112", { change: changeName, directory: path.join("openspec", "changes") })),
     };
+  }
+
+  try {
+    await assertActiveDisposition(workspaceRoot, changeName);
+  } catch (error) {
+    return { ok: false, refusal: refusalOf(say("OSW-HRN-129", { reason: error instanceof Error ? error.message : String(error) })) };
   }
 
   let config: HarnessConfig;

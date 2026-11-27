@@ -239,6 +239,7 @@ const GIVEN = [
   "OSW-HRN-126",
   "OSW-HRN-127",
   "OSW-HRN-128",
+  "OSW-HRN-129",
   "OSW-AGT-001",
   "OSW-AGT-002",
   "OSW-AGT-003",
@@ -447,6 +448,10 @@ const GIVEN = [
   "OSW-CHG-011",
   "OSW-CHG-012",
   "OSW-CHG-013",
+  "OSW-CHG-033",
+  "OSW-CHG-034",
+  "OSW-CHG-035",
+  "OSW-CHG-036",
 ];
 
 /** Messages said in place rather than from the register, counted by

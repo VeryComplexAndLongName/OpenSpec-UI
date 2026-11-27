@@ -31,6 +31,8 @@ import {
   openTaskCount,
   readAgentStatuses,
   readChangeDiff,
+  readChangeDisposition,
+  setChangeDisposition,
   readPrReview,
   readSpecArchivePreview,
   readSpecOverlapReport,
@@ -41,6 +43,7 @@ import {
   renderChangeCostReport,
   resolveAgentStatusDirectory,
   resolveHarnessConfig,
+  say,
   sayCommitChange,
   sayToLiveRun,
   validateChange,
@@ -132,6 +135,17 @@ async function perform(request: ChangeActionRequest, at: ChangeActionRoot, seams
   const { changeName, cwd } = request;
   const name = changeName;
   switch (request.action) {
+    case "setChangeDisposition": {
+      if (request.input?.disposition === undefined) {
+        return { kind: "disposition", disposition: await readChangeDisposition(at.root, name) };
+      }
+      if (await liveRunOf(at.root, name)) {
+        const refusal = say("OSW-CHG-035");
+        throw new Refused(refusal.text, refusal.code);
+      }
+      const disposition = await setChangeDisposition(at.root, name, request.input.disposition);
+      return { kind: "disposition", disposition };
+    }
     case "validateChange": {
       const result = await validateChange(name, { cwd: at.root });
       const failed = result.items.filter((item) => !item.valid);

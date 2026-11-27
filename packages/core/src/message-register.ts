@@ -181,6 +181,32 @@ export const MESSAGES = {
   "OSW-CHG-031": { level: "error", text: "Use lowercase letters, numbers and dashes for the change id.", why: "The new change id is unsafe or invalid.", todo: "Choose a lowercase change id such as improve-workbench." },
   "OSW-CHG-032": { level: "error", text: "The issue changed. Preview it again before creating the change.", why: "The re-read source differs from the confirmed preview.", todo: "Review a fresh preview and confirm again." },
 
+  "OSW-CHG-033": {
+    level: "info",
+    text: "{change} is now {state}.",
+    why: "The current disposition and decision history were saved.",
+    todo: "Open the change's disposition to see its history or change the decision.",
+  },
+  "OSW-CHG-034": {
+    level: "error",
+    text: "The disposition file is invalid.",
+    why: "The recorded disposition cannot be read, so the archive cannot determine whether the change is active.",
+    todo: "Repair workbench-disposition.json and commit the correction before retrying the archive.",
+  },
+  "OSW-CHG-035": {
+    level: "error",
+    text: "Stop the run before changing this disposition.",
+    why: "The change still has a live run.",
+    todo: "Wait for the run to finish or stop it from the Pipeline, then try again.",
+  },
+
+  "OSW-CHG-036": {
+    level: "error",
+    text: "This archive includes a change that was put aside: {changes}.",
+    why: "The proposal was deferred, cancelled or could not be read after this archive pull request was opened.",
+    todo: "Restore the change or replace this archive pull request without it.",
+  },
+
   // GIT: git, branches, worktrees, push, pull requests
   // (a-change-is-committed-where-it-is-made).
   "OSW-GIT-001": {
@@ -1420,6 +1446,13 @@ export const MESSAGES = {
     text: "gitStageAllowlist.requirePushApproval must be true or false.",
     why: "A change must opt in to operator approval with a boolean value.",
     todo: "Set the value to true or false in the change's harness.json.",
+  },
+
+  "OSW-HRN-129": {
+    level: "error",
+    text: "The change's disposition prevents this run. {reason}",
+    why: "Deferred and cancelled changes keep their artifacts but are put aside from active work.",
+    todo: "Open Set Change Disposition in the Pipeline and choose Active. Repair an invalid disposition file before retrying.",
   },
 
   // AGT: agents and adapters: missing, signed out, failed.

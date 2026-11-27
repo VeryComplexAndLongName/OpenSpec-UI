@@ -5,6 +5,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PENDING_REASON, type BranchPullRequest, type Forge, type MergeMethod, type PullRequestCheckStatus } from "./gh-pr-gateway.js";
+import { setChangeDisposition } from "./change-disposition.js";
 import { createGitWrapper } from "./git.js";
 import { archiveLandedChanges, describeLandedArchive, LANDED_ARCHIVE_BRANCH_PREFIX, landedArchiveTitle, type LandedArchiveDeps } from "./landed-archive.js";
 import { gitIsolationArgs } from "./test-support/git-isolation.js";
@@ -137,6 +138,37 @@ async function exists(file: string): Promise<boolean> {
 }
 
 describe("archiveLandedChanges", () => {
+  it("does not archive a landed change that was put aside", async () => {
+    const fixture = await landed({ planned: DONE });
+    await setChangeDisposition(fixture.work, "planned", { revision: "", state: "cancelled", reason: "Withdrawn after landing the proposal" });
+    await git(fixture.work, ["add", "."]);
+    await git(fixture.work, ["commit", "-m", "Record cancellation"]);
+    await git(fixture.work, ["push", "origin", "main"]);
+    const forge = fakeForge({ planned: { number: 17, state: "MERGED" } });
+    const result = await archiveLandedChanges(depsFor(fixture, forge));
+    expect(result.due).toEqual([]);
+    expect(forge.opened).toEqual([]);
+    expect(await exists(path.join(fixture.work, "openspec", "changes", "planned", "proposal.md"))).toBe(true);
+  });
+
+  it("does not merge an existing archive that contains a now-cancelled change", async () => {
+    const fixture = await landed({ planned: DONE });
+    await git(fixture.work, ["switch", "-c", OPEN_ARCHIVE]);
+    await fakeArchive("planned", fixture.work);
+    await git(fixture.work, ["add", "."]);
+    await git(fixture.work, ["commit", "-m", "Archive the change"]);
+    await git(fixture.work, ["push", "origin", OPEN_ARCHIVE]);
+    await git(fixture.work, ["switch", "main"]);
+    await setChangeDisposition(fixture.work, "planned", { revision: "", state: "cancelled", reason: "Withdrawn during archive review" });
+    await git(fixture.work, ["add", "."]);
+    await git(fixture.work, ["commit", "-m", "Record cancellation"]);
+    await git(fixture.work, ["push", "origin", "main"]);
+    const forge = fakeForge({ [OPEN_ARCHIVE]: { number: 70, state: "OPEN" } });
+    const result = await archiveLandedChanges(depsFor(fixture, forge));
+    expect(result.followed?.outcome).toMatchObject({ state: "blocked", code: "OSW-CHG-036" });
+    expect(forge.merged).toEqual([]);
+  });
+
   it("archives every change that landed with nothing open, in one pull request", async () => {
     const fixture = await landed({ "first-done": DONE, "second-done": DONE, "still-open": OPEN, "in-review": DONE });
     const forge = fakeForge({ "in-review": { number: 12, state: "OPEN" } });

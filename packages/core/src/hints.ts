@@ -158,7 +158,7 @@ function nameSome(set: string[]): string {
 
 export function buildHints(report: ChangeReadinessReport, options: HintOptions = {}): Hint[] {
   const hints: Hint[] = [];
-  const ready = report.changes.filter((change) => change.run.state === "ready");
+  const ready = report.changes.filter((change) => change.run.state === "ready" && (change.disposition?.state ?? "active") === "active");
 
   hints.push(...runTogether(maximalSets(ready), options));
 

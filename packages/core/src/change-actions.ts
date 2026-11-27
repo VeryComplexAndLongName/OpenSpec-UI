@@ -9,6 +9,7 @@
 // does.
 
 import { actionCommandId, actionVerb, type ActionGroup } from "./action-vocabulary.js";
+import type { ChangeDisposition, ChangeDispositionRequest, ChangeDispositionState } from "./change-disposition-facts.js";
 import type { PrReviewReport } from "./pr-review.js";
 import type { ScenarioMappingRequest } from "./scenario-mapping-edit.js";
 import type { JUnitMappingRequest } from "./junit-evidence.js";
@@ -34,6 +35,7 @@ export type ChangeActionId =
   | "openChangeCopy"
   | "commitChange"
   | "configureChangeHarness"
+  | "setChangeDisposition"
   | "addRelation"
   | "removeRelation"
   | "archiveChange"
@@ -90,6 +92,7 @@ export const CHANGE_ACTIONS: readonly ChangeAction[] = [
   // Everything its worktree holds, committed on its branch and pushed
   // (a-change-is-committed-where-it-is-made).
   action("commitChange", "Commit Change", "git-commit", true),
+  action("setChangeDisposition", "Set Change Disposition...", "milestone", true),
   action("configureChangeHarness", "Configure Change Harness", "gear", true),
   action("addRelation", "Add Relation...", "link", true),
   action("removeRelation", "Remove Relation...", "debug-disconnect", true),
@@ -118,6 +121,7 @@ export interface ChangeActionFacts {
   running: boolean;
   /** Its tasks still open, where they were read. */
   openTasks?: number;
+  disposition?: ChangeDispositionState;
   /** Its branch is not on the server as it is here: never pushed, or at
    * another commit (a-change-is-committed-where-it-is-made). */
   notOnServer?: boolean;
@@ -136,6 +140,9 @@ const RUNNING = "A run of this change is going: stop it first.";
 function reasonAgainst(action: ChangeAction, facts: ChangeActionFacts): string | undefined {
   if (action.writes && facts.where === "unverified") {
     return "The records of the directory it is worked in do not check out: work on it there.";
+  }
+  if (facts.disposition !== undefined && facts.disposition !== "active" && (action.id === "runChange" || action.id === "archiveChange")) {
+    return `Restore the ${facts.disposition} change first.`;
   }
   switch (action.id) {
     case "runChange":
@@ -157,6 +164,7 @@ function reasonAgainst(action: ChangeAction, facts: ChangeActionFacts): string |
       return facts.openTasks !== undefined && facts.openTasks > 0
         ? `${facts.openTasks} task(s) are still open.`
         : undefined;
+    case "setChangeDisposition":
     case "rollbackChange":
     case "deleteChange":
       return facts.running ? RUNNING : undefined;
@@ -180,6 +188,7 @@ export type ChangeActionAnswer =
   | { kind: "report"; title: string; markdown: string }
   | { kind: "pr-review"; report: PrReviewReport }
   | { kind: "done"; message: string }
+  | { kind: "disposition"; disposition: ChangeDisposition }
   | { kind: "relations"; keys: readonly string[]; changes: string[]; stated: Array<{ key: string; id: string }> };
 
 /** What a person gave an action that asks first. */
@@ -189,6 +198,7 @@ export interface JUnitImport { head: string; testedCommit: string; xml: string }
 export interface ChangeActionInput {
   prReview?: { refreshGitHubChecks?: true; sinceLastReview?: true; markReviewedCommit?: string; scenarioMapping?: ScenarioMappingRequest; junitImport?: JUnitImport; junitMapping?: JUnitMappingRequest; ciJUnitImport?: CiJUnitRequest; reviewFinding?: ReviewFindingRequest; prepareCiRepairTask?: true };
   relation?: { key: string; id: string };
+  disposition?: ChangeDispositionRequest;
   message?: { kind: "note" | "ask"; words: string };
   stop?: { afterTask?: string; reason: string };
 }

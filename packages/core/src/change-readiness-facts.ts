@@ -45,6 +45,7 @@ export type ChangeRunState =
 
 export interface ChangeReadiness {
   changeName: string;
+  disposition?: import("./change-disposition-facts.js").ChangeDispositionDecision;
   run: ChangeRunState;
   /** The changes this one declares it is blocked by, kept to those that
    * are still active — a blocker that has archived is satisfied, and is

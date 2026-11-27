@@ -20,6 +20,8 @@ import { createGitWrapper, type GitWorktree, type GitWrapper } from "./git.js";
 import { openQuestions } from "./decisions-file.js";
 import { pathKey } from "./path-key.js";
 import { readTaskChecklist, readTaskChecklistOf, taskNumberOf, type TaskChecklistItem } from "./task-checklist.js";
+import { readChangeDisposition } from "./change-disposition.js";
+import { lastDisposition } from "./change-disposition-facts.js";
 import { discoverOpenSpecWorkspace, type WorkbenchChange } from "./workbench.js";
 import { taskInHand } from "./task-marker.js";
 import { readWorkspaceLeaseHolder } from "./workspace-lease.js";
@@ -218,8 +220,10 @@ async function surveyChanges(directory: string): Promise<{ changes: SurveyedChan
       // whether one is running at all (ADR 0042).
       const questions = (await openQuestions(path.join(directory, "openspec", "changes", changeName)).catch(() => []))
         .map((question) => ({ questionId: question.id, text: question.text }));
+      const disposition = lastDisposition(await readChangeDisposition(directory, changeName).catch(() => undefined));
       changes.push({
         changeName,
+        ...(disposition !== undefined ? { disposition } : {}),
         tasksDone: items.filter((item) => item.done).length,
         tasksTotal: items.length,
         blockers,

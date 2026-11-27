@@ -16,6 +16,7 @@ const vscodeMock = createVscodeMock();
 vi.mock("vscode", () => vscodeMock);
 
 const readPrReviewMock = vi.fn();
+const setChangeDispositionMock = vi.fn();
 const pickJUnitReportMock = vi.fn();
 vi.mock("./junit-import.js", () => ({ pickJUnitReport: (...args: unknown[]) => pickJUnitReportMock(...args) }));
 const listChangesMock = vi.fn();
@@ -88,6 +89,9 @@ vi.mock("@openspec-ui/core", async () => ({
   // (changes-shows-one-change-and-who-owns-it).
   ...(await vi.importActual<typeof import("@openspec-ui/core/browser")>("@openspec-ui/core/browser")),
   readPrReview: (...args: unknown[]) => readPrReviewMock(...args),
+  assertActiveDisposition: vi.fn(async () => undefined),
+  readChangeDisposition: vi.fn(async () => ({ revision: "", history: [] })),
+  setChangeDisposition: (...args: unknown[]) => setChangeDispositionMock(...args),
   prReviewMarkdown: (await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core")).prReviewMarkdown,
   AGENT_REGISTRY: [
     { id: "claude-cli", label: "Claude CLI", provider: "anthropic" },
@@ -1660,6 +1664,21 @@ describe("registerCommands", () => {
       expect(writeGlobalHarnessConfigMock).not.toHaveBeenCalled();
       expect(deps.showHarnessSettings).not.toHaveBeenCalled();
     });
+  });
+
+  it("defers a change in its own working directory from the native action", async () => {
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+    vscodeMock.window.showQuickPick.mockResolvedValueOnce({ label: "Deferred", value: "deferred" });
+    vscodeMock.window.showInputBox.mockResolvedValueOnce("Waiting for the API");
+    await vscodeMock._registeredCommands.get("openspec-ui.setChangeDisposition")?.({
+      changeName: "demo-change", changeDir: "/workspace/repo/openspec/changes/demo-change", archived: false,
+      ownership: { kind: "elsewhere", label: "demo-change", path: "/wt/demo-change" },
+    });
+    expect(setChangeDispositionMock).toHaveBeenCalledWith("/wt/demo-change", "demo-change", {
+      revision: "", state: "deferred", reason: "Waiting for the API",
+    });
+    expect(deps.refreshTrees).toHaveBeenCalled();
   });
 
   describe("openspec-ui.configureChangeHarness", () => {
